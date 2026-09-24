@@ -34,18 +34,23 @@ solana config set --url localhost --keypair /workspace/launchpad/.keys/devnet-on
 cd /workspace/launchpad
 source scripts/env.sh                # PATH + ANCHOR_BUILD_SBF_ARCH=v2
 ./scripts/build.sh                   # anchor build (SBPF v2) → target/deploy/*.so, target/idl/*.json
-./scripts/test.sh                    # anchor test --validator legacy: builds, starts local validator,
-                                     # runs LiteSVM tests + localnet smoke test, stops validator
+./scripts/test.sh                    # anchor test --validator legacy: builds (SBPF v2 + IDL), starts local
+                                     # validator, runs `cargo test --workspace --locked`, stops validator
 ./scripts/test.sh --skip-build       # reuse existing build
-cargo test -p holder_lottery --lib   # fast pure-Rust unit tests
+cargo test -p hybrid_launch --lib    # fast pure-Rust unit tests (validation math)
+cargo test -p track-a-hybrid-tests   # LiteSVM tests (needs a prior build: target/deploy + target/idl)
 ./scripts/devnet-airdrop-once.sh     # ONE devnet airdrop attempt (rate-limited; failure is fine)
 ```
 
 ## Layout
 
-- `programs/fee_treasury`, `programs/holder_lottery`: Anchor programs. Their LiteSVM tests are in `programs/*/tests/`.
-- `tests/localnet-smoke`: Rust integration test against a live local validator. It only runs when
-  `ANCHOR_PROVIDER_URL` is set and refuses non-localhost URLs.
+- `programs/hybrid_launch`: Track A launch program (ADR-010). Unit tests in `src/validation.rs`.
+- `tests/track-a-hybrid`: crate `track-a-hybrid-tests`. LiteSVM tests that load `target/deploy/hybrid_launch.so`;
+  one `[[test]]` per instruction area (`launch/launch.rs`). Test names state the attack they prove.
+- `tests/_shelved/`, `tests/.keys/`: QA's; not part of the Cargo workspace.
+- `shelved/`: **SHELVED** Track B code (`fee_treasury`, `holder_lottery`, `localnet-smoke`), excluded from the
+  workspace (`exclude = ["shelved"]`) and from `Anchor.toml`. It uses `edition.workspace`, so it doesn't build
+  standalone; the fuller WIP is on local branch `shelved/track-b-t22`. See `shelved/README.md`.
 - `scripts/`: env/build/test helpers.
 - Other top-level folders (`app/`, `design/`, `qa/`, `security/`, `reference/`, `docs/BRIEF.md`) belong to other
   teams. The Anchor tooling doesn't touch them: `.prettierignore` excludes them, and there's no root `package.json`
@@ -64,7 +69,10 @@ cargo test -p holder_lottery --lib   # fast pure-Rust unit tests
 6. **Standalone `cargo build-sbf`** uses platform-tools v1.54 and overwrites `target/deploy/*.so`. Rebuild with
    `./scripts/build.sh` before testing.
 7. **Anchor rewrites Anchor.toml** (it drops comments) on some commands. Keep notes here instead.
-8. **Switchboard / ORAO crates vs Anchor 1.2.**
+8. **anchor-spl 1.2.0 feature quirks.** The `token_2022` feature also needs `token`. And `idl-build` references
+   `token_interface` unconditionally, so a program's `idl-build` feature must also enable `anchor-spl/token_2022`
+   (IDL generation only; `hybrid_launch` itself never uses Token-2022).
+9. **Switchboard / ORAO crates vs Anchor 1.2.**
    - `switchboard-on-demand` 0.13.0 with `default-features=false, features=["solana-v3"]` passes host `cargo check`,
      but the SBF build fails (getrandom via k256). The `anchor` feature forces solana-v2 and fails.
    - `orao-solana-vrf` 0.7.0 pulls anchor-lang 0.32.2, and its CPI types don't unify with 1.2.

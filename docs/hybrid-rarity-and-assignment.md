@@ -1,10 +1,11 @@
 # Hybrid collections: cosmetic rarity, assignment, escrow selection, re-rolls
 
-Status: **Proposed design (research + design only, no program code yet).** Owner: Solana Program Engineer. Date: 2026-09-24.
-**Basis (decided):** ADR-004 is **Accepted by Barton** (2026-09-24, 2:45 PM MT). There are two launch types. Hybrid =
-classic SPL Token, untaxed, convertible, exact unwrap. Rewards = Token-2022 taxed, funds the lottery, not convertible.
-This doc covers **Hybrid launches only**. There's no transfer fee anywhere in the wrap/unwrap/re-roll path, so every
-amount below is exact.
+Status: **Proposed design.** Owner: Solana Program Engineer. Date: 2026-09-24, updated after the SCOPE CHANGE (ADR-009).
+**Basis (decided):** Token-2022 is dropped/deferred (ADR-009, supersedes ADR-004's two-type model). The product is
+SPL-404 hybrid launches only: classic SPL Token, untaxed, convertible, exact unwrap. There's no transfer fee anywhere in
+the wrap/unwrap/re-roll path, so every amount below is exact. The engine-independent launch step (mint 1B, revoke
+authorities, immutable LaunchConfig) is **built** as `programs/hybrid_launch` (ADR-010). The engine choice (MPL-Hybrid
+vs `hybrid_vault`) is still Barton's (ADR-008, Q-H1). Re-roll fee = **burn** (§4).
 
 Inputs: BRIEF.md §Decisions (2026-09-24), [transfer-tax-vs-wrap.md](transfer-tax-vs-wrap.md), Auditor B findings B-01/B-12/B-16 and sim (`../security/auditor-b/sim/reroll_ev_output.txt`).
 Decision record: [DECISIONS.md](DECISIONS.md) ADR-008. Threats: [THREAT_MODEL.md](THREAT_MODEL.md) T-HV-*.
@@ -16,7 +17,7 @@ Decision record: [DECISIONS.md](DECISIONS.md) ADR-008. Threats: [THREAT_MODEL.md
 | 1. Supply check | `collection_size × ratio ≤ 1,000,000,000`, checked with `checked_mul` in base units by the on-chain `initialize` (source of truth) and mirrored in the launch wizard. Undersized collections are allowed, and the copy says how much of the supply can be in NFT form at once. |
 | 2. Rarity assignment | **Pre-committed trait list plus a VRF permutation.** The creator commits a Merkle root of the full trait list before launch. A VRF seed drawn at lock keys a Feistel permutation from NFT index to list position. Each NFT's metadata is bound on-chain with a Merkle proof. Anyone can recompute it. |
 | 3. Escrow selection | **No configuration of MPL-Hybrid meets "no choosing, no peeking."** Recommend (iii): a minimal custom `hybrid_vault` program. Capture and reroll are two-step (lock payment → VRF → permissionless settle), settled in strict FIFO order over a sequenced pool. Release is instant and exact. MPL-Hybrid isn't kept in the swap path. |
-| 4. Re-rolls | Re-roll = hand in your NFT, get a VRF-random *different* NFT from the pool, same two-step flow. The fee is a **token fee as a % of the ratio** (scale-invariant) plus a small SOL fee that covers VRF and rent. The capture fee must be ≥ the reroll fee, so unwrap→rewrap is never a cheaper reroll. Fees are bounded and timelocked, and each request is charged the fee in force when it was made. The destination is an open question (creator/treasury split recommended, no burn). |
+| 4. Re-rolls | Re-roll = hand in your NFT, get a VRF-random *different* NFT from the pool, same two-step flow. The fee is a **token fee as a % of the ratio** (scale-invariant) plus a small SOL fee that covers VRF and rent. The capture fee must be ≥ the reroll fee, so unwrap→rewrap is never a cheaper reroll. Fees are capped and **fixed at init** (ADR-009: no mutable economics). The token fee is **burned** (Barton's default, ADR-009); only the SOL cost fee is paid out (to the VRF/rent payer). |
 
 ---
 
@@ -240,14 +241,14 @@ Instructions (all tokens are classic SPL Token, program pinned):
 
 | Instruction | Who | Effect |
 |---|---|---|
-| `initialize` | creator (once) | §1 checks, store immutable `ratio`, `collection_size`, `mint`, `trait_root`, `leaf_count`, fee params (bounded), fee destinations. CPI-creates the Core collection with the program PDA as update authority and no Permanent delegates |
+| `initialize` | creator (once) | §1 checks (or read them from the immutable `hybrid_launch::LaunchConfig`), store immutable `ratio`, `collection_size`, `mint`, `trait_root`, `leaf_count`, fee params (capped, immutable), token fee destination = burn. CPI-creates the Core collection with the program PDA as update authority and no Permanent delegates |
 | `request_permutation_seed` / `store_seed` | anyone | §2 lock step. Capture stays closed until the seed is stored |
-| `request_capture` | user | transfer exactly `ratio` tokens to the vault ATA, token fee to fee ATA, SOL fee (VRF + worst-case asset rent); create `Request{seq, kind=Capture, recipient, vrf_account, deadline}` |
+| `request_capture` | user | transfer exactly `ratio` tokens to the vault ATA, **burn** the token fee from the user's account (`token::burn`, separate from the ratio), SOL fee (VRF + worst-case asset rent); create `Request{seq, kind=Capture, recipient, vrf_account, deadline}` |
 | `request_reroll(asset)` | NFT owner | transfer the NFT into the vault (goes to incoming with this request's `seq`, so it's excluded from its own draw), fees as above |
 | `settle` | anyone | head of queue only. Merge incoming `< seq`, verify pinned VRF account fulfilled, select, mint-on-first-exit (Merkle proof, §2) or transfer the existing asset to `recipient`, close the request |
 | `release(asset)` | NFT owner | single tx, deterministic: NFT → vault (incoming, new `seq`), exactly `ratio` tokens → owner. No randomness needed |
 | `expire` | anyone | only if the VRF is unfulfilled after `deadline_slot`. Refund as above |
-| `propose_fees` / `execute_fees` | multisig | bounded (hard-coded caps) and timelocked (≥ 72h). Pending requests keep the fee in force when they were made |
+| ~~`propose_fees` / `execute_fees`~~ | n/a | **Removed by ADR-009:** fees are fixed at init. The only admin power considered is `pause_new_requests` (multisig + timelock, never blocks `release`/`settle`/`expire`), see admin-multisig-timelock.md |
 
 Invariants, asserted in tests and fuzzing after every instruction:
 - `vault_token_balance ≥ ratio × nfts_outside_vault`. This is equality unless someone donates tokens.
@@ -265,7 +266,7 @@ Invariants, asserted in tests and fuzzing after every instruction:
     fulfilment.
   - Pool shifting is impossible, because of FIFO + `seq` merge.
   - Residual: grinding at honest odds, priced by fees (§4).
-- *Escrow drain:* no admin withdraw, immutable ratio/mint, and fee changes are bounded and timelocked. Upgrade
+- *Escrow drain:* no admin withdraw, immutable ratio/mint/fees/fee destination (burn). Upgrade
   authority is a multisig, then final after audit.
 - *Cost:*
   - VRF per capture/reroll: ORAO ~0.001 SOL; Switchboard pays randomness-account rent (reclaimable) plus the oracle fee.
@@ -302,7 +303,7 @@ the same reroll**. The handed-in NFT becomes selectable for later requests.
 | Scales with NFT value | **Yes.** The NFT floor = R × token price, so a fee of `f × R` tokens stays the same fraction of floor at any price | No. A 0.02 SOL fee is huge at launch and negligible if the token 100×'s, which makes farming cheap exactly when rares are valuable |
 | Covers VRF/rent costs (SOL) | No | Yes |
 | User clarity | "Re-roll costs 2% of an NFT ({f×R} $TICKER)" | "0.02 SOL" (the design mock uses 0.01/0.02 SOL examples) |
-| Supply impact | None if not burned | None |
+| Supply impact | Burned (ADR-009): supply only decreases; backing unaffected (§4 burn safety) | None |
 
 **Recommendation:** a **token fee `reroll_fee_bps` of R** (e.g. 200 bps = 2%, hard cap 1,000 bps), plus a **small SOL
 fee** set to cover VRF and worst-case asset rent (~0.003 SOL, capped). Sizing rule: honest grinding for a trait with
@@ -311,10 +312,29 @@ pool trading at 20× floor is break-even at f = 2%. The protocol never promises 
 disclosure-backed default, not a guarantee. Auditor B's sim shows why SOL-only fees fail when premiums rise (legendary
 grinding goes profitable once the premium exceeds ~50 SOL at a 0.05 SOL cycle cost).
 
-**Fee destination (open question Q-H3):** recommend a **creator/platform split** into fixed, stored fee accounts (PDA
-or creator ATA recorded at init, never an instruction argument). **Burning isn't recommended.** It would make "fixed
-supply exactly 1B" untrue over time and adds nothing to backing. Sending fees to the vault as "extra backing" isn't
-recommended either (unaccounted balance, invariant noise).
+**Fee destination: BURN (decided, ADR-009).** Barton chose burn as the default on 2026-09-24. This **supersedes my
+earlier recommendation** (creator/platform split, "no burn"). Burning means no program or person ever custodies a fee
+pile (Stonk.fun lesson 2). Copy: "Fixed at 1,000,000,000 at launch. No one can mint more; re-roll burns can only
+reduce it." Short form: "fixed 1B at launch; re-roll fees are burned". The SOL cost fee can't be burned; it pays the
+VRF and rent and nothing else.
+
+**Burn safety (why burning can't make the vault insolvent):**
+1. Supply starts at exactly `S0 = 1B × 10^d` and can only go down: the mint authority is `None` (✅ `hybrid_launch`).
+2. Backing is owed only for NFTs in circulation: `required = ratio × nfts_outside_vault`, held in the vault ATA.
+3. The token fee is paid **from the user's own balance, on top of** the ratio. A re-roll moves no backing at all (NFT
+   in, NFT out). A capture moves exactly `ratio` into the vault and burns a separate `capture_fee_amount`. Nothing
+   ever burns from the vault, and no instruction lets anyone name the vault as the burn source.
+4. So `vault ≥ ratio × nfts_outside_vault` is preserved by every instruction, and `release` always pays exactly
+   `ratio`. Exact unwrap is unaffected.
+5. Accounting becomes `circulating + vault + Σburned == S0`. `max_tokens_in_nft_form = N × R` stays a design cap; once
+   burns push supply below `N × R`, not every NFT can be in circulation at once. That's harmless: NFTs still in the
+   pool simply stay there, and every circulating NFT is fully backed. The copy "Up to {N×R} can be held as NFTs"
+   needs "at launch" or a live figure (QA Q9).
+6. **Engine caveat:** with `hybrid_vault` the burn is an inline `token::burn` CPI. MPL-Hybrid has no "burn the fee"
+   option: fees go to `recipe.fee_location`, and its `BurnOnCapture`/`BurnOnRelease` paths burn the **backing**, not
+   the fee, so they're forbidden. Under MPL-Hybrid the burn needs `fee_location` = a program PDA whose only
+   instruction is a permissionless `burn_all` crank (transient custody, no withdraw path), and `update_recipe` can
+   still overwrite `fee_location` (T-HY-01).
 
 ### Abuse cases
 
@@ -327,8 +347,8 @@ recommended either (unaccounted balance, invariant noise).
 | **Pool manipulation after VRF is known** | FIFO settlement + `seq`-bounded merge (§3.3) |
 | **Revert after seeing the result** | Settle is separate and permissionless, with no cancel after fulfilment |
 | **VRF never fulfils** | `expire` after `deadline_slot` returns the NFT or tokens. The fee is refunded minus VRF cost |
-| **Escrow authority raises the fee** | Fees are changed only via `propose_fees` → ≥ 72h timelock → `execute_fees`, within hard-coded caps (≤ 10% of R token fee, ≤ 0.05 SOL). Requests lock in the fee in force when they were made. There's no fee on release |
-| **Fee destination swapped to an attacker** | Destinations are fixed at init. Changing one goes through the same timelock with a multisig |
+| **Escrow authority raises the fee** | Impossible: fees are fixed at init within hard-coded caps (≤ 10% of R token fee, ≤ 0.05 SOL) and no instruction changes them (ADR-009). There's no fee on release |
+| **Fee destination swapped to an attacker** | There is no destination account: the token fee is burned (fixed at init, ADR-009) |
 | **Queue flooding (DoS on head of line)** | Each request locks R tokens (or an NFT) plus fees, so flooding needs capital and pays fees. Settle is cheap and cranked. `expire` handles stuck heads |
 | **Dust/partial fills** | Amounts are exact: `ratio` tokens, never partial |
 
@@ -340,8 +360,8 @@ recommended either (unaccounted balance, invariant noise).
   launches; adds it to audit scope)?
 - **Q-H2:** Re-roll and capture fees as a **% of the ratio in tokens** plus a small SOL cost fee (recommended), instead
   of the SOL-only fees in the current mock (0.01/0.02 SOL)? Default 2%?
-- **Q-H3:** Fee destination: creator only, platform only, or a split (recommended)? Confirm **no burn** (keeps
-  "exactly 1B" literally true).
+- ~~**Q-H3:** Fee destination~~ **Resolved (ADR-009): BURN**, Barton's decision; supersedes my "no burn"
+  recommendation. New follow-up: is the **capture** fee burned too (engineering default: yes, same path)?
 - **Q-H4:** OK to require `capture fee ≥ reroll fee` (i.e. wrapping has a small fee) and keep unwrap token-fee-free?
 - **Q-H5:** Lazy minting (first capturer pays ~0.0016 SOL rent per NFT) vs creator pre-mints everything (≈1.6 SOL per
   1,000 NFTs; ≈156 SOL at 100,000)?

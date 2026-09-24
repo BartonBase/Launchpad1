@@ -1,0 +1,26 @@
+[package]
+name = "track-a-hybrid-tests"
+version = "0.1.0"
+description = "Track A (SPL-404) LiteSVM tests. Localnet only; runs the real SBF binary from target/deploy."
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+path = "lib.rs"
+
+[[test]]
+name = "launch"
+path = "launch/launch.rs"
+
+[dev-dependencies]
+anchor-lang = "=1.2.0"
+anchor-spl = { version = "=1.2.0", default-features = false, features = ["token", "associated_token"] }
+hybrid_launch = { path = "../../programs/hybrid_launch", features = ["no-entrypoint"] }
+litesvm = "=0.10.0"
+solana-account = "3.4.0"
+solana-message = "3.0.1"
+solana-transaction = "3.0.2"
+solana-signer = "3.0.0"
+solana-keypair = "3.0.1"
+serde_json = "1"

@@ -1,52 +1,145 @@
 # On-chain architecture
 
-Owner: Solana Program Engineer. Status: **scaffold (v0.1)**, localnet/devnet only. Not audited, not for mainnet.
-Related: [DECISIONS.md](DECISIONS.md), [THREAT_MODEL.md](THREAT_MODEL.md), [transfer-tax-vs-wrap.md](transfer-tax-vs-wrap.md),
-[DEV_SETUP.md](DEV_SETUP.md), master spec [BRIEF.md](BRIEF.md). Auditor inputs: `../security/auditor-a/`, `../security/auditor-b/`.
+Owner: Solana Program Engineer. Status: **v0.2 (2026-09-24, after ADR-009)**, localnet/devnet only. Not audited, not
+for mainnet. Related: [DECISIONS.md](DECISIONS.md), [THREAT_MODEL.md](THREAT_MODEL.md),
+[admin-multisig-timelock.md](admin-multisig-timelock.md), [hybrid-rarity-and-assignment.md](hybrid-rarity-and-assignment.md),
+[qa-answers.md](qa-answers.md), [DEV_SETUP.md](DEV_SETUP.md), master spec [BRIEF.md](BRIEF.md). Auditor inputs:
+`../security/auditor-a/`, `../security/auditor-b/`.
+
+> **Scope (ADR-009, Barton 2026-09-24 2:51 PM MT):** **Track A only**, SPL-404 hybrid launches on a classic SPL Token.
+> **Track B** (Token-2022 transfer tax for existing collections → tax treasury buying NFTs from the token's own existing
+> collection → holder raffle) is **SHELVED/DEFERRED**; its design is kept at the end of this file, marked 💤.
 
 ## Principles
 
-1. **Use audited/standard programs wherever possible, and write custom code only where nothing standard exists.**
-   There's no custom transfer-fee program (ADR-003). The one exception is the proposed `hybrid_vault` (ADR-008), because
-   no standard program can do VRF-selected, no-peeking wraps.
-2. **Minimal, revocable authorities.** Mint and freeze authority are revoked at launch. Fee authorities are program PDAs,
-   not keys. Admin powers are limited to pausing and bounded parameter changes, and admin is a multisig before mainnet.
-3. **The distribution layer (treasury, lottery, prizes) gets the heaviest scrutiny.** It holds pooled value and pays
-   strangers, which is the pattern behind the incident the BRIEF names (see THREAT_MODEL.md §Stonk.fun).
-4. **No outflow to a caller-chosen address.** Every destination is derived (PDA) or stored at init.
+1. **Use audited/standard programs wherever possible; write custom code only where nothing standard exists.**
+   `hybrid_launch` exists because the launch invariants must be enforced on-chain in one step; `hybrid_vault`
+   (ADR-008, proposed) because no standard program does VRF-selected, no-peeking wraps.
+2. **No authorities, no mutable economics (ADR-009 C3).** Mint and freeze authority are revoked at launch. Ratio,
+   collection size, fees, fee destination and mint are fixed at init. The only admin power under consideration is an
+   auto-expiring "pause new captures" that can never block unwrap
+   ([admin-multisig-timelock.md](admin-multisig-timelock.md)).
+3. **No operator wallet custodies value (ADR-009 C2).** Fees are burned; backing sits in program PDAs; nothing is
+   swept by a person (the Stonk.fun failure, THREAT_MODEL.md §Stonk.fun).
+4. **No outflow to a caller-chosen address.** Every destination is derived (PDA/ATA) or stored at init.
 
-## Launch types (ADR-004, **Accepted by Barton 2026-09-24**; see transfer-tax-vs-wrap.md)
+## Track A: SPL-404 hybrid launch
 
-| | **Hybrid** (token ⇄ NFT) | **Rewards** (taxed) |
-|---|---|---|
-| Fungible mint | Classic SPL Token (`Tokenkeg…`) | Token-2022 (`TokenzQd…`) + TransferFeeConfig (+ MetadataPointer/TokenMetadata) |
-| Supply | Exactly 1,000,000,000 × 10^decimals, minted once | same |
-| Mint / freeze authority | Revoked (`None`) at launch | Revoked (`None`) at launch |
-| Transfer tax | None | `bps` + `maximum_fee`, fee → fee_treasury |
-| NFT | Metaplex Core collection + **`hybrid_vault`** (ADR-008, proposed; replaces MPL-Hybrid). Ratio `R` ∈ {10k, 50k, 100k, 200k, 1M}, `collection_size × R ≤ 1B` | none of its own; lottery prizes are bought NFTs |
-| Rarity | Cosmetic only: every NFT redeems for exactly R. Traits come from a pre-committed list + VRF permutation | n/a |
-| Converter | Yes, exact R both ways. Capture/re-roll are VRF-selected (two-step), release is instant | **No** |
-| Custom programs involved | `hybrid_vault` (proposed) | `fee_treasury`, `holder_lottery` |
+| Property | Value |
+|---|---|
+| Fungible mint | Classic SPL Token (`Tokenkeg…`). Token-2022 is rejected on-chain |
+| Supply | Exactly 1,000,000,000 × 10^decimals, minted once by `hybrid_launch`. Afterwards it can only go down (burns) |
+| Mint / freeze authority | Mint revoked in the same instruction; freeze never set |
+| Transfer tax | None |
+| Ratio `R` | ∈ {10k, 50k, 100k, 200k, 1M} whole tokens per NFT |
+| Collection size `N` | `N × R ≤ 1B` (checked_mul). Max: 100,000 / 20,000 / 10,000 / 5,000 / 1,000 |
+| NFT | Metaplex Core collection, cosmetic rarity; traits from a pre-committed list + VRF permutation (ADR-008) |
+| Convert | Exact R both ways. Capture/re-roll are VRF-selected (blind); release is instant |
+| Fees | Capture and re-roll token fees as bps of R (≤ 10%, capture ≥ re-roll), **burned**; SOL cost fee for VRF/rent (engine) |
+| Copy | "Fixed at 1,000,000,000 at launch. No one can mint more; re-roll burns can only reduce it." |
 
 ## Components
 
 | Component | Kind | Program ID | Status |
 |---|---|---|---|
 | SPL Token | standard, audited | `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA` | hybrid fungible |
-| Token-2022 (TransferFee) | standard, audited | `TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb` | rewards fungible + tax |
 | Associated Token Account | standard | `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL` | |
-| Metaplex Core | Metaplex | `CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d` | NFT standard (devnet: executable ✔) |
-| MPL-Hybrid (MPL-404) | Metaplex, **README says "Audit Pending"**, upgradeable by `mp14o4AQ…` | `MPL4o4wMzndgh8T1NVDxELQCj5UQfYTYEkabX3wNKtb` | **Not in the swap path under ADR-008.** Can't do no-choosing/no-peeking (hybrid-rarity-and-assignment.md §3.2). Reference only |
-| **`hybrid_vault`** | **custom (planned, ADR-008)** | — | hybrid escrow: VRF capture/re-roll, exact release, trait commitment |
-| Bonding curve / AMM | third party (TBD: Raydium CPMM / Meteora DAMM v2) | — | open question. Both support Token-2022 transfer-fee mints |
-| **`fee_treasury`** | **custom (this repo)** | localnet `9mNyaZ3iDVdZKpdy6ZJvt3oPXTCYBisfPsqqzCaa7vsB` | scaffold: `initialize` only |
-| **`holder_lottery`** | **custom (this repo)** | localnet `FJGixnazzvAQv2MFr5sABnKsm8yKqJAvxwBiTXNKmVNg` | scaffold: `initialize` + ticket math |
-| VRF | Switchboard On-Demand (preferred) or ORAO VRF | SB devnet `Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2` / mainnet `SBondMDrcV3K4kxZR1HNVT7osZxAHVHgYXL5Ze1oMUv`; ORAO `VRFzZoJdhFWL8rkvu87LpKM3RbcVezpMEc6X5GVDr7y` | open question (DECISIONS Q1) |
-| Multisig (admin, upgrade authority) | Squads v4 | — | required before mainnet |
+| **`hybrid_launch`** | **custom (this repo)** | localnet `9Loc4hQZJh4SuBCGPiPs1wAfwywUAM7av5upyGHfc6Q8` | **built + tested** (ADR-010): `launch` only |
+| Engine: **`hybrid_vault`** or MPL-Hybrid | custom (ADR-008, proposed) / Metaplex | — / `MPL4o4wMzndgh8T1NVDxELQCj5UQfYTYEkabX3wNKtb` | **Barton's choice (Q-H1).** MPL-Hybrid is "Audit Pending", upgradeable by `mp14o4AQ…`, can't do blind assignment or native fee burn |
+| Metaplex Core | Metaplex | `CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d` | NFT standard |
+| Bonding curve / AMM | own or third party (TBD, N6) | — | open; anti-sniping is an open design item (admin-multisig-timelock.md §6) |
+| VRF | Switchboard On-Demand (preferred) or ORAO | SB devnet `Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2` / mainnet `SBondMDrcV3K4kxZR1HNVT7osZxAHVHgYXL5Ze1oMUv`; ORAO `VRFzZoJdhFWL8rkvu87LpKM3RbcVezpMEc6X5GVDr7y` | open (DECISIONS Q1) |
+| Multisig (upgrade authority, optional guardian) | Squads v4 | `SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf` | required before mainnet |
 
-Program IDs above are localnet keypairs in `target/deploy/` (throwaway). Devnet deploys will get new IDs.
+Program IDs are localnet keypairs (throwaway). Devnet deploys will get new IDs.
 
-## Custom program 1: `fee_treasury`
+## `hybrid_launch` (built)
+
+**Accounts / PDAs**
+
+| Account | Seeds / constraint | Notes |
+|---|---|---|
+| `creator` | signer, payer | recorded in `LaunchConfig` |
+| `mint` | **fresh keypair, signer** | created by the program (82 bytes, owner classic SPL Token) |
+| `LaunchConfig` | `["launch_config", mint]`, `init` | immutable; no update/close instruction |
+| `mint_authority` | `["mint_authority", launch_config]` | data-less PDA; mint authority for one `mint_to`, then revoked |
+| `launch_destination` | classic ATA(`launch_destination_owner`, mint) | receives all 1B. Owner should be the curve/sale vault PDA (open, N2) |
+| `token_program` | `Program<Token>` | rejects Token-2022 |
+
+**`launch(params)`** in one tx: create mint → `initialize_mint2` (freeze None) → create ATA → `mint_to` 1B × 10^d →
+`set_authority(MintTokens, None)` → re-read and assert (owner, supply, decimals, authorities) → write `LaunchConfig`.
+`params = {decimals ≤ 9, ratio_whole_tokens ∈ allowed set, collection_size (1..=1B/R), capture_fee_bps,
+reroll_fee_bps (≤ 1000, capture ≥ re-roll), fee_destination = BURN}`.
+
+`LaunchConfig` fields: `version, bump, mint_authority_bump, creator, mint, launch_destination, decimals,
+total_supply_base, ratio_whole_tokens, ratio_base, collection_size, max_tokens_in_nft_form, capture_fee_bps,
+reroll_fee_bps, capture_fee_amount, reroll_fee_amount, fee_destination (0 = BURN), launched_at`.
+
+The engine reads `LaunchConfig` (pinned program ID + seeds) instead of taking its own ratio/fee parameters.
+
+## Flows
+
+### Hybrid launch: exact convert via `hybrid_vault` (ADR-008, proposed)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as Holder
+    participant HV as hybrid_vault (PDA vault + sequenced pool)
+    participant V as VRF
+    participant K as Anyone / crank
+    U->>HV: request_capture: exactly R tokens → vault, token fee locked (seq = s)
+    HV->>V: request randomness (pinned account)
+    V-->>HV: fulfilled
+    K->>HV: settle(s): FIFO; candidates = pool deposits with seq < s
+    HV-->>U: VRF-selected Core NFT (minted on first exit with Merkle-proven metadata); token fee burned
+    U->>HV: release(asset): NFT in (incoming, new seq)
+    HV-->>U: exactly R tokens, same tx
+    U->>HV: request_reroll(asset) + fee → settle → different random NFT, fee burned (no backing moves)
+```
+
+### Launch checklist (on-chain)
+
+```mermaid
+flowchart TD
+    A["hybrid_launch::launch (one tx)"] --> B[Fresh classic SPL mint, freeze = None]
+    B --> C[Mint exactly 1B x 10^d to launch destination]
+    C --> D[Revoke mint authority]
+    D --> E["Assert mint state + write immutable LaunchConfig\n(ratio, N, fees, fee destination = BURN)"]
+    E --> F["Engine initialize reads LaunchConfig\n(trait root committed, VRF seed)"]
+    F --> G["assert_launch_ready: upgrade auth = multisig (QA SUP-06)"]
+    G --> H[Curve opens at stored open_slot, anti-sniping window]
+```
+
+## Authority map (target for mainnet)
+
+| Authority | Holder | Changeable? |
+|---|---|---|
+| Mint authority | **None** (revoked in `launch`) | no |
+| Freeze authority | **None** (never set) | no |
+| `LaunchConfig` (ratio, N, fees, fee destination, mint) | nobody | no instruction exists |
+| Fee destination | **burn**; no account | no |
+| Hybrid collection update authority + vault | engine PDA; no metadata-update, add-plugin or withdraw instruction | no |
+| Pause new captures/re-rolls (if kept, N4) | Squads guardian (auto-expiring) or timelocked governance multisig; never blocks release | only reduces risk |
+| Program upgrade authority | Squads governance vault PDA (7-day timelock proposed), then `--final` after audit + stabilization | yes, until frozen |
+
+## Status
+
+- Built with Anchor 1.2.0 / Solana 4.1.2, SBPF v2 (DEV_SETUP.md). `hybrid_launch`: 4 unit + 19 LiteSVM tests passing
+  via `./scripts/test.sh`.
+- Not implemented: the engine (blocked on Q-H1), VRF integration, pause, `assert_launch_ready`, curve.
+
+---
+
+## 💤 SHELVED: Track B (Token-2022 tax for existing collections)
+
+**SHELVED/DEFERRED per ADR-009.** Kept as notes; do not build on it. Code: local branch `shelved/track-b-t22`
+(`3916467`, WIP) and `shelved/` on `main` (excluded from the build). Track B was a Token-2022 transfer-fee token for an
+**existing** NFT collection: harvested tax funded a treasury whose default would have been buying NFTs from the token's
+own existing collection, given away by a holder raffle (floor(balance/threshold) tickets, VRF). Note that the
+Stonk.fun findings (ADR-009) argue against a transfer tax of this kind at all.
+
+### `fee_treasury` (renamed `tax_treasury` on branch `shelved/track-b-t22`)
 
 Purpose: receive Token-2022 withheld transfer fees for one Rewards mint, and spend them on NFT prizes under hard caps.
 
@@ -75,7 +168,7 @@ max_spend_per_window, spend_window_seconds (1h..30d), window_start_ts, spent_in_
   needs on-chain `min_out` from a TWAP (Auditor B R-07).
 - `set_paused`, `propose/execute_params` (planned): admin = multisig, timelocked, bounded.
 
-## Custom program 2: `holder_lottery`
+### `holder_lottery`
 
 Purpose: pick prize winners among holders of a Rewards mint with sybil-neutral tickets, anti-sniping, and VRF.
 
@@ -103,9 +196,7 @@ pinned in `Draw` at request time, and the seed includes `draw || round || ticket
 requires exactly that account. There's no re-request and no cancel after fulfillment. Winner index uses rejection
 sampling (no `% n` bias) over a prefix-sum/merkle structure, O(log N).
 
-## Flows
-
-### Rewards launch: tax → treasury → prize → lottery
+### Track B flow (shelved): tax → treasury → prize → lottery
 
 ```mermaid
 sequenceDiagram
@@ -130,49 +221,3 @@ sequenceDiagram
     HL-->>T: winner claims NFT from prize_vault (one-shot)
 ```
 
-### Hybrid launch: exact convert via `hybrid_vault` (ADR-008, proposed)
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant U as Holder
-    participant HV as hybrid_vault (PDA vault + sequenced pool)
-    participant V as VRF
-    participant K as Anyone / crank
-    U->>HV: request_capture: exactly R tokens + fees locked (seq = s)
-    HV->>V: request randomness (pinned account)
-    V-->>HV: fulfilled
-    K->>HV: settle(s): FIFO; candidates = pool deposits with seq < s
-    HV-->>U: VRF-selected Core NFT (minted on first exit with Merkle-proven metadata)
-    U->>HV: release(asset): NFT in (incoming, new seq)
-    HV-->>U: exactly R tokens, same tx
-    U->>HV: request_reroll(asset) + fee → settle → different random NFT
-```
-
-### Launch checklist (on-chain, enforced by tests/scripts before a sale opens)
-
-```mermaid
-flowchart TD
-    A[Create mint: 1B supply] --> B{Type}
-    B -- Hybrid --> C[Classic SPL mint] --> E
-    B -- Rewards --> D[Token-2022 + TransferFeeConfig\nwithdraw_withheld = fee_treasury vault_authority PDA\nfee_config_authority = None or bounded PDA] --> E
-    E[Mint full supply once] --> F[Revoke mint + freeze authority] --> G[assert_launch_ready:\nmint_authority=None, freeze=None,\nextension allowlist, upgrade auth = multisig] --> H[Open sale at stored slot]
-```
-
-## Authority map (target for mainnet)
-
-| Authority | Holder | Revocable? |
-|---|---|---|
-| Mint authority (both types) | **None** after minting 1B | revoked at launch |
-| Freeze authority | **None** | revoked at launch |
-| Token-2022 `withdraw_withheld_authority` | `fee_treasury` `vault_authority` PDA | fixed by program |
-| Token-2022 `transfer_fee_config_authority` | **None** (preferred) or a bounded, timelocked PDA | choice at launch (Q4) |
-| Hybrid collection update authority + vault | `hybrid_vault` PDA. No metadata-update, add-plugin or withdraw instruction. Fee changes bounded + timelocked (multisig) | ratio/mint/trait_root immutable |
-| `fee_treasury` / `holder_lottery` admin | Squads multisig. Pause + bounded, timelocked params only; **no withdraw** | |
-| Program upgrade authority | Squads multisig, then `--final` after audit + stabilization | yes |
-
-## Scaffold status
-
-- Built with Anchor 1.2.0 / Solana 4.1.2, SBPF v2 (see DEV_SETUP.md). Tests: LiteSVM unit/integration per program and a
-  localnet smoke test that creates a real Token-2022 TransferFee mint and calls both `initialize`s.
-- Not implemented yet: harvest, buy_prize, draws, VRF integration, claims, pause, timelocks, `assert_launch_ready`.

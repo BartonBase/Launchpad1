@@ -1,5 +1,9 @@
 # Token-2022 transfer tax vs. exact NFT unwrap
 
+> **💤 SHELVED/DEFERRED (ADR-009, Barton 2026-09-24 2:51 PM MT).** Token-2022 and the transfer tax are dropped for
+> now. This analysis is kept for reference only. Its conclusion for hybrid launches (classic SPL Token, no tax, exact
+> unwrap) is now the whole product. Stonk.fun's documented harm came from exactly this kind of tax (THREAT_MODEL.md).
+
 Status: **RESOLVED: option (a) ACCEPTED by Barton (2026-09-24, 2:45 PM MT), recorded as ADR-004.** Auditor review of the
 written analysis is still welcome.
 Owner: Solana Program Engineer. Date: 2026-09-24.

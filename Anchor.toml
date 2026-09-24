@@ -7,8 +7,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-fee_treasury = "9mNyaZ3iDVdZKpdy6ZJvt3oPXTCYBisfPsqqzCaa7vsB"
-holder_lottery = "FJGixnazzvAQv2MFr5sABnKsm8yKqJAvxwBiTXNKmVNg"
+hybrid_launch = "9Loc4hQZJh4SuBCGPiPs1wAfwywUAM7av5upyGHfc6Q8"
 
 [provider]
 cluster = "localnet"

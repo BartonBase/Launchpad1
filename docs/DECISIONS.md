@@ -1,7 +1,12 @@
 # Architecture decision records (on-chain)
 
 Owner: Solana Program Engineer. Format: context → decision → consequences. Status values: Proposed / Accepted /
-Superseded. Every decision here is **Proposed** until Barton signs off, except where marked **Accepted (decided by Barton)**.
+Superseded / Shelved. Every decision here is **Proposed** until Barton signs off, except where marked **Accepted (decided
+by Barton)**.
+
+> **Current scope (ADR-009, 2026-09-24 2:51 PM MT):** SPL-404 hybrid launches only (Track A). Token-2022, transfer tax,
+> tax treasury and holder lottery (Track B) are **SHELVED/DEFERRED**. ADR-004 is superseded; ADR-005 and ADR-006 are
+> shelved. New: ADR-009 (scope change + Stonk.fun constraints + burn), ADR-010 (`hybrid_launch`).
 
 ---
 
@@ -26,8 +31,8 @@ Superseded. Every decision here is **Proposed** until Barton signs off, except w
 
 ## ADR-003: No custom 404 program and no custom transfer-fee program
 
-**Status: Proposed. Partially superseded by ADR-008 (proposed)** for hybrid swaps. The no-custom-transfer-fee part still
-stands.
+**Status: Proposed. Partially superseded by ADR-008 (proposed)** for hybrid swaps. The transfer-fee half is moot
+(Token-2022 shelved, ADR-009).
 
 - **Context.** Custom swap/fee code that holds pooled value is the biggest bug and drain surface, and each one needs
   its own audit.
@@ -38,8 +43,9 @@ stands.
 
 ## ADR-004: Transfer tax vs exact unwrap: hybrid and taxed are separate launch types
 
-**Status: Accepted (decided by Barton, 2026-09-24 2:45 PM MT).** Hybrid = classic SPL Token, untaxed, convertible,
-exact unwrap. Rewards = Token-2022 taxed, funds the lottery, not convertible.
+**Status: SUPERSEDED by ADR-009 (Barton, 2026-09-24 2:51 PM MT).** It was Accepted at 2:45 PM MT. The Hybrid half
+stands (classic SPL Token, untaxed, convertible, exact unwrap); the Rewards half (Token-2022 taxed, lottery) is
+shelved/deferred. Kept for the record.
 
 - **Context.** BRIEF open issue: Token-2022 fees apply to escrow transfers, which breaks "unwrap returns exactly
   1,000,000". Full analysis is in [transfer-tax-vs-wrap.md](transfer-tax-vs-wrap.md).
@@ -68,6 +74,9 @@ exact unwrap. Rewards = Token-2022 taxed, funds the lottery, not convertible.
 
 ## ADR-005: Fee authority custody
 
+**Status: SHELVED (Track B, ADR-009).**
+
+
 - **Decision (proposed).**
   - `withdraw_withheld_authority` = `fee_treasury` PDA `["vault_authority", config]`.
   - `transfer_fee_config_authority` = `None` at launch, unless Barton wants adjustable tax (then it's a bounded,
@@ -76,6 +85,9 @@ exact unwrap. Rewards = Token-2022 taxed, funds the lottery, not convertible.
 - **Consequences.** No person can take the tax. Tax rate is immutable by default.
 
 ## ADR-006: Lottery fairness primitives
+
+**Status: SHELVED (Track B, ADR-009).** Code on branch `shelved/track-b-t22` and in `shelved/programs/holder_lottery`.
+
 
 - **Decision.**
   - `tickets = floor(balance / threshold)`, implemented and property-tested.
@@ -87,10 +99,11 @@ exact unwrap. Rewards = Token-2022 taxed, funds the lottery, not convertible.
 
 ## ADR-007: Test strategy
 
-- **Decision.** LiteSVM integration tests per program (`programs/*/tests/`), Rust unit tests for math, and a localnet
-  smoke test (`tests/localnet-smoke`) that creates a real Token-2022 TransferFee mint and drives both programs through a
-  real `solana-test-validator`. `anchor test --validator legacy` (Anchor 1.2 defaults to surfpool, which isn't
-  installed).
+- **Decision (updated for ADR-009).** Rust unit tests for math inside each program (`src/validation.rs`), LiteSVM
+  integration tests that load the real SBF binary from `target/deploy`, grouped per track in `tests/track-a-hybrid/`
+  (crate `track-a-hybrid-tests`, one `[[test]]` per instruction area, test names state the attack they prove), and
+  `anchor test --validator legacy` via `./scripts/test.sh` (Anchor 1.2 defaults to surfpool, which isn't installed).
+  The Token-2022 localnet smoke test is shelved with Track B.
 - **Consequences.** Planned 🧪 tests in THREAT_MODEL.md become the backlog. Fuzzing (Trident or honggfuzz) and CU
   benchmarks come before audit.
 
@@ -126,8 +139,8 @@ exact unwrap. Rewards = Token-2022 taxed, funds the lottery, not convertible.
      after fulfilment, and `expire` applies only to unfulfilled requests past the deadline. `release` is instant and
      exact.
   4. **Re-roll:** VRF-random *different* NFT (the hand-in is excluded from its own draw). The fee is a token bps of the
-     ratio plus a SOL cost fee, and `capture_fee ≥ reroll_fee` is enforced. Fees are bounded and timelocked, and each
-     request is charged the fee in force when it was made. The destination is fixed at init.
+     ratio plus a SOL cost fee, and `capture_fee ≥ reroll_fee` is enforced. **Updated by ADR-009:** fees are capped and
+     fixed at init (no `propose_fees`), and the token fee is **burned**.
 - **Rejected.**
   - (i) Thin wrapper holding MPL-Hybrid's authority as a PDA (feasible via an atomic `BlockCapture` toggle): it keeps
     unaudited, externally upgradeable code under our backing and relies on fragile upstream behaviour.
@@ -139,9 +152,95 @@ exact unwrap. Rewards = Token-2022 taxed, funds the lottery, not convertible.
   - Metaplex Core stays the NFT standard, and MPL-Hybrid leaves the swap path.
   - Capture and reroll are two transactions with a few seconds of VRF latency.
 
+## ADR-009: Scope change: Token-2022 shelved; Stonk.fun design constraints; re-roll fee = BURN
+
+**Status: Accepted (decided by Barton, 2026-09-24 2:51 PM MT, BRIEF "SCOPE CHANGE").** Recorded by the engineer.
+
+- **Context.** Barton dropped Token-2022 for now and moved 100% of the focus to SPL-404 hybrid launches. Barton also
+  supplied the real Stonk.fun source (Bitquery, figures verified 2026-09-22,
+  https://bitquery.io/investigations/is-stonkfun-dumping-on-holders; summary in
+  [stonkfun-lessons.md](stonkfun-lessons.md)). It was not a hack: Stonk.fun's own reward wallet swept a 1–3% transfer
+  tax, sold it into each coin's pool and paid holders in the pair asset. 160 coins lost more than half their supply to
+  tax, snipers made the first hour the worst, at least $1.41M went off-ledger to linked wallets, and on 2,178 coins the
+  reward wallet can still raise the tax to 100%.
+- **Decision A: scope.**
+  - **Shelved/deferred (not dropped for good):** Token-2022, the transfer tax, tax-funded NFT buys, the tax treasury
+    (`fee_treasury`, renamed `tax_treasury` on the shelved branch), the holder lottery (`holder_lottery`), BRIEF hard
+    requirements #3 and #4, and [transfer-tax-vs-wrap.md](transfer-tax-vs-wrap.md) (kept as reference, marked SHELVED).
+  - **ADR-004 superseded** (its Hybrid half stands). **ADR-005 and ADR-006 shelved.**
+  - Code is preserved on local branch `shelved/track-b-t22` (commit `3916467`, WIP) and in `shelved/` on `main`,
+    excluded from the Cargo workspace and `Anchor.toml`. See `shelved/README.md`.
+- **Decision B: product.** Classic SPL Token, fixed 1B supply, mint + freeze authority revoked at launch (ADR-010);
+  token↔NFT conversion with exact unwrap (engine still open, ADR-008); ratio in {10k, 50k, 100k, 200k, 1M}; collection
+  size ≤ 1B / ratio; cosmetic rarity; blind assignment; VRF re-roll.
+- **Decision C: design constraints from Stonk.fun (binding on every Track A program):**
+  1. **No transfer tax.** Classic SPL Token only; Token-2022 is rejected on-chain.
+  2. **No operator wallet that custodies value.** No platform or creator wallet sweeps, holds or routes user funds.
+     Every flow is program-enforced; no instruction takes a free destination argument.
+  3. **No mutable economics after launch.** Ratio, collection size, fees, fee destination and mint are fixed at init.
+     Any remaining admin power sits behind a Squads multisig **plus** a timelock and may only **reduce risk** (e.g.
+     pause new captures/re-rolls). It can never block unwrap/release, move funds or change economics. See
+     [admin-multisig-timelock.md](admin-multisig-timelock.md).
+  4. **Fee destinations on-chain and matching the site.** Burned fees show up as supply reduction; publish a
+     reconciliation script (lesson 6).
+  5. **Anti-sniping for the bonding-curve launch window.** Open design item until the curve venue is chosen.
+- **Decision D: re-roll fee = BURN.** Barton's decision (he skipped the question and burn became the default; the BRIEF
+  records it). This **supersedes my earlier recommendation (Q-H3: creator/platform split, "no burn")**. Copy: "Fixed at
+  1,000,000,000 at launch. No one can mint more; re-roll burns can only reduce it." Short form: "fixed 1B at launch;
+  re-roll fees are burned". `hybrid_launch` only accepts `fee_destination = BURN`.
+- **Burn safety check (engineering): confirmed, the reasoning holds.**
+  1. Supply starts at exactly 1B × 10^d and can only decrease: there is no mint authority (✅ tested in `hybrid_launch`).
+  2. The backing owed is `ratio × NFTs outside the vault`, held in the vault.
+  3. Fees are paid from the user's own balance **on top of** the ratio. A re-roll moves no backing (NFT in, NFT out); a
+     capture moves exactly `ratio` into the vault and burns a separate fee amount. Nothing burns from the vault.
+  4. So `vault ≥ ratio × NFTs outside` holds after every instruction, and unwrap stays exact. Burning users' fee tokens
+     can never make the vault insolvent.
+  5. The invariant becomes `circulating + vault + Σburned == 1B × 10^d`. Once burns push supply below `N × R`, not
+     every NFT can be out at once; the rest simply stay in the pool, and every circulating NFT is still fully backed.
+     The copy "Up to N×R can be held as NFTs" must say "at launch" or show a live figure.
+  6. **Engine caveat:** `hybrid_vault` burns inline. **MPL-Hybrid can't burn fees natively.** Fees go to
+     `recipe.fee_location`, and its `BurnOnCapture`/`BurnOnRelease` paths burn the backing (forbidden). Under
+     MPL-Hybrid, burning needs `fee_location` = a program PDA with only a permissionless burn crank (brief transient
+     custody, no withdraw path), and `update_recipe` can still overwrite `fee_location` (T-HY-01).
+- **Consequences.** THREAT_MODEL rewritten (sourced Stonk.fun section; Track B rows marked 💤). ARCHITECTURE and the
+  hybrid-rarity doc updated. The SOL part of any fee (VRF, rent) can't be burned; it pays those costs only (N7).
+  Fees under ADR-008 become immutable, which removes `propose_fees`/`execute_fees`.
+
+## ADR-010: Engine-independent `hybrid_launch` program
+
+**Status: Proposed (implemented and tested on localnet, not audited).** Program ID (localnet throwaway key):
+`9Loc4hQZJh4SuBCGPiPs1wAfwywUAM7av5upyGHfc6Q8`.
+
+- **Context.** Whatever the engine (ADR-008), every hybrid launch needs the same first step: a classic mint with
+  exactly 1B supply and no authorities, plus an on-chain record of economics nobody can change (ADR-009 C3).
+- **Decision.** One instruction, `launch(params)`, in one transaction:
+  1. `create_account` for a **fresh mint keypair that must sign** (82 bytes, owner = classic SPL Token). An existing
+     mint (classic or Token-2022) can't be onboarded, because the address is already in use.
+  2. `initialize_mint2(decimals, mint_authority = PDA ["mint_authority", config], freeze_authority = None)`.
+  3. Create the classic ATA of `launch_destination_owner`, then `mint_to` exactly `1_000_000_000 × 10^decimals`.
+  4. `set_authority(MintTokens → None)`.
+  5. Re-read the mint and fail unless owner, supply, decimals and both authorities are right.
+  6. `init` an immutable `LaunchConfig` PDA `["launch_config", mint]`: creator, mint, launch destination, decimals,
+     total supply, ratio (whole and base units), collection size, `max_tokens_in_nft_form`, capture/re-roll fee bps
+     and exact amounts, `fee_destination = BURN`, `launched_at`, bumps.
+  - Validation: `decimals ≤ 9`; ratio ∈ {10k, 50k, 100k, 200k, 1M}; `collection_size ≥ 1` and
+    `collection_size × ratio_base ≤ supply_base` via `checked_mul` (overflow rejects); each fee ≤ 1,000 bps of the
+    ratio; `capture_fee_bps ≥ reroll_fee_bps`; `fee_destination == BURN`. Fee amounts are exact because every ratio is
+    a multiple of 10,000.
+  - `token_program: Program<Token>` rejects Token-2022 at the account-validation layer.
+  - **No update, close or admin instruction exists.**
+- **Out of scope (engine-specific):** SOL cost fees (VRF, rent), the vault, the engine's own config. The engine should
+  read `LaunchConfig` instead of taking its own copies of ratio or fees.
+- **Build note.** anchor-spl 1.2.0's `idl-build` references `token_interface` unconditionally, so the program's
+  `idl-build` feature also enables `anchor-spl/token_2022`. That affects only IDL generation, not the on-chain program.
+- **Consequences.** 4 unit tests and 19 LiteSVM tests (`./scripts/test.sh`). Open: who `launch_destination_owner` is
+  (should be the curve/sale vault PDA, not a person, N2), and the default decimals (N3).
+
 ---
 
 ## Open questions for Barton
+
+Status after ADR-009. Obsolete items are struck through and kept for the record.
 
 1. **VRF provider.** I lean toward **Switchboard On-Demand**: actively maintained, devnet queue available, slashing,
    and the `solana-v3` host build compiles against Anchor 1.2. It needs a strict commit–reveal design, and its crate
@@ -149,31 +248,39 @@ exact unwrap. Rewards = Token-2022 taxed, funds the lottery, not convertible.
    manual account parsing. **ORAO** is simpler (nodes fulfil, so there's no withheld reveal) at about 0.001 SOL per
    request, but its CPI crate pulls anchor-lang 0.32 and doesn't compile against Anchor 1.2, so it needs a hand-rolled
    CPI. Which do you prefer?
-2. **Anti-sniping mechanism.** Is opt-in registration/stake with time-weighted tickets OK, versus a transfer hook
-   that would break permissionless Meteora pools and cost CU on every transfer?
-3. **Prize sourcing.** Should Rewards treasuries buy NFTs from our own Hybrid collections by default? (The launch-types
-   question is resolved: ADR-004 was accepted by Barton on 2026-09-24.)
-4. **Tax parameters.** Default bps and `maximum_fee`. Should the tax be immutable (`fee_config_authority = None`) or
-   adjustable within a cap under a timelock?
+2. ~~Anti-sniping via lottery registration/stake~~ **Obsolete (lottery shelved).** Replaced by N6 (curve anti-sniping).
+3. ~~Prize sourcing~~ **Obsolete (Track B shelved).**
+4. ~~Tax parameters~~ **Obsolete (no tax).**
 5. **SBPF v2 vs v3.** OK to stay on v2 until we bump Rust and litesvm?
-6. **Stonk.fun incident.** I couldn't find a credible public report of a bot draining tokens or liquidity via its
-   distribution layer (Auditor B couldn't either). Can you share the source, X thread, or tx signatures?
-7. **MPL-Hybrid audit.** It's marked "Audit Pending". Is it acceptable to rely on it if our audit scope includes our
-   configuration, or should we ask Metaplex for audit status first?
-8. **Multisig.** Squads v4 for admin, upgrade, and escrow authorities: who are the signers, and what's the threshold?
+6. ~~Stonk.fun incident source~~ **Resolved:** Bitquery investigation (ADR-009, THREAT_MODEL).
+7. **MPL-Hybrid audit.** Only relevant if MPL-Hybrid is chosen as the engine (Q-H1).
+8. **Multisig.** Squads v4: who are the signers, what's the threshold, and what timelock length? (Proposed defaults in
+   admin-multisig-timelock.md.)
 
-### New (hybrid rarity, ADR-008)
+### Hybrid rarity (ADR-008)
 
-9. **Q-H1:** Accept replacing MPL-Hybrid with a custom `hybrid_vault` for hybrid launches? This reverses "no custom
-   404" and adds it to audit scope.
-10. **Q-H2:** Capture/re-roll fees as a % of the ratio in tokens (default 2%) plus a small SOL cost fee, instead of the
-    mock's SOL-only 0.01/0.02?
-11. **Q-H3:** Re-roll/capture fee destination: creator, platform, or a split (recommended)? Confirm no burn, which keeps
-    "exactly 1B" literally true.
-12. **Q-H4:** OK to require capture fee ≥ re-roll fee, with unwrap free of token fees?
-13. **Q-H5:** Lazy minting (first capturer pays ~0.0016 SOL rent per NFT) or creator pre-mints (≈1.6 SOL per 1,000
-    NFTs)?
+9. **Q-H1:** Engine: MPL-Hybrid or the custom `hybrid_vault`? (Still Barton's.) Note that MPL-Hybrid can't burn fees
+   natively (ADR-009 caveat) and can't meet blind assignment.
+10. **Q-H2:** Capture/re-roll fees as a % of the ratio in tokens (default 2%) plus a small SOL cost fee?
+11. ~~**Q-H3:** Fee destination~~ **Resolved: BURN** (Barton, ADR-009). Supersedes my "no burn" recommendation.
+12. **Q-H4:** OK to require capture fee ≥ re-roll fee, with unwrap free of token fees? (Enforced in `hybrid_launch`.)
+13. **Q-H5:** Lazy minting or creator pre-mint?
 14. **Q-H6:** Forbid creator/team NFT allocations outside the pool?
 15. **Q-H7:** Show full pool contents/traits publicly, or only the census?
-16. **Q-H8:** Is two-transaction capture/re-roll (a few seconds of "drawing") acceptable UX?
-17. **Q-H9:** Keep the 100,000-NFT maximum (~2 SOL pool-account rent) or cap lower?
+16. **Q-H8:** Is two-transaction capture/re-roll acceptable UX?
+17. **Q-H9:** Keep the 100,000-NFT maximum or cap lower?
+
+### New (scope change, ADR-009/010)
+
+- **N1 Capture fee burned too?** Engineering default: yes, same burn path, so no fee account exists anywhere.
+  (`hybrid_launch` applies `fee_destination = BURN` to both fees.)
+- **N2 Launch destination.** Where does the 1B go at launch: the bonding-curve vault PDA (recommended), a sale
+  program, or a creator wallet? Any creator allocation should be visible and capped.
+- **N3 Decimals default.** 6 (pump.fun-style) or 9? `hybrid_launch` accepts 0–9.
+- **N4 Pause at all?** Recommended: at most "pause new captures/re-rolls", multisig + timelock, never blocking
+  release/settle/expire. Or no pause at all (simplest, most trustworthy)?
+- **N5 Upgrade authority.** Squads multisig until audit + stabilization, then frozen (`--final`)? For how long?
+- **N6 Bonding curve venue + anti-sniping mechanism.** Own curve vs an audited venue; then which mechanism (see
+  admin-multisig-timelock.md §Anti-sniping).
+- **N7 Fees on expire.** Refund the SOL cost fee minus VRF cost? The token fee can't be un-burned, so the engine
+  should burn at `settle`, not at `request` (engineering default).

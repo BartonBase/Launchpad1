@@ -1,0 +1,31 @@
+[package]
+name = "hybrid_launch"
+version = "0.1.0"
+description = "Track A (SPL-404): classic SPL Token launch with fixed 1B supply and immutable LaunchConfig. Engine-independent. Devnet/localnet only."
+publish = false
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "hybrid_launch"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-log-ix-name = []
+# anchor-spl 1.2.0's idl_build.rs unconditionally references `token_interface`, which only
+# exists with its `token_2022` feature. Enabled ONLY for IDL generation; the on-chain
+# program never uses Token-2022 (and rejects it via Program<Token>).
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build", "anchor-spl/token_2022"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang = "=1.2.0"
+anchor-spl = { version = "=1.2.0", default-features = false, features = ["token", "associated_token"] }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

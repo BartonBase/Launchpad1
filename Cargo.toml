@@ -1,8 +1,10 @@
 [workspace]
 members = [
     "programs/*",
-    "tests/localnet-smoke",
+    "tests/track-a-hybrid",
 ]
+# Track B (Token-2022 tax/treasury/lottery) is SHELVED/DEFERRED; kept out of the build.
+exclude = ["shelved"]
 resolver = "2"
 
 [workspace.package]
