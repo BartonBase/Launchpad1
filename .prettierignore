@@ -1,0 +1,14 @@
+.anchor
+.DS_Store
+target
+node_modules
+dist
+build
+test-ledger
+# Other teams' folders: Anchor/JS tooling from the repo root must not touch them
+app
+design
+qa
+security
+reference
+docs/BRIEF.md

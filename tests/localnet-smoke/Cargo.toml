@@ -1,0 +1,22 @@
+[package]
+name = "localnet-smoke"
+version = "0.1.0"
+description = "Localnet smoke tests: send initialize to the programs deployed by `anchor test` on solana-test-validator. Refuses any non-local RPC URL."
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+
+[dev-dependencies]
+anchor-lang = "=1.2.0"
+fee_treasury = { path = "../../programs/fee_treasury", features = ["no-entrypoint"] }
+holder_lottery = { path = "../../programs/holder_lottery", features = ["no-entrypoint"] }
+solana-rpc-client = "3.0.14"
+solana-commitment-config = "3.1.1"
+solana-keypair = "3.0.1"
+solana-signer = "3.0.0"
+solana-transaction = "3.0.2"

@@ -1,0 +1,16 @@
+# --- Anchor / Rust ---
+.anchor
+target
+**/*.rs.bk
+test-ledger
+.surfpool
+.DS_Store
+
+# --- JS ---
+node_modules
+.yarn
+
+# --- SECRETS: throwaway devnet/localnet keypairs only; never commit ---
+.keys/
+*keypair*.json
+id.json

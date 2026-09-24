@@ -1,0 +1,30 @@
+[toolchain]
+anchor_version = "1.2.0"
+solana_version = "4.1.2"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+fee_treasury = "9mNyaZ3iDVdZKpdy6ZJvt3oPXTCYBisfPsqqzCaa7vsB"
+holder_lottery = "FJGixnazzvAQv2MFr5sABnKsm8yKqJAvxwBiTXNKmVNg"
+
+[provider]
+cluster = "localnet"
+wallet = "/workspace/launchpad/.keys/devnet-only-deployer.json"
+
+[scripts]
+test = "cargo test --workspace --locked -- --show-output"
+
+[hooks]
+
+[test]
+startup_wait = 20000
+shutdown_wait = 2000
+upgradeable = false
+
+[test.validator]
+bind_address = "127.0.0.1"
+ledger = ".anchor/test-ledger"
+rpc_port = 8899
