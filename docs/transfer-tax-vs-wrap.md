@@ -1,8 +1,16 @@
 # Token-2022 transfer tax vs. exact NFT unwrap
 
-Status: **RESOLVED (proposed), pending Barton sign-off and review by Auditors A and B.**
+Status: **RESOLVED: option (a) ACCEPTED by Barton (2026-09-24, 2:45 PM MT), recorded as ADR-004.** Auditor review of the
+written analysis is still welcome.
 Owner: Solana Program Engineer. Date: 2026-09-24.
 Resolves the BRIEF open issue "Token-2022 transfer fee vs. exact unwrap".
+
+> **Update 2026-09-24 (ADR-008, proposed):** Barton's cosmetic-rarity decision requires "no choosing, no peeking" when
+> wrapping, and no MPL-Hybrid configuration can do that (see [hybrid-rarity-and-assignment.md](hybrid-rarity-and-assignment.md)).
+> The swap engine for hybrid launches is therefore proposed to be a custom `hybrid_vault`, not MPL-Hybrid. **The decision
+> in this doc still stands**: hybrid mints are classic SPL Token with no tax. In the convert copy below, the Metaplex
+> protocol fee line becomes "a small SOL fee for verifiable randomness (VRF) and network costs", and capture/re-roll
+> take a few seconds to draw.
 
 ## TL;DR
 

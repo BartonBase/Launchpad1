@@ -11,10 +11,10 @@ Test status legend:
 
 ## Assets and trust boundaries
 
-- **Pooled value (highest risk):** fee vault (withheld Token-2022 fees), prize vault (NFTs), MPL-Hybrid escrow backing
+- **Pooled value (highest risk):** fee vault (withheld Token-2022 fees), prize vault (NFTs), `hybrid_vault` backing
   tokens, and any SOL/wSOL used to buy prizes.
-- **Authorities:** mint/freeze (revoked), withdraw-withheld (PDA), fee-config (None/bounded PDA), MPL-Hybrid escrow
-  authority, program upgrade authority, program admin.
+- **Authorities:** mint/freeze (revoked), withdraw-withheld (PDA), fee-config (None/bounded PDA), hybrid collection/vault
+  authority (PDA), program upgrade authority, program admin.
 - **Trust boundary:** everything the caller passes in is attacker-controlled: accounts, amounts, VRF accounts, and
   "program" accounts. Only PDAs we derive, program IDs we pin, and state we stored are trusted.
 
@@ -82,7 +82,7 @@ incident (DECISIONS Q6)** so we can model the exact mechanism.
 | T-DIST-01 | Admin or compromised key drains the vault | **No admin withdraw instruction exists.** Outflows only via `buy_prize` to pinned routes, with the NFT delivered straight to `holder_lottery` `prize_vault` | 🧪 no instruction moves vault funds to an arbitrary account (IDL review + negative tests) |
 | T-DIST-02 | Caller-chosen destination on harvest/buy | Destinations derived (PDA/ATA) or stored, never arguments (R-05.3) | 🧪 passing a different destination ATA → fails |
 | T-DIST-03 | Bot drains via repeated small buys / flash spending | `max_spend_per_purchase`, `max_spend_per_window` with rolling window (stored in config), pause | ✅ cap validation at init. 🧪 spend over window cap fails. 🧪 window roll-over |
-| T-DIST-04 | Sandwich/price manipulation on prize buys or swaps | Default route is fixed-rate MPL-Hybrid capture (no price). Marketplace route needs an on-chain max price ≤ swap_rate × (1+10%). Any swap has TWAP `min_out` (R-07, R-11) | 🧪 buy above cap fails. 🧪 min_out violation reverts |
+| T-DIST-04 | Sandwich/price manipulation on prize buys or swaps | Hybrid route is a fixed-ratio `hybrid_vault` capture (no price on the NFT leg), but the Rewards-token → Hybrid-token swap needs TWAP `min_out`. Marketplace route needs an on-chain max price ≤ swap_rate × (1+10%). Any swap has TWAP `min_out` (R-07, R-11) | 🧪 buy above cap fails. 🧪 min_out violation reverts |
 | T-DIST-05 | Harvest crank griefing / unbounded account list | Harvest is permissionless and paginated with bounded batch size. Anyone can harvest (the fee only moves to the mint and vault) | 🧪 CU bound at max batch. 🧪 garbage accounts ignored |
 | T-DIST-06 | Cross-mint confusion (vault of mint A pays for mint B) | Config PDA seeded by `fee_mint`. Vault authority seeded by config | ✅ PDA derivation tests. 🧪 cross-config signing fails |
 | T-DIST-07 | Treasury buys a fake/wrong NFT (worthless prize) | Allowlisted collections (Core collection address pinned per config). Verify `update_authority == Collection(x)` | 🧪 NFT from another collection → fails |
@@ -103,14 +103,43 @@ incident (DECISIONS Q6)** so we can model the exact mechanism.
 
 ### Hybrid layer (MPL-Hybrid configuration)
 
+> **Status:** these rows apply only if MPL-Hybrid is used as the swap engine. ADR-008 (proposed) replaces it with
+> `hybrid_vault` for cosmetic-rarity collections (see the T-HV section below and
+> [hybrid-rarity-and-assignment.md](hybrid-rarity-and-assignment.md)). They're kept because they explain why.
+
 | ID | Threat | Defense | Test |
 |---|---|---|---|
-| T-HY-01 | **Escrow authority drain:** authority captures NFTs cheaply (`update_escrow`/`update_recipe` sets low `amount`), raises `amount`, releases to drain backing. There's no timelock in MPL-Hybrid (`update_escrow.rs:113`, `update_recipe.rs:115`) | Per-collection Squads multisig authority with timelock. Later a governor PDA with bounded, timelocked changes. 🔍 alert on any update ix | 🧪 localnet: document the attack as a regression test against our governor |
+| T-HY-01 | **Escrow authority drain:** authority captures NFTs cheaply (`update_escrow`/`update_recipe` sets low `amount`), raises `amount`, releases to drain backing. There's no timelock in MPL-Hybrid (`update_escrow.rs:113`, `update_recipe.rs:115`). `update_recipe` also **unconditionally overwrites `recipe.token` and `fee_location`** with whatever is passed (`update_recipe.rs:91-93`), so the authority can swap in a worthless mint, capture everything, then swap back and release | Per-collection Squads multisig authority with timelock. Later a governor PDA with bounded, timelocked changes. 🔍 alert on any update ix | 🧪 localnet: document the attack as a regression test against our governor |
 | T-HY-02 | Shared V2 escrow across collections (`["escrow", authority]`) | One dedicated authority per collection | 🧪 launch script asserts uniqueness |
 | T-HY-03 | Escrow insolvency (not enough backing tokens for releases) | Invariant `escrow_balance ≥ R × NFTs outside escrow`. No Burn* paths. Classic SPL mint (no fee leak) | 🧪 capture/release loop keeps invariant. 🔍 monitor |
-| T-HY-04 | Rarity cherry-pick / reroll gaming (caller-chosen asset `capture_v2.rs:52-54`, SlotHashes reroll `:95,190-199`) | `NoRerollMetadata`, value-uniform traits or disclosed (Auditor B B-01/B-12) | 🧪 config check |
-| T-HY-05 | Transfer tax breaks exact unwrap | Hybrid mints are classic SPL (no tax). MPL-Hybrid rejects Token-2022 anyway (ADR-004, transfer-tax-vs-wrap.md) | 🧪 launch script refuses T22 mint for hybrid |
+| T-HY-04 | Rarity cherry-pick / reroll gaming (caller-chosen asset `capture_v2.rs:52-54`, SlotHashes reroll `:187-203`) | **No MPL-Hybrid configuration prevents this** (hybrid-rarity-and-assignment.md §3.2), so it's replaced by `hybrid_vault` (T-HV-01..03) | 🧪 regression test documenting the MPL-Hybrid behaviour |
+| T-HY-05 | Transfer tax breaks exact unwrap | Hybrid mints are classic SPL (no tax), per ADR-004, **Accepted by Barton 2026-09-24**. MPL-Hybrid rejects Token-2022 anyway (transfer-tax-vs-wrap.md) | 🧪 launch script refuses T22 mint for hybrid |
 | T-HY-06 | MPL-Hybrid is unaudited ("Audit Pending") | Include it in the audit scope, pin the program version, 🔍 watch upgrades of `MPL4o4…` | 🔍 |
+
+### Hybrid vault layer: `hybrid_vault` (cosmetic rarity, ADR-008, planned)
+
+Design: [hybrid-rarity-and-assignment.md](hybrid-rarity-and-assignment.md). This layer holds pooled backing tokens and
+NFTs, so it gets distribution-layer scrutiny.
+
+| ID | Threat | Defense | Test |
+|---|---|---|---|
+| T-HV-01 | **Cherry-picking** a known rare from the pool | The caller never names the asset. Selection is `uniform_below(vrf, pool_len)` at settle | 🧪 `request_capture` has no asset argument. 🧪 settle with a caller-supplied asset ≠ selected index fails |
+| T-HV-02 | **Revert-until-rare** (CPI wrapper or simulation that aborts on a bad pick) | Two-step: payment locked in `request_*`, selection in a separate permissionless `settle`. No cancel once VRF is fulfilled | 🧪 a wrapper program that CPIs request and then reverts can't observe the pick. 🧪 cancel/expire after fulfilment fails |
+| T-HV-03 | **Pool shifting after randomness is known** (release/deposit NFTs between VRF reveal and settle so `r mod len` lands on a rare) | Sequenced pool: FIFO settlement, and only deposits with `seq < request.seq` are merged before settle | 🧪 deposits after request `s` never appear in `s`'s candidate set. 🧪 settling out of order fails |
+| T-HV-04 | Selective reveal / withholding (Switchboard requester sees the value first) | Pinned VRF account per request, permissionless reveal + settle cranked by us. `expire` only if the VRF is *unfulfilled* after `deadline_slot` | 🧪 expire on a fulfilled request fails |
+| T-HV-05 | Predictable or biased randomness | VRF only (no SlotHashes/Clock/count). Rejection sampling (R-01.4). Pinned VRF program owner + seed check | 🧪 chi-square over 1M picks. 🧪 foreign/unfulfilled VRF account fails |
+| T-HV-06 | **Creator steers traits** (arranges the list after seeing randomness, or later edits metadata) | `trait_root` + `leaf_count` committed before the permutation seed is requested. Feistel permutation keyed by VRF. Merkle proof checked at mint. PDA collection authority with no update/add-plugin instruction | 🧪 settle with the wrong leaf/proof fails. 🧪 seed request before root commit fails. 🧪 IDL has no metadata-update ix. Public verify script |
+| T-HV-07 | Hostile Core plugins (Permanent Transfer/Burn/Freeze delegate, or a Royalties ruleset that blocks vault transfers) | `hybrid_vault` CPI-creates the collection with no Permanent delegates. Only Royalties with ruleset `None` | 🧪 initialize with an existing collection is rejected. 🧪 plugin census check |
+| T-HV-08 | Escrow insolvency / accounting drift | Invariants: `vault_tokens ≥ ratio × nfts_outside`, and the NFT conservation equation (doc §3.3). Exact `ratio` amounts. Classic SPL Token (no transfer fee) | 🧪 fuzz random instruction sequences (≥1M) and assert the invariants after each |
+| T-HV-09 | Supply/ratio misconfiguration or overflow | `initialize`: ratio in the allowed set, `checked_mul`, `collection_size × ratio_base ≤ supply_base`, mint supply == 1B and authorities `None`. Ratio/mint immutable | 🧪 every ratio at max and max+1. 🧪 decimals overflow fails cleanly |
+| T-HV-10 | Admin drain via config (the MPL-Hybrid T-HY-01 class) | No instruction changes `ratio`, `mint`, `trait_root`, or the vault token account. No admin withdraw. Fees bounded (≤ 10% of R, ≤ 0.05 SOL) and timelocked (≥ 72h). Destinations fixed at init | 🧪 IDL review. 🧪 fee over cap fails. 🧪 execute before timelock fails |
+| T-HV-11 | Fee changed under a pending request | Each request stores the fee in force when it was made | 🧪 change fees with a pending request; settle charges nothing extra |
+| T-HV-12 | Reroll farming / unwrap→rewrap bypass | Token fee as bps of R (scale-invariant). `capture_fee_bps ≥ reroll_fee_bps` enforced. Published pool census | 🧪 config with capture fee < reroll fee is rejected. 🔍 monitor rare outflow vs expected rate |
+| T-HV-13 | Reroll returns the same NFT | Hand-in is tagged with the request's own `seq`, so it's excluded from its own candidate set | 🧪 pool of {own NFT, X} always yields X |
+| T-HV-14 | Empty pool at settle / reservation exhaustion | Reservation check at request (`pool + incoming − pending ≥ 1`) | 🧪 request with no unreserved NFTs fails. 🧪 settle never hits an empty pool (fuzz) |
+| T-HV-15 | Head-of-line DoS (stuck VRF blocks the FIFO) | `deadline_slot` + permissionless `expire` of unfulfilled heads. Requests lock capital + fees | 🧪 stuck head expires and the queue advances |
+| T-HV-16 | Lazy-mint rent griefing (settle payer drained) | Worst-case asset rent is collected in the request's SOL fee. Settle pays from the request's escrowed lamports, not the cranker | 🧪 settle with a zero-balance cranker succeeds |
+| T-HV-17 | Double settle / double release | Request account closed on settle. Asset ownership checked on release | 🧪 second settle fails. 🧪 releasing an asset not owned fails |
 
 ### Launch / market layer (summary; owned jointly with app)
 
@@ -130,5 +159,5 @@ incident (DECISIONS Q6)** so we can model the exact mechanism.
 
 ## Explicit non-goals / accepted risks (for now)
 
-- Trusting Metaplex (Core, MPL-Hybrid), the Token-2022 program, and the chosen VRF network's liveness and honesty.
-- MPL-Hybrid's own code isn't audited. The accepted interim state is devnet only.
+- Trusting Metaplex Core, the SPL Token / Token-2022 programs, and the chosen VRF network's liveness and honesty.
+- MPL-Hybrid is out of the swap path under ADR-008. If ADR-008 is rejected, MPL-Hybrid's unaudited code returns to scope.

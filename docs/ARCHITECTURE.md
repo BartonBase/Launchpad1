@@ -7,14 +7,15 @@ Related: [DECISIONS.md](DECISIONS.md), [THREAT_MODEL.md](THREAT_MODEL.md), [tran
 ## Principles
 
 1. **Use audited/standard programs wherever possible, and write custom code only where nothing standard exists.**
-   There's no custom 404 program and no custom transfer-fee program (ADR-003).
+   There's no custom transfer-fee program (ADR-003). The one exception is the proposed `hybrid_vault` (ADR-008), because
+   no standard program can do VRF-selected, no-peeking wraps.
 2. **Minimal, revocable authorities.** Mint and freeze authority are revoked at launch. Fee authorities are program PDAs,
    not keys. Admin powers are limited to pausing and bounded parameter changes, and admin is a multisig before mainnet.
 3. **The distribution layer (treasury, lottery, prizes) gets the heaviest scrutiny.** It holds pooled value and pays
    strangers, which is the pattern behind the incident the BRIEF names (see THREAT_MODEL.md §Stonk.fun).
 4. **No outflow to a caller-chosen address.** Every destination is derived (PDA) or stored at init.
 
-## Launch types (ADR-004, see transfer-tax-vs-wrap.md)
+## Launch types (ADR-004, **Accepted by Barton 2026-09-24**; see transfer-tax-vs-wrap.md)
 
 | | **Hybrid** (token ⇄ NFT) | **Rewards** (taxed) |
 |---|---|---|
@@ -22,9 +23,10 @@ Related: [DECISIONS.md](DECISIONS.md), [THREAT_MODEL.md](THREAT_MODEL.md), [tran
 | Supply | Exactly 1,000,000,000 × 10^decimals, minted once | same |
 | Mint / freeze authority | Revoked (`None`) at launch | Revoked (`None`) at launch |
 | Transfer tax | None | `bps` + `maximum_fee`, fee → fee_treasury |
-| NFT | Metaplex Core collection + **MPL-Hybrid** escrow (ratio `R`, `1e9 % R == 0`) | none of its own; lottery prizes are bought NFTs |
-| Converter | Yes, exact R both ways | **No** |
-| Custom programs involved | none (MPL-Hybrid config only) | `fee_treasury`, `holder_lottery` |
+| NFT | Metaplex Core collection + **`hybrid_vault`** (ADR-008, proposed; replaces MPL-Hybrid). Ratio `R` ∈ {10k, 50k, 100k, 200k, 1M}, `collection_size × R ≤ 1B` | none of its own; lottery prizes are bought NFTs |
+| Rarity | Cosmetic only: every NFT redeems for exactly R. Traits come from a pre-committed list + VRF permutation | n/a |
+| Converter | Yes, exact R both ways. Capture/re-roll are VRF-selected (two-step), release is instant | **No** |
+| Custom programs involved | `hybrid_vault` (proposed) | `fee_treasury`, `holder_lottery` |
 
 ## Components
 
@@ -34,7 +36,8 @@ Related: [DECISIONS.md](DECISIONS.md), [THREAT_MODEL.md](THREAT_MODEL.md), [tran
 | Token-2022 (TransferFee) | standard, audited | `TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb` | rewards fungible + tax |
 | Associated Token Account | standard | `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL` | |
 | Metaplex Core | Metaplex | `CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d` | NFT standard (devnet: executable ✔) |
-| MPL-Hybrid (MPL-404) | Metaplex, **README says "Audit Pending"** | `MPL4o4wMzndgh8T1NVDxELQCj5UQfYTYEkabX3wNKtb` | hybrid escrow (devnet: executable ✔). Classic SPL Token only |
+| MPL-Hybrid (MPL-404) | Metaplex, **README says "Audit Pending"**, upgradeable by `mp14o4AQ…` | `MPL4o4wMzndgh8T1NVDxELQCj5UQfYTYEkabX3wNKtb` | **Not in the swap path under ADR-008.** Can't do no-choosing/no-peeking (hybrid-rarity-and-assignment.md §3.2). Reference only |
+| **`hybrid_vault`** | **custom (planned, ADR-008)** | — | hybrid escrow: VRF capture/re-roll, exact release, trait commitment |
 | Bonding curve / AMM | third party (TBD: Raydium CPMM / Meteora DAMM v2) | — | open question. Both support Token-2022 transfer-fee mints |
 | **`fee_treasury`** | **custom (this repo)** | localnet `9mNyaZ3iDVdZKpdy6ZJvt3oPXTCYBisfPsqqzCaa7vsB` | scaffold: `initialize` only |
 | **`holder_lottery`** | **custom (this repo)** | localnet `FJGixnazzvAQv2MFr5sABnKsm8yKqJAvxwBiTXNKmVNg` | scaffold: `initialize` + ticket math |
@@ -64,9 +67,11 @@ max_spend_per_window, spend_window_seconds (1h..30d), window_start_ts, spent_in_
   fails because Anchor `init` refuses an existing account.
 - `harvest` (planned, **permissionless**): `HarvestWithheldTokensToMint` over a bounded, paginated list of accounts,
   then `WithdrawWithheldTokensFromMint` → fee vault. Destination is fixed (vault ATA), signed by `vault_authority`.
-- `buy_prize` (planned): spend from the vault only through a pinned route (default: MPL-Hybrid capture from an
-  allowlisted hybrid escrow at its fixed rate; or an allowlisted marketplace with an on-chain max price), capped per
-  purchase and per window. The bought NFT goes **directly** to `holder_lottery`'s prize vault PDA. Any token→SOL leg
+- `buy_prize` (planned): spend from the vault only through a pinned route, capped per purchase and per window. Routes:
+  - an allowlisted marketplace with an on-chain max price;
+  - `hybrid_vault` `request_capture` at the fixed ratio (VRF-selected NFT) for an allowlisted Hybrid collection.
+    This needs that collection's classic-SPL token, so the Rewards-token → Hybrid-token swap must use TWAP `min_out`.
+    See DECISIONS Q3. The bought NFT goes **directly** to `holder_lottery`'s prize vault PDA. Any token→SOL leg
   needs on-chain `min_out` from a TWAP (Auditor B R-07).
 - `set_paused`, `propose/execute_params` (planned): admin = multisig, timelocked, bounded.
 
@@ -108,7 +113,7 @@ sequenceDiagram
     participant T as Trader
     participant M as Token-2022 mint (TransferFee)
     participant FT as fee_treasury
-    participant MH as MPL-Hybrid escrow (allowlisted)
+    participant MH as Prize source (allowlisted marketplace or hybrid_vault)
     participant HL as holder_lottery
     participant V as VRF (Switchboard/ORAO)
     T->>M: transfer_checked (DEX swap / wallet send)
@@ -125,15 +130,23 @@ sequenceDiagram
     HL-->>T: winner claims NFT from prize_vault (one-shot)
 ```
 
-### Hybrid launch: exact convert via MPL-Hybrid
+### Hybrid launch: exact convert via `hybrid_vault` (ADR-008, proposed)
 
 ```mermaid
-flowchart LR
-    U[Holder] -- "capture: pay R tokens (+ disclosed fees)" --> E[(MPL-Hybrid escrow PDA)]
-    E -- "Core NFT" --> U
-    U -- "release: return NFT (+ disclosed fees)" --> E
-    E -- "exactly R tokens (classic SPL, no tax)" --> U
-    E -. "authority: per-collection multisig (timelock)" .- A[Escrow authority]
+sequenceDiagram
+    autonumber
+    participant U as Holder
+    participant HV as hybrid_vault (PDA vault + sequenced pool)
+    participant V as VRF
+    participant K as Anyone / crank
+    U->>HV: request_capture: exactly R tokens + fees locked (seq = s)
+    HV->>V: request randomness (pinned account)
+    V-->>HV: fulfilled
+    K->>HV: settle(s): FIFO; candidates = pool deposits with seq < s
+    HV-->>U: VRF-selected Core NFT (minted on first exit with Merkle-proven metadata)
+    U->>HV: release(asset): NFT in (incoming, new seq)
+    HV-->>U: exactly R tokens, same tx
+    U->>HV: request_reroll(asset) + fee → settle → different random NFT
 ```
 
 ### Launch checklist (on-chain, enforced by tests/scripts before a sale opens)
@@ -154,7 +167,7 @@ flowchart TD
 | Freeze authority | **None** | revoked at launch |
 | Token-2022 `withdraw_withheld_authority` | `fee_treasury` `vault_authority` PDA | fixed by program |
 | Token-2022 `transfer_fee_config_authority` | **None** (preferred) or a bounded, timelocked PDA | choice at launch (Q4) |
-| MPL-Hybrid escrow/collection authority | per-collection Squads multisig (+ timelock) | can hand to a governor PDA later |
+| Hybrid collection update authority + vault | `hybrid_vault` PDA. No metadata-update, add-plugin or withdraw instruction. Fee changes bounded + timelocked (multisig) | ratio/mint/trait_root immutable |
 | `fee_treasury` / `holder_lottery` admin | Squads multisig. Pause + bounded, timelocked params only; **no withdraw** | |
 | Program upgrade authority | Squads multisig, then `--final` after audit + stabilization | yes |
 
