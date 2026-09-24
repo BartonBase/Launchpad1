@@ -1,7 +1,7 @@
 [package]
 name = "track-a-hybrid-tests"
 version = "0.1.0"
-description = "Track A (SPL-404) LiteSVM tests. Localnet only; runs the real SBF binary from target/deploy."
+description = "Track A (SPL-404) LiteSVM tests. Localnet only; runs the real SBF binaries from target/deploy."
 edition.workspace = true
 rust-version.workspace = true
 publish = false
@@ -13,10 +13,17 @@ path = "lib.rs"
 name = "launch"
 path = "launch/launch.rs"
 
+[[test]]
+name = "vault"
+path = "vault/vault.rs"
+
 [dev-dependencies]
 anchor-lang = "=1.2.0"
 anchor-spl = { version = "=1.2.0", default-features = false, features = ["token", "associated_token"] }
 hybrid_launch = { path = "../../programs/hybrid_launch", features = ["no-entrypoint"] }
+hybrid_vault = { path = "../../programs/hybrid_vault", features = ["no-entrypoint"] }
+mock-switchboard = { path = "mock-switchboard" }
+mpl-core = "=0.12.1"
 litesvm = "=0.10.0"
 solana-account = "3.4.0"
 solana-message = "3.0.1"

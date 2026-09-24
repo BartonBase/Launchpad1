@@ -1,0 +1,44 @@
+[package]
+name = "hybrid_vault"
+version = "0.1.0"
+description = "Track A (SPL-404) token<->NFT vault: VRF-selected blind capture/re-roll, exact unwrap, burned fees. Bound 1:1 to a hybrid_launch LaunchConfig. Devnet/localnet only. NOT AUDITED."
+publish = false
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "hybrid_vault"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-log-ix-name = []
+# Pin the Switchboard On-Demand MAINNET program id instead of the devnet one.
+mainnet = []
+# See hybrid_launch/Cargo.toml: anchor-spl 1.2.0's idl-build needs its token_2022 feature (IDL generation only).
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build", "anchor-spl/token_2022"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang = "=1.2.0"
+# `token_2022` is needed only because Anchor's `init` + `token::` codegen references anchor_spl::token_2022 /
+# token_interface. Runtime: every token account/program is typed classic-only (Program<Token>, token::TokenAccount).
+anchor-spl = { version = "=1.2.0", default-features = false, features = ["token", "token_2022"] }
+hybrid_launch = { path = "../hybrid_launch", features = ["cpi"] }
+mpl-core = "=0.12.1"
+switchboard-on-demand = { version = "=0.13.0", default-features = false, features = ["solana-v3"] }
+solana-sha256-hasher = "3.1.0"
+
+# switchboard-on-demand pulls getrandom 0.2 (via k256/rand_core), which refuses to compile for
+# target_os = "solana" unless the `custom` backend is selected. We register a backend that ALWAYS
+# FAILS (src/lib.rs): this program never uses OS randomness; its only randomness is the
+# Switchboard VRF value.
+[target.'cfg(target_os = "solana")'.dependencies]
+getrandom = { version = "0.2", features = ["custom"] }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

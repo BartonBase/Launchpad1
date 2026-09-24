@@ -8,6 +8,7 @@ skip-lint = false
 
 [programs.localnet]
 hybrid_launch = "9Loc4hQZJh4SuBCGPiPs1wAfwywUAM7av5upyGHfc6Q8"
+hybrid_vault = "BEfL9dccCUtgBVfLmJieeSr3ju29fpVqLM3NgttxqXqG"
 
 [provider]
 cluster = "localnet"

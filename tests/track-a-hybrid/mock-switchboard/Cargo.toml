@@ -1,0 +1,17 @@
+[package]
+name = "mock-switchboard"
+version = "0.1.0"
+description = "TEST-ONLY stand-in for the Switchboard On-Demand program inside LiteSVM. Never deployed. Loaded at the Switchboard devnet program id in tests so hybrid_vault's REAL commit CPI + account parsing are exercised."
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "mock_switchboard"
+
+[dependencies]
+solana-program = "3.0.0"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
