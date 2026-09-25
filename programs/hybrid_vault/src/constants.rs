@@ -18,6 +18,14 @@ pub const SWITCHBOARD_PROGRAM_ID: Pubkey = pubkey!("Aio4gaXjXzJNVLtzwtNVmSqGKpAN
 #[cfg(feature = "mainnet")]
 pub const SWITCHBOARD_PROGRAM_ID: Pubkey = pubkey!("SBondMDrcV3K4kxZR1HNVT7osZxAHVHgYXL5Ze1oMUv");
 
+/// Build marker: logged by `init_vault`, so it's in the binary's rodata and deploy scripts can verify
+/// which Switchboard cluster id was compiled in (pubkey constants are inlined as immediates and
+/// can't be grepped). An exported `#[no_mangle]` static breaks SBPF v2 loading, hence the log.
+#[cfg(not(feature = "mainnet"))]
+pub const SWITCHBOARD_CLUSTER_MARKER: &str = "hybrid_vault:switchboard=devnet:Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2";
+#[cfg(feature = "mainnet")]
+pub const SWITCHBOARD_CLUSTER_MARKER: &str = "hybrid_vault:switchboard=mainnet:SBondMDrcV3K4kxZR1HNVT7osZxAHVHgYXL5Ze1oMUv";
+
 /// Switchboard instruction discriminators (Anchor: sha256("global:<name>")[..8]). The commit value
 /// matches switchboard-on-demand 0.13.0's `RandomnessCommit`; init/reveal match the codama-generated
 /// `switchboard_on_demand_sol` builders (accounts documented in randomness.rs).

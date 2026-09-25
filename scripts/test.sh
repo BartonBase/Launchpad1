@@ -39,7 +39,7 @@ LEDGER=$(mktemp -d "${TMPDIR:-/tmp}/launchpad-test-ledger.XXXXXX")
 WALLET=".keys/devnet-only-deployer.json"
 # Build first, then load every [programs.localnet] program at genesis (like Anchor's own
 # `upgradeable = false` validator; the 4.x loader refuses to *deploy* SBPF v2 ELFs).
-if [[ " $* " != *" --skip-build "* ]]; then anchor build; fi
+if [[ " $* " != *" --skip-build "* ]]; then ./scripts/build.sh && ./scripts/build-test-sbf.sh; fi
 mapfile -t BPF_ARGS < <(python3 - <<'PY'
 import tomllib
 progs = tomllib.load(open("Anchor.toml", "rb"))["programs"]["localnet"]

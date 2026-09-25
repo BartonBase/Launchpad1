@@ -75,6 +75,7 @@ pub struct InitVault<'info> {
 }
 
 pub fn handle_init_vault(ctx: Context<InitVault>, params: InitVaultParams) -> Result<()> {
+    msg!("{}", crate::constants::SWITCHBOARD_CLUSTER_MARKER);
     let cfg = &ctx.accounts.launch_config;
     require!(params.collection_name.len() <= MAX_NAME_LEN, VaultError::MetadataTooLong);
     require!(params.collection_uri.len() <= MAX_URI_LEN, VaultError::MetadataTooLong);

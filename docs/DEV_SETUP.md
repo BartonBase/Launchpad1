@@ -96,7 +96,14 @@ cargo test -p track-a-hybrid-tests   # LiteSVM tests (needs a prior build: targe
 
 ## Shared-box caveat: SBF toolchain collisions
 
-QA builds with cargo-build-sbf platform-tools v1.57; this repo pins v1.54. Both flip the same rustup `solana` toolchain
-link, so concurrent builds fail with "No such file" or an apparently uninstalled toolchain. Don't build at the same
-time as another team; if it happens, rerun `./scripts/build.sh`. Also, `anchor build` leaves
-`target/deploy/mock_switchboard.so` (a workspace member). `scripts/deploy-devnet.sh` refuses to deploy while it's present.
+QA builds with platform-tools v1.57; this repo pins **v1.54** (`SBF_TOOLS_VERSION` in `scripts/env.sh`). Each version has
+its own rustup link (`1.89.0-sbpf-solana-v1.54`, `1.95.0-sbpf-solana-v1.57`). The old collision happened because a bare
+`anchor build` defaults to `--tools-version v1.57` (QA's). **Always build through the scripts:**
+- `scripts/build.sh` builds only the production allowlist (`PROD_PROGRAMS` = hybrid_launch, hybrid_vault) with
+  `--tools-version v1.54`, deletes any stray `target/deploy/mock_switchboard.so`, and fails on any non-allowlisted
+  artifact or test marker.
+- `scripts/build-test-sbf.sh` builds the test binaries into `target/test-sbf` with v1.54 and `--skip-tools-install`.
+- `scripts/deploy-devnet.sh` deploys only the allowlist, staged into `target/deploy-devnet/`; `DRY_RUN=1` runs every guard
+  without a cluster. `scripts/test-deploy-guards.sh` self-tests the guards (`scripts/lib/deploy-guards.sh`): the mock and
+  the test vault are rejected, and the production vault must carry the devnet Switchboard marker.
+Our target dir is repo-local (`/workspace/launchpad/target`), separate from QA's worktree targets.

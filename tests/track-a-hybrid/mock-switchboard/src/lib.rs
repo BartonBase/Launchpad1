@@ -12,6 +12,11 @@
 //!   reveal_slot = slot and value. DIFFERENCE FROM REAL: the oracle's secp256k1 signature is NOT
 //!   verified (the test supplies the value) and reward/escrow accounts are ignored.
 
+
+/// Marker logged on every instruction (so it's in the binary's rodata); deploy guards
+/// (scripts/lib/deploy-guards.sh) always reject a binary that contains it.
+pub const MOCK_SWITCHBOARD_MARKER: &str = "TEST-ONLY mock_switchboard: never deploy";
+
 use solana_program::{
     account_info::AccountInfo,
     clock::Clock,
@@ -45,6 +50,7 @@ fn acc<'a, 'b>(accounts: &'a [AccountInfo<'b>], i: usize) -> Result<&'a AccountI
 }
 
 pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
+    solana_program::msg!("{}", MOCK_SWITCHBOARD_MARKER);
     if data.len() < 8 || accounts.is_empty() {
         return Err(ProgramError::InvalidInstructionData);
     }

@@ -3,52 +3,54 @@
 #  1. Refuses unless the cluster is devnet (mainnet deploys are a separate, multisig-only process).
 #  2. Rebuilds production binaries with `anchor build` (no test features) and refuses any .so that
 #     contains a TEST-ONLY marker or mock symbol, or that came from target/test-sbf.
-#  3. Refuses to deploy the mock Switchboard program at all.
+#  3. Deploys ONLY the allowlist PROD_PROGRAMS (env.sh), staged from a fresh production build into
+#     target/deploy-devnet/. Nothing else in target/deploy is ever deployed, so a stray
+#     mock_switchboard.so can't ship; a non-allowlisted program, or one whose id is a Switchboard id, is refused.
 #  4. Checks the Switchboard program id compiled in is the DEVNET one (pinned per cluster).
 #  5. Sets the upgrade authority to UPGRADE_AUTHORITY (a Squads multisig vault; placeholder on devnet)
 #     and prints the checklist for Squads 3-of-5 + 7-day timelock (mainnet requirement).
 # Usage: UPGRADE_AUTHORITY=<pubkey> DEPLOYER_KEYPAIR=.keys/devnet-deployer.json scripts/deploy-devnet.sh
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
+source scripts/lib/deploy-guards.sh
 set +u
 ROOT=$(pwd)
-: "${UPGRADE_AUTHORITY:?set UPGRADE_AUTHORITY (Squads vault pubkey; throwaway placeholder on devnet)}"
-: "${DEPLOYER_KEYPAIR:?set DEPLOYER_KEYPAIR (throwaway devnet key under .keys/)}"
+: "${UPGRADE_AUTHORITY:=${DRY_RUN:+DRYRUN}}"; : "${UPGRADE_AUTHORITY:?set UPGRADE_AUTHORITY (Squads vault pubkey; throwaway placeholder on devnet)}"
+: "${DEPLOYER_KEYPAIR:=${DRY_RUN:+DRYRUN}}"; : "${DEPLOYER_KEYPAIR:?set DEPLOYER_KEYPAIR (throwaway devnet key under .keys/)}"
 URL="https://api.devnet.solana.com"
 
 fail() { echo "deploy-devnet.sh: REFUSING: $*" >&2; exit 1; }
 
+# DRY_RUN=1: run every build/guard step, skip the cluster check and the deploy (guard self-test).
+if [ "${DRY_RUN:-0}" != 1 ]; then
 genesis=$(solana genesis-hash --url "$URL")
 [ "$genesis" = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG" ] || fail "cluster at $URL is not devnet (genesis $genesis)"
+fi
 
-anchor build
-MARKERS=("TEST-ONLY" "mock graduation" "MOCKGRAD" "mock_switchboard" "test-mock-graduation")
-for so in target/deploy/hybrid_launch.so target/deploy/hybrid_vault.so; do
-  [ -f "$so" ] || fail "$so missing"
-  for m in "${MARKERS[@]}"; do
-    if grep -aq "$m" "$so"; then fail "$so contains test/mock marker '$m'"; fi
-  done
+./scripts/build.sh   # production allowlist only; refuses non-allowlisted artifacts and markers
+STAGE=target/deploy-devnet
+rm -rf "$STAGE"; mkdir -p "$STAGE"
+for p in "${PROD_PROGRAMS[@]}"; do
+  so="target/deploy/$p.so"; kp="target/deploy/$p-keypair.json"
+  [ -f "$so" ] && [ -f "$kp" ] || fail "$so or its keypair missing"
+  r=$(guard_allowlisted "$p") || fail "$r"
+  r=$(guard_no_markers "$so") || fail "$r"
+  if [ -f "target/test-sbf/$p.so" ] && cmp -s "$so" "target/test-sbf/$p.so"; then fail "$so is identical to the TEST build"; fi
+  r=$(guard_not_switchboard_id "$(solana address -k "$kp")") || fail "$p: $r"
+  cp "$so" "$kp" "$STAGE/"
 done
-[ ! -f target/deploy/mock_switchboard.so ] || fail "target/deploy/mock_switchboard.so exists; mocks are built only into target/test-sbf"
+[ "$(ls "$STAGE"/*.so | wc -l)" -eq "${#PROD_PROGRAMS[@]}" ] || fail "staging holds unexpected artifacts"
 
-SB_DEVNET="Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2"
-SB_MAINNET="SBondMDrcV3K4kxZR1HNVT7osZxAHVHgYXL5Ze1oMUv"
-python3 - "$SB_DEVNET" "$SB_MAINNET" <<'PY' || fail "hybrid_vault.so does not pin the devnet Switchboard id"
-import sys
-def b58d(s):
-    a='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'; n=0
-    for c in s: n=n*58+a.index(c)
-    return n.to_bytes(32,'big')
-so=open('target/deploy/hybrid_vault.so','rb').read()
-dev,main=b58d(sys.argv[1]),b58d(sys.argv[2])
-sys.exit(0 if (dev in so and main not in so) else 1)
-PY
+# Pubkey constants are inlined as immediates, so the cluster is verified through the marker static
+# HYBRID_VAULT_SWITCHBOARD_CLUSTER (constants.rs): devnet, never mainnet.
+r=$(guard_devnet_switchboard "$STAGE/hybrid_vault.so") || fail "$r"
 
-for p in hybrid_launch hybrid_vault; do
+if [ "${DRY_RUN:-0}" = 1 ]; then echo "DRY_RUN: guards passed; would deploy: $(ls $STAGE/*.so | xargs -n1 basename | tr '\n' ' ')"; exit 0; fi
+for p in "${PROD_PROGRAMS[@]}"; do
   solana program deploy --url "$URL" --keypair "$DEPLOYER_KEYPAIR" \
-    --program-id "target/deploy/$p-keypair.json" "target/deploy/$p.so"
+    --program-id "$STAGE/$p-keypair.json" "$STAGE/$p.so"
   solana program set-upgrade-authority --url "$URL" --keypair "$DEPLOYER_KEYPAIR" \
-    "$(solana address -k target/deploy/$p-keypair.json)" --new-upgrade-authority "$UPGRADE_AUTHORITY" --skip-new-upgrade-authority-signer-check
+    "$(solana address -k $STAGE/$p-keypair.json)" --new-upgrade-authority "$UPGRADE_AUTHORITY" --skip-new-upgrade-authority-signer-check
 done
 cat <<TXT
 Deployed. Upgrade authority -> $UPGRADE_AUTHORITY.
