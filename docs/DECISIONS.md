@@ -350,6 +350,66 @@ hybrid_launch, discriminator, length ≥ `LC_STABLE_PREFIX_LEN` (221), and only 
 LaunchConfig upgrade can never lock users out of exits. Capture still fails closed on an unknown version.
 **M-16 (upgrade authority is a trust assumption until freeze) is accepted** and documented in THREAT_MODEL.
 
+## ADR-018: QA-FEE-04: first-mint cost comes from the deposit; M-06 holds on average, not per draw
+
+**Status: Accepted (Barton, 2026-09-25 5:20 PM MT). Accepted trade-off.** Refines ADR-013/ADR-016.
+
+- **Decision.** A capture or re-roll whose draw lands on a **never-minted** index pays that index's first-mint cost
+  (asset rent + Metaplex Core create fee) out of the mint deposit it escrowed at request. There's **no flat surcharge**:
+  the flat tier fee is the same for every draw. The unspent part of the deposit is refunded **exactly** to the requester
+  in the same settle instruction.
+- **Consequence for M-06 ("re-roll ≤ release + capture").** The *fee* comparison holds per draw (re-roll fee ==
+  capture fee, release free). The *all-in* cost differs per draw by the first-mint delta: a draw that mints costs
+  ~0.0031–0.0044 SOL more than one that transfers an already-minted asset, whether it's a capture or a re-roll. The
+  expected first-mint delta is the same for a re-roll and for release + capture (both draw uniformly from the same pool),
+  so M-06 holds **on average**. The per-draw check therefore **excludes the first-mint delta**. Tests assert the fee
+  equality (`reroll_charges_same_flat_sol_fee_…`) and the exact deposit refund
+  (`first_mint_cost_breakdown_is_exact_and_unspent_deposit_is_refunded`, `returned_asset_is_transferred_again_never_reminted`).
+- **Why accepted.** A flat surcharge would overcharge the draws that hit minted assets. Charging the actual cost keeps
+  fees flat and honest, and nobody can pick whether their draw mints (VRF picks uniformly over minted + unminted).
+- **Disclosure copy (suggestion):** "If your NFT is being minted for the first time, about 0.003–0.004 SOL of your
+  deposit covers its on-chain rent and the Metaplex fee; the rest of the deposit comes back automatically."
+
+## Creative Director questions (answered 2026-09-25; figures measured on LiteSVM unless marked ESTIMATE)
+
+### CD Q1: Is the ~0.005 SOL mint cost refunded when the draw lands on an already-minted NFT?
+
+**Yes, in full, in the same settle instruction.** Every capture or re-roll escrows a fixed deposit of **6,338,100
+lamports (0.0063381 SOL)** in its own escrow account, `["mint_escrow", vault, seq]`. At settle:
+
+- **Draw lands on an already-minted NFT** (returned to the vault earlier): no mint happens. The NFT is transferred and
+  **all 6,338,100 lamports** go back to the requester in that same instruction.
+- **Draw lands on a never-minted NFT:** the program mints it straight to the requester, paid from the deposit. The
+  **unspent margin is returned in that same instruction**, exactly (the test asserts spend + refund == deposit):
+  - Core create fee: **1,500,000** lamports (0.0015 SOL; Metaplex's fee, held in the asset account).
+  - Asset rent: `(128 + asset_bytes) × 6,960` lamports. It's **recoverable by nobody**; it stays with the asset. The size
+    depends on the URI length:
+    - measured with an 18-char test URI (97 bytes): rent **1,566,000**, total spend **3,066,000**, refund **3,272,100**.
+    - typical IPFS CIDv1 URI (~66 chars, ~148 bytes): rent ≈ 1,920,960, spend ≈ 3,420,960, refund ≈ 2,917,140 (computed from the same formula).
+    - worst case (`#9999`, 200-char URI, ~282 bytes): rent ≈ 2,853,600, spend ≈ 4,353,600, refund ≈ 1,984,500 (computed).
+  - So the real first-mint cost is **~0.0031–0.0044 SOL** (not ~0.005; the 0.00509 figure was for assets with an
+    Attributes plugin, which we don't add). The deposit is sized for a 385-byte worst case plus 25% margin.
+- Separately, the request account's rent (**3,006,720**) and the randomness-lock rent (**1,231,920**) are also returned to
+  the requester at settle (or expire). The flat tier fee is the only thing never refunded.
+- If the request expires instead (randomness never arrives), the **whole deposit** is refunded along with the principal.
+
+### CD Q2: What does randomness actually cost per request?
+
+| Item | Amount | Who pays | Refunded? | Status |
+|---|---|---|---|---|
+| Switchboard oracle fee | ≈ 5 lamports (the mainnet queue reward read from queue data; devnet 0) | the requester, at cost, separately from the tier fee (Auditor A decision, ADR-012) | no | **ESTIMATE, unmeasured** |
+| Reveal tx (submits the oracle's signed value) | 5,000 lamports base + priority fee | whoever cranks it: the requester's client, or any third party | no | base fee exact; priority varies |
+| Settle tx | 5,000 lamports base + priority | the settler (anyone) | no | exact base; priority varies |
+| Request tx signature | 5,000 lamports base + priority (paid by the requester anyway) | requester | no | exact base |
+| Randomness account rent (408 bytes) | 3,730,560 lamports, once | whoever runs `init_randomness` | **not refunded, but reusable**: one account serves any number of sequential requests (each commit re-arms it; `rand_lock` stops concurrent use). There's no close instruction today, so the rent is locked | measured size/rent |
+| Randomness lock + request rent | 1,231,920 + 3,006,720 | requester | **yes**, at settle/expire | measured |
+
+**Per-request marginal randomness cost ≈ 5 (oracle, ESTIMATE) + 5,000 (reveal) + 5,000 (settle) ≈ 10,005 lamports ≈
+0.00001 SOL, or ~0.00002 SOL with modest priority fees (ESTIMATE).** That's about **1% of the lowest 0.002 SOL tier**, so
+it fits comfortably; the tier fee isn't used to fund it (the requester pays randomness at cost, separately). The
+one-off 0.00373 SOL randomness-account rent is amortised over every request that reuses the account. **A real devnet
+measurement is still pending** (see ADR-012 status; the on-chain CPI is hand-written and needs a devnet reveal run).
+
 ---
 
 ## Open questions for Barton

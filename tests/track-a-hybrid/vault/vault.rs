@@ -1302,3 +1302,32 @@ fn no_todo_or_fixme_left_in_program_sources() {
         }
     }
 }
+
+/// CD Q1 / QA-FEE-04: the exact lamport flow of one first mint (measured, not modelled).
+#[test]
+fn first_mint_cost_breakdown_is_exact_and_unspent_deposit_is_refunded() {
+    let mut env = setup(N);
+    let alice = env.new_user(USER_TOKENS);
+    let seq = pending_capture(&mut env, &alice, val(1));
+    let pick = env.expected_pick(seq, val(1));
+    assert!(!env.is_minted(pick));
+    let esc = env.lamports(&env.escrow_pda(seq));
+    assert_eq!(esc, hybrid_vault::MINT_ESCROW_LAMPORTS);
+    let (req_l, lock_l) = (env.lamports(&env.request_pda(seq)), env.lamports(&env.rand_lock_pda(&env.request_state(seq).randomness)));
+    let u0 = env.lamports(&alice.kp.pubkey());
+    let crank = kp_funded(&mut env);
+    let ix = env.settle_ix(seq, env.asset_pda(pick), crank.pubkey());
+    env.send(&[ix], &[&crank]).unwrap();
+    let asset = env.svm.get_account(&env.asset_pda(pick)).unwrap();
+    let rent = env.svm.minimum_balance_for_rent_exemption(asset.data.len());
+    let core_fee_in_asset = asset.lamports - rent;
+    let spent = asset.lamports;
+    let refunded = env.lamports(&alice.kp.pubkey()) - u0 - req_l - lock_l;
+    eprintln!(
+        "FIRST-MINT: req_rent={req_l} lock_rent={lock_l} escrow={esc} asset_len={} rent={rent} core_fee_held_in_asset={core_fee_in_asset} spent={spent} refunded_to_user={refunded}",
+        asset.data.len()
+    );
+    assert_eq!(spent + refunded, esc, "escrow = mint spend + exact refund; nothing stranded");
+    assert!(core_fee_in_asset == 0 || core_fee_in_asset == hybrid_launch::CORE_CREATE_FEE_LAMPORTS);
+    assert!(rent <= hybrid_launch::CORE_ASSET_RENT_LAMPORTS, "actual asset is no bigger than the escrowed worst case");
+}
