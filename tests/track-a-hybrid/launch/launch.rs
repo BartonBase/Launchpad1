@@ -5,7 +5,7 @@
 use {
     anchor_lang::{
         prelude::Pubkey,
-        solana_program::{instruction::Instruction, system_program},
+        solana_program::{instruction::Instruction, system_instruction, system_program},
         AccountDeserialize, InstructionData, ToAccountMetas,
     },
     anchor_spl::{
@@ -13,7 +13,8 @@ use {
         token::{Mint, TokenAccount, ID as SPL_TOKEN_ID},
     },
     hybrid_launch::{
-        error::LaunchError, LaunchConfig, LaunchParams, FEE_DESTINATION_BURN, LAUNCH_CONFIG_SEED, MINT_AUTHORITY_SEED,
+        error::LaunchError, LaunchConfig, LaunchParams, ALLOWED_RATIOS, FEE_DESTINATION_BURN, LAUNCH_CONFIG_SEED,
+        LAUNCH_VAULT_SEED, MINT_AUTHORITY_SEED, MIN_COLLECTION_SIZE,
     },
     litesvm::LiteSVM,
     solana_account::Account,
@@ -56,17 +57,25 @@ fn setup() -> Env {
 struct Accts {
     config: Pubkey,
     mint_authority: Pubkey,
-    dest_owner: Pubkey,
+    /// The launch-vault PDA (owner of the destination). Attack tests overwrite it.
+    launch_vault: Pubkey,
     dest: Pubkey,
     token_program: Pubkey,
 }
 
-fn derive(mint: &Pubkey, dest_owner: Pubkey) -> Accts {
+fn launch_vault_pda(mint: &Pubkey) -> (Pubkey, u8) {
+    let pid = hybrid_launch::id();
+    let config = Pubkey::find_program_address(&[LAUNCH_CONFIG_SEED, mint.as_ref()], &pid).0;
+    Pubkey::find_program_address(&[LAUNCH_VAULT_SEED, mint.as_ref(), config.as_ref()], &pid)
+}
+
+fn derive(mint: &Pubkey) -> Accts {
     let pid = hybrid_launch::id();
     let config = Pubkey::find_program_address(&[LAUNCH_CONFIG_SEED, mint.as_ref()], &pid).0;
     let mint_authority = Pubkey::find_program_address(&[MINT_AUTHORITY_SEED, config.as_ref()], &pid).0;
-    let dest = get_associated_token_address_with_program_id(&dest_owner, mint, &SPL_TOKEN_ID);
-    Accts { config, mint_authority, dest_owner, dest, token_program: SPL_TOKEN_ID }
+    let launch_vault = launch_vault_pda(mint).0;
+    let dest = get_associated_token_address_with_program_id(&launch_vault, mint, &SPL_TOKEN_ID);
+    Accts { config, mint_authority, launch_vault, dest, token_program: SPL_TOKEN_ID }
 }
 
 fn launch_ix(creator: &Pubkey, mint: &Pubkey, a: &Accts, p: LaunchParams) -> Instruction {
@@ -78,7 +87,7 @@ fn launch_ix(creator: &Pubkey, mint: &Pubkey, a: &Accts, p: LaunchParams) -> Ins
             mint: *mint,
             launch_config: a.config,
             mint_authority: a.mint_authority,
-            launch_destination_owner: a.dest_owner,
+            launch_vault: a.launch_vault,
             launch_destination: a.dest,
             token_program: a.token_program,
             associated_token_program: ATA_PROGRAM_ID,
@@ -111,7 +120,7 @@ fn expect_launch_error(res: Result<(), String>, e: LaunchError) {
 fn try_params(p: LaunchParams) -> Result<(), String> {
     let mut env = setup();
     let mint = Keypair::new();
-    let a = derive(&mint.pubkey(), env.creator.pubkey());
+    let a = derive(&mint.pubkey());
     let ix = launch_ix(&env.creator.pubkey(), &mint.pubkey(), &a, p);
     send(&mut env, ix, &[&mint])
 }
@@ -122,8 +131,7 @@ fn try_params(p: LaunchParams) -> Result<(), String> {
 fn launch_mints_exactly_1b_revokes_mint_and_freeze_authority_and_records_immutable_config() {
     let mut env = setup();
     let mint = Keypair::new();
-    let dest_owner = Keypair::new().pubkey();
-    let a = derive(&mint.pubkey(), dest_owner);
+    let a = derive(&mint.pubkey());
     let ix = launch_ix(&env.creator.pubkey(), &mint.pubkey(), &a, params());
     send(&mut env, ix, &[&mint]).expect("launch");
 
@@ -137,7 +145,8 @@ fn launch_mints_exactly_1b_revokes_mint_and_freeze_authority_and_records_immutab
 
     let dest = TokenAccount::try_deserialize(&mut env.svm.get_account(&a.dest).unwrap().data.as_slice()).unwrap();
     assert_eq!(dest.amount, m.supply, "whole supply at the launch destination");
-    assert_eq!(dest.owner, dest_owner);
+    assert_eq!(dest.owner, a.launch_vault, "supply owned by the program-derived launch vault");
+    assert!(dest.delegate.is_none() && dest.close_authority.is_none());
 
     let cfg_acct = env.svm.get_account(&a.config).unwrap();
     assert_eq!(cfg_acct.owner, hybrid_launch::id());
@@ -152,6 +161,7 @@ fn launch_mints_exactly_1b_revokes_mint_and_freeze_authority_and_records_immutab
     assert_eq!(cfg.fee_destination, FEE_DESTINATION_BURN);
     assert_eq!(cfg.launch_destination, a.dest);
     assert_eq!(cfg.creator, env.creator.pubkey());
+    assert_eq!((cfg.launch_vault, cfg.launch_vault_bump), launch_vault_pda(&mint.pubkey()));
 }
 
 #[test]
@@ -174,9 +184,9 @@ fn config_has_no_mutation_or_close_instruction_in_idl() {
 fn attack_token_2022_program_substituted_is_rejected() {
     let mut env = setup();
     let mint = Keypair::new();
-    let mut a = derive(&mint.pubkey(), env.creator.pubkey());
+    let mut a = derive(&mint.pubkey());
     a.token_program = TOKEN_2022_ID;
-    a.dest = get_associated_token_address_with_program_id(&a.dest_owner, &mint.pubkey(), &TOKEN_2022_ID);
+    a.dest = get_associated_token_address_with_program_id(&a.launch_vault, &mint.pubkey(), &TOKEN_2022_ID);
     let ix = launch_ix(&env.creator.pubkey(), &mint.pubkey(), &a, params());
     expect_custom(send(&mut env, ix, &[&mint]), ANCHOR_INVALID_PROGRAM_ID);
 }
@@ -190,10 +200,9 @@ fn preexisting_mint_rejected(owner: Pubkey) {
     env.svm
         .set_account(mint.pubkey(), Account { lamports: 10_000_000, data, owner, executable: false, rent_epoch: 0 })
         .unwrap();
-    let a = derive(&mint.pubkey(), env.creator.pubkey());
+    let a = derive(&mint.pubkey());
     let ix = launch_ix(&env.creator.pubkey(), &mint.pubkey(), &a, params());
-    let err = send(&mut env, ix, &[&mint]).expect_err("existing mint must not be onboarded");
-    assert!(err.contains("already in use") || err.contains("Custom(0)"), "unexpected error: {err}");
+    expect_launch_error(send(&mut env, ix, &[&mint]), LaunchError::MintAccountInUse);
 }
 
 #[test]
@@ -210,7 +219,7 @@ fn attack_existing_classic_mint_cannot_be_onboarded() {
 fn attack_relaunch_of_same_mint_is_rejected() {
     let mut env = setup();
     let mint = Keypair::new();
-    let a = derive(&mint.pubkey(), env.creator.pubkey());
+    let a = derive(&mint.pubkey());
     let creator = env.creator.pubkey();
     send(&mut env, launch_ix(&creator, &mint.pubkey(), &a, params()), &[&mint]).expect("first launch");
     let before = env.svm.get_account(&a.config).unwrap();
@@ -222,8 +231,8 @@ fn attack_relaunch_of_same_mint_is_rejected() {
 
 #[test]
 fn attack_ratio_outside_allowed_set_is_rejected() {
-    for r in [0u64, 1, 30_000, 250_000, 1_000_000_000] {
-        expect_launch_error(try_params(LaunchParams { ratio_whole_tokens: r, collection_size: 1, ..params() }), LaunchError::RatioNotAllowed);
+    for r in [0u64, 1, 20_000, 30_000, 250_000, 2_000_000, 10_000_000, 1_000_000_000] {
+        expect_launch_error(try_params(LaunchParams { ratio_whole_tokens: r, collection_size: 100, ..params() }), LaunchError::RatioNotAllowed);
     }
 }
 
@@ -279,7 +288,7 @@ fn attack_fee_destination_other_than_burn_is_rejected() {
 fn attack_launch_destination_not_the_derived_ata_is_rejected() {
     let mut env = setup();
     let mint = Keypair::new();
-    let mut a = derive(&mint.pubkey(), env.creator.pubkey());
+    let mut a = derive(&mint.pubkey());
     a.dest = Pubkey::new_unique();
     let ix = launch_ix(&env.creator.pubkey(), &mint.pubkey(), &a, params());
     expect_launch_error(send(&mut env, ix, &[&mint]), LaunchError::InvalidLaunchDestination);
@@ -289,7 +298,7 @@ fn attack_launch_destination_not_the_derived_ata_is_rejected() {
 fn attack_spoofed_mint_authority_pda_is_rejected() {
     let mut env = setup();
     let mint = Keypair::new();
-    let mut a = derive(&mint.pubkey(), env.creator.pubkey());
+    let mut a = derive(&mint.pubkey());
     a.mint_authority = env.creator.pubkey(); // attacker tries to keep mint authority
     let ix = launch_ix(&env.creator.pubkey(), &mint.pubkey(), &a, params());
     expect_custom(send(&mut env, ix, &[&mint]), ANCHOR_CONSTRAINT_SEEDS);
@@ -300,8 +309,8 @@ fn attack_spoofed_launch_config_pda_is_rejected() {
     let mut env = setup();
     let mint = Keypair::new();
     let other = Keypair::new();
-    let mut a = derive(&mint.pubkey(), env.creator.pubkey());
-    a.config = derive(&other.pubkey(), env.creator.pubkey()).config;
+    let mut a = derive(&mint.pubkey());
+    a.config = derive(&other.pubkey()).config;
     let ix = launch_ix(&env.creator.pubkey(), &mint.pubkey(), &a, params());
     expect_custom(send(&mut env, ix, &[&mint]), ANCHOR_CONSTRAINT_SEEDS);
 }
@@ -310,7 +319,7 @@ fn attack_spoofed_launch_config_pda_is_rejected() {
 fn attack_mint_keypair_not_signing_is_rejected() {
     let mut env = setup();
     let mint = Keypair::new();
-    let a = derive(&mint.pubkey(), env.creator.pubkey());
+    let a = derive(&mint.pubkey());
     let mut ix = launch_ix(&env.creator.pubkey(), &mint.pubkey(), &a, params());
     for m in ix.accounts.iter_mut() {
         if m.pubkey == mint.pubkey() {
@@ -318,4 +327,131 @@ fn attack_mint_keypair_not_signing_is_rejected() {
         }
     }
     expect_custom(send(&mut env, ix, &[]), ANCHOR_ACCOUNT_NOT_SIGNER);
+}
+
+// ---------------------------------------------------------------- ratio set + min size (Barton 2026-09-24)
+
+#[test]
+fn every_ratio_launches_at_min_100_and_at_max_1b_over_ratio() {
+    let table = [
+        (10_000u64, 100_000u64),
+        (50_000, 20_000),
+        (100_000, 10_000),
+        (200_000, 5_000),
+        (500_000, 2_000),
+        (1_000_000, 1_000),
+        (2_500_000, 400),
+        (5_000_000, 200),
+    ];
+    assert_eq!(table.map(|t| t.0), ALLOWED_RATIOS);
+    for (r, max) in table {
+        try_params(LaunchParams { ratio_whole_tokens: r, collection_size: MIN_COLLECTION_SIZE, ..params() })
+            .unwrap_or_else(|e| panic!("r={r} N=100: {e}"));
+        try_params(LaunchParams { ratio_whole_tokens: r, collection_size: max, ..params() })
+            .unwrap_or_else(|e| panic!("r={r} N={max}: {e}"));
+        expect_launch_error(
+            try_params(LaunchParams { ratio_whole_tokens: r, collection_size: max + 1, ..params() }),
+            LaunchError::CollectionTooLargeForSupply,
+        );
+    }
+}
+
+#[test]
+fn attack_collection_below_minimum_100_is_rejected() {
+    for n in [1u64, 50, 99] {
+        for r in [10_000u64, 5_000_000] {
+            expect_launch_error(
+                try_params(LaunchParams { ratio_whole_tokens: r, collection_size: n, ..params() }),
+                LaunchError::CollectionBelowMinimum,
+            );
+        }
+    }
+}
+
+// ---------------------------------------------------------------- QA-HL-02: launch vault PDA
+
+#[test]
+fn attack_caller_chosen_launch_vault_owner_is_rejected() {
+    // A creator tries to route the whole supply to their own wallet (or any non-PDA owner).
+    for owner in ["creator", "random", "pda_of_other_program"] {
+        let mut env = setup();
+        let mint = Keypair::new();
+        let mut a = derive(&mint.pubkey());
+        a.launch_vault = match owner {
+            "creator" => env.creator.pubkey(),
+            "random" => Pubkey::new_unique(),
+            _ => Pubkey::find_program_address(&[b"curve_vault"], &Pubkey::new_unique()).0,
+        };
+        a.dest = get_associated_token_address_with_program_id(&a.launch_vault, &mint.pubkey(), &SPL_TOKEN_ID);
+        let ix = launch_ix(&env.creator.pubkey(), &mint.pubkey(), &a, params());
+        expect_custom(send(&mut env, ix, &[&mint]), ANCHOR_CONSTRAINT_SEEDS);
+        assert!(env.svm.get_account(&mint.pubkey()).is_none(), "{owner}: atomic");
+    }
+}
+
+#[test]
+fn supply_sits_in_launch_vault_pda_with_no_withdraw_instruction() {
+    let mut env = setup();
+    let mint = Keypair::new();
+    let a = derive(&mint.pubkey());
+    let ix = launch_ix(&env.creator.pubkey(), &mint.pubkey(), &a, params());
+    send(&mut env, ix, &[&mint]).expect("launch");
+    assert!(!a.launch_vault.is_on_curve(), "launch vault is a PDA: no private key exists");
+    let dest = TokenAccount::try_deserialize(&mut env.svm.get_account(&a.dest).unwrap().data.as_slice()).unwrap();
+    assert_eq!(dest.owner, a.launch_vault);
+    assert_eq!(dest.amount, 1_000_000_000 * 10u64.pow(6));
+    // The PDA has no account data and hybrid_launch has exactly one instruction (`launch`), which
+    // never signs with the launch-vault seeds: no instruction exists that can move these tokens.
+    assert!(env.svm.get_account(&a.launch_vault).is_none());
+    let idl: serde_json::Value =
+        serde_json::from_str(include_str!(concat!(env!("CARGO_TARGET_TMPDIR"), "/../idl/hybrid_launch.json"))).unwrap();
+    assert_eq!(idl["instructions"].as_array().unwrap().len(), 1);
+    // Creator can't move it with a plain SPL transfer either (not the owner, no delegate).
+    let creator_ata = Pubkey::new_unique();
+    let t = anchor_spl::token::spl_token::instruction::transfer(&SPL_TOKEN_ID, &a.dest, &creator_ata, &env.creator.pubkey(), &[], 1).unwrap();
+    assert!(send(&mut env, t, &[]).is_err());
+}
+
+// ---------------------------------------------------------------- QA-HL-01: pre-funded mint address
+
+#[test]
+fn prefunded_mint_address_does_not_block_launch() {
+    for lamports in [1u64, 1_000_000, 50_000_000] {
+        // 1 lamport (top-up), ~rent-exempt, and above rent-exempt (no top-up needed)
+        let mut env = setup();
+        let mint = Keypair::new();
+        let t = system_instruction::transfer(&env.creator.pubkey(), &mint.pubkey(), lamports);
+        send(&mut env, t, &[]).expect("prefund");
+        let a = derive(&mint.pubkey());
+        let ix = launch_ix(&env.creator.pubkey(), &mint.pubkey(), &a, params());
+        send(&mut env, ix, &[&mint]).unwrap_or_else(|e| panic!("prefunded {lamports}: {e}"));
+        let acct = env.svm.get_account(&mint.pubkey()).unwrap();
+        assert_eq!(acct.owner, SPL_TOKEN_ID);
+        assert_eq!(acct.data.len(), 82);
+        assert!(acct.lamports >= env.svm.minimum_balance_for_rent_exemption(82), "rent-exempt after top-up");
+        let m = Mint::try_deserialize(&mut acct.data.as_slice()).unwrap();
+        assert!(m.mint_authority.is_none() && m.freeze_authority.is_none());
+        assert_eq!(m.supply, 1_000_000_000 * 10u64.pow(6));
+    }
+}
+
+#[test]
+fn attack_mint_address_with_data_or_program_owner_is_rejected() {
+    let cases: [(&str, Pubkey, usize); 3] = [
+        ("system-owned with data", system_program::ID, 10),
+        ("other program, no data", hybrid_launch::id(), 0),
+        ("classic token program, no data", SPL_TOKEN_ID, 0),
+    ];
+    for (name, owner, len) in cases {
+        let mut env = setup();
+        let mint = Keypair::new();
+        env.svm
+            .set_account(mint.pubkey(), Account { lamports: 5_000_000, data: vec![0u8; len], owner, executable: false, rent_epoch: 0 })
+            .unwrap();
+        let a = derive(&mint.pubkey());
+        let ix = launch_ix(&env.creator.pubkey(), &mint.pubkey(), &a, params());
+        let res = send(&mut env, ix, &[&mint]);
+        assert!(res.is_err(), "{name}: must be rejected");
+        expect_launch_error(res, LaunchError::MintAccountInUse);
+    }
 }

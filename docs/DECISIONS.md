@@ -31,7 +31,7 @@ by Barton)**.
 
 ## ADR-003: No custom 404 program and no custom transfer-fee program
 
-**Status: Proposed. Partially superseded by ADR-008 (proposed)** for hybrid swaps. The transfer-fee half is moot
+**Status: Proposed. Partially superseded by ADR-008 (Accepted)** for hybrid swaps. The transfer-fee half is moot
 (Token-2022 shelved, ADR-009).
 
 - **Context.** Custom swap/fee code that holds pooled value is the biggest bug and drain surface, and each one needs
@@ -102,18 +102,26 @@ shelved/deferred. Kept for the record.
 - **Decision (updated for ADR-009).** Rust unit tests for math inside each program (`src/validation.rs`), LiteSVM
   integration tests that load the real SBF binary from `target/deploy`, grouped per track in `tests/track-a-hybrid/`
   (crate `track-a-hybrid-tests`, one `[[test]]` per instruction area, test names state the attack they prove), and
-  `anchor test --validator legacy` via `./scripts/test.sh` (Anchor 1.2 defaults to surfpool, which isn't installed).
+  `./scripts/test.sh` (isolated solana-test-validator on random free ports + unique ledger, then `anchor test
+  --skip-local-validator`).
   The Token-2022 localnet smoke test is shelved with Track B.
 - **Consequences.** Planned 🧪 tests in THREAT_MODEL.md become the backlog. Fuzzing (Trident or honggfuzz) and CU
   benchmarks come before audit.
 
 ## ADR-008: Cosmetic-rarity hybrid collections use a custom `hybrid_vault` (VRF selection), not MPL-Hybrid
 
-**Status: Proposed.** Full design: [hybrid-rarity-and-assignment.md](hybrid-rarity-and-assignment.md).
+**Status: ACCEPTED (2026-09-24). Engine = `hybrid_vault`; MPL-Hybrid is reference only.** Full design:
+[hybrid-rarity-and-assignment.md](hybrid-rarity-and-assignment.md).
+
+- **Who decided and why.** The Solana Program Engineer made this call on 2026-09-24. Barton did not answer Q-H1
+  directly, but his stated requirements (blind assignment, VRF re-roll, burned fees, no mutable economics, multisig
+  plus timelock) cannot be met by any MPL-Hybrid configuration (see Context). **Reversible if Barton objects**: the
+  launch step (`hybrid_launch`) is engine-independent, and no mainnet deployment exists.
 
 - **Context.**
   - Barton chose cosmetic rarity: every NFT redeems for exactly `ratio` tokens.
-  - Ratios are 10k/50k/100k/200k/1M, and collection size is a separate creator setting.
+  - Ratios are 10k/50k/100k/200k/500k/1M/2.5M/5M (Barton, 2026-09-24), and collection size is a separate creator
+    setting (min 100, max 1B / ratio).
   - Re-rolls cost a fee.
   - Wrapping must be "no choosing, no peeking".
   - Builds on ADR-004 (Accepted): Hybrid launches are classic SPL, untaxed, convertible.
@@ -126,10 +134,10 @@ shelved/deferred. Kept for the record.
       (`update_recipe.rs:91-138`);
     - it's upgradeable by `mp14o4AQ…` and its audit is pending.
   - **No MPL-Hybrid configuration meets the requirement.**
-- **Decision (proposed).**
+- **Decision (accepted 2026-09-24).**
   1. **Supply check:** `collection_size × ratio ≤ 1B` via `checked_mul` in base units in `hybrid_vault::initialize`,
-     mirrored in the frontend. Max sizes are 100,000 / 20,000 / 10,000 / 5,000 / 1,000. Ratio, mint and size are
-     immutable.
+     mirrored in the frontend. Enforced in `hybrid_launch` (ADR-010). Max sizes are 100,000 / 20,000 / 10,000 /
+     5,000 / 2,000 / 1,000 / 400 / 200; minimum 100 for every ratio. Ratio, mint and size are immutable.
   2. **Rarity assignment:** the creator commits a Merkle root of the full trait list before launch. A VRF seed drawn at
      lock keys a Feistel permutation from index to list position. Metadata is bound on-chain at first exit with a
      Merkle proof, the collection is created by the program with no metadata-update path, and a public verify script
@@ -171,8 +179,8 @@ shelved/deferred. Kept for the record.
   - Code is preserved on local branch `shelved/track-b-t22` (commit `3916467`, WIP) and in `shelved/` on `main`,
     excluded from the Cargo workspace and `Anchor.toml`. See `shelved/README.md`.
 - **Decision B: product.** Classic SPL Token, fixed 1B supply, mint + freeze authority revoked at launch (ADR-010);
-  token↔NFT conversion with exact unwrap (engine still open, ADR-008); ratio in {10k, 50k, 100k, 200k, 1M}; collection
-  size ≤ 1B / ratio; cosmetic rarity; blind assignment; VRF re-roll.
+  token↔NFT conversion with exact unwrap (engine: `hybrid_vault`, ADR-008 accepted); ratio in {10k, 50k, 100k, 200k,
+  500k, 1M, 2.5M, 5M} (updated by Barton 2026-09-24); collection size 100 ≤ N ≤ 1B / ratio; cosmetic rarity; blind assignment; VRF re-roll.
 - **Decision C: design constraints from Stonk.fun (binding on every Track A program):**
   1. **No transfer tax.** Classic SPL Token only; Token-2022 is rejected on-chain.
   2. **No operator wallet that custodies value.** No platform or creator wallet sweeps, holds or routes user funds.
@@ -214,27 +222,41 @@ shelved/deferred. Kept for the record.
 - **Context.** Whatever the engine (ADR-008), every hybrid launch needs the same first step: a classic mint with
   exactly 1B supply and no authorities, plus an on-chain record of economics nobody can change (ADR-009 C3).
 - **Decision.** One instruction, `launch(params)`, in one transaction:
-  1. `create_account` for a **fresh mint keypair that must sign** (82 bytes, owner = classic SPL Token). An existing
-     mint (classic or Token-2022) can't be onboarded, because the address is already in use.
+  1. Create the account for a **fresh mint keypair that must sign** (82 bytes, owner = classic SPL Token). If the
+     address was pre-funded (system-owned, no data), top up to rent-exempt, then `allocate` and `assign`, the way the
+     ATA program does, so 1 lamport can't grief a launch (**QA-HL-01, fixed**). Otherwise `create_account`. An address
+     with data or any non-system owner is rejected (`MintAccountInUse`), so an existing mint (classic or Token-2022)
+     can't be onboarded.
   2. `initialize_mint2(decimals, mint_authority = PDA ["mint_authority", config], freeze_authority = None)`.
-  3. Create the classic ATA of `launch_destination_owner`, then `mint_to` exactly `1_000_000_000 × 10^decimals`.
+  3. Create the classic ATA of the **launch-vault PDA** `["launch_vault", mint, launch_config]`, then `mint_to` exactly
+     `1_000_000_000 × 10^decimals` into it. The owner is program-derived, **not caller-chosen**, and no instruction
+     signs with the launch-vault seeds, so no person can withdraw (**QA-HL-02, fixed; N2**).
   4. `set_authority(MintTokens → None)`.
-  5. Re-read the mint and fail unless owner, supply, decimals and both authorities are right.
+  5. Re-read the mint and the destination and fail unless owner, supply, decimals, both authorities, the destination
+     owner (launch vault), its balance, and the absence of a delegate or close authority are all right.
   6. `init` an immutable `LaunchConfig` PDA `["launch_config", mint]`: creator, mint, launch destination, decimals,
      total supply, ratio (whole and base units), collection size, `max_tokens_in_nft_form`, capture/re-roll fee bps
-     and exact amounts, `fee_destination = BURN`, `launched_at`, bumps.
-  - Validation: `decimals ≤ 9`; ratio ∈ {10k, 50k, 100k, 200k, 1M}; `collection_size ≥ 1` and
+     and exact amounts, `fee_destination = BURN`, `launched_at`, `launch_vault` and bumps.
+  - Validation: `decimals ≤ 9`; ratio ∈ {10k, 50k, 100k, 200k, 500k, 1M, 2.5M, 5M}; `collection_size ≥ 100` and
     `collection_size × ratio_base ≤ supply_base` via `checked_mul` (overflow rejects); each fee ≤ 1,000 bps of the
     ratio; `capture_fee_bps ≥ reroll_fee_bps`; `fee_destination == BURN`. Fee amounts are exact because every ratio is
     a multiple of 10,000.
+  - **Supply table** (whole tokens per NFT → max collection size = 1B / ratio; min 100 for all):
+
+    | Ratio | 10k | 50k | 100k | 200k | 500k | 1M | 2.5M | 5M |
+    |---|---|---|---|---|---|---|---|---|
+    | Max NFTs | 100,000 | 20,000 | 10,000 | 5,000 | 2,000 | 1,000 | 400 | 200 |
+
   - `token_program: Program<Token>` rejects Token-2022 at the account-validation layer.
   - **No update, close or admin instruction exists.**
 - **Out of scope (engine-specific):** SOL cost fees (VRF, rent), the vault, the engine's own config. The engine should
   read `LaunchConfig` instead of taking its own copies of ratio or fees.
 - **Build note.** anchor-spl 1.2.0's `idl-build` references `token_interface` unconditionally, so the program's
   `idl-build` feature also enables `anchor-spl/token_2022`. That affects only IDL generation, not the on-chain program.
-- **Consequences.** 4 unit tests and 19 LiteSVM tests (`./scripts/test.sh`). Open: who `launch_destination_owner` is
-  (should be the curve/sale vault PDA, not a person, N2), and the default decimals (N3).
+- **Consequences.** 5 unit tests and 25 engineer LiteSVM tests plus QA's `qa_launch` suite (`./scripts/test.sh`).
+  N2 is decided (launch vault PDA). The curve/distribution mechanism that will move tokens out of the launch vault is
+  TBD and must arrive through the upgrade process (multisig plus timelock), because today nothing can move them.
+  Open: default decimals (N3).
 
 ---
 
@@ -253,14 +275,15 @@ Status after ADR-009. Obsolete items are struck through and kept for the record.
 4. ~~Tax parameters~~ **Obsolete (no tax).**
 5. **SBPF v2 vs v3.** OK to stay on v2 until we bump Rust and litesvm?
 6. ~~Stonk.fun incident source~~ **Resolved:** Bitquery investigation (ADR-009, THREAT_MODEL).
-7. **MPL-Hybrid audit.** Only relevant if MPL-Hybrid is chosen as the engine (Q-H1).
+7. ~~**MPL-Hybrid audit.**~~ **Obsolete:** engine = `hybrid_vault` (ADR-008 accepted, 2026-09-24).
 8. **Multisig.** Squads v4: who are the signers, what's the threshold, and what timelock length? (Proposed defaults in
    admin-multisig-timelock.md.)
 
 ### Hybrid rarity (ADR-008)
 
-9. **Q-H1:** Engine: MPL-Hybrid or the custom `hybrid_vault`? (Still Barton's.) Note that MPL-Hybrid can't burn fees
-   natively (ADR-009 caveat) and can't meet blind assignment.
+9. ~~**Q-H1:** Engine: MPL-Hybrid or the custom `hybrid_vault`?~~ **ACCEPTED: `hybrid_vault`** (decided 2026-09-24 by
+   the Solana Program Engineer because MPL-Hybrid can't meet Barton's stated requirements; reversible if Barton
+   objects; ADR-008).
 10. **Q-H2:** Capture/re-roll fees as a % of the ratio in tokens (default 2%) plus a small SOL cost fee?
 11. ~~**Q-H3:** Fee destination~~ **Resolved: BURN** (Barton, ADR-009). Supersedes my "no burn" recommendation.
 12. **Q-H4:** OK to require capture fee ≥ re-roll fee, with unwrap free of token fees? (Enforced in `hybrid_launch`.)
@@ -268,19 +291,23 @@ Status after ADR-009. Obsolete items are struck through and kept for the record.
 14. **Q-H6:** Forbid creator/team NFT allocations outside the pool?
 15. **Q-H7:** Show full pool contents/traits publicly, or only the census?
 16. **Q-H8:** Is two-transaction capture/re-roll acceptable UX?
-17. **Q-H9:** Keep the 100,000-NFT maximum or cap lower?
+17. ~~**Q-H9:** Keep the 100,000-NFT maximum or cap lower?~~ **Resolved by Barton's ratio set** (2026-09-24): max =
+    1B / ratio (100,000 at 10k), min 100.
 
 ### New (scope change, ADR-009/010)
 
 - **N1 Capture fee burned too?** Engineering default: yes, same burn path, so no fee account exists anywhere.
   (`hybrid_launch` applies `fee_destination = BURN` to both fees.)
-- **N2 Launch destination.** Where does the 1B go at launch: the bonding-curve vault PDA (recommended), a sale
-  program, or a creator wallet? Any creator allocation should be visible and capped.
+- **N2 Launch destination. DECIDED (engineering, security-driven, 2026-09-24; QA-HL-02):** 1B goes to a PDA launch
+  vault; distribution mechanism (curve) TBD. The destination is the ATA of `["launch_vault", mint, launch_config]`,
+  not caller-chosen, with no withdraw instruction. A creator allocation, if Barton wants one, would have to be a
+  visible, capped, program-enforced rule (still a question for Barton).
 - **N3 Decimals default.** 6 (pump.fun-style) or 9? `hybrid_launch` accepts 0–9.
 - **N4 Pause at all?** Recommended: at most "pause new captures/re-rolls", multisig + timelock, never blocking
   release/settle/expire. Or no pause at all (simplest, most trustworthy)?
 - **N5 Upgrade authority.** Squads multisig until audit + stabilization, then frozen (`--final`)? For how long?
 - **N6 Bonding curve venue + anti-sniping mechanism.** Own curve vs an audited venue; then which mechanism (see
   admin-multisig-timelock.md §Anti-sniping).
-- **N7 Fees on expire.** Refund the SOL cost fee minus VRF cost? The token fee can't be un-burned, so the engine
-  should burn at `settle`, not at `request` (engineering default).
+- **N7 Fee burn timing. DECIDED (final, 2026-09-24): burn at SETTLE.** The token fee is escrowed in the request
+  PDA's token account at request time, burned at settle, and refunded together with the locked tokens on expire.
+  Still open: refund the SOL cost fee minus VRF cost on expire?

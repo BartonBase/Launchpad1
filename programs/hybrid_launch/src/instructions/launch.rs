@@ -3,16 +3,20 @@
 //! 1. validate params (ratio set, collection_size * ratio <= 1B via checked_mul,
 //!    fee caps, capture fee >= re-roll fee, fee destination = BURN);
 //! 2. create the 82-byte mint account owned by the CLASSIC Token program
-//!    (`token_program: Program<Token>` rejects Token-2022: INV-13);
+//!    (`token_program: Program<Token>` rejects Token-2022: INV-13). Pre-funded
+//!    but empty system accounts are tolerated like the ATA program does
+//!    (transfer top-up + allocate + assign), so 1 lamport can't grief a launch
+//!    (QA-HL-01). Anything with data or a non-system owner is rejected;
 //! 3. InitializeMint2: mint authority = PDA, freeze authority = None;
-//! 4. create the launch-destination ATA;
+//! 4. create the launch-destination ATA, owned by the `launch_vault` PDA. The
+//!    owner is NOT caller-chosen and no instruction signs for it (QA-HL-02);
 //! 5. mint exactly 1_000_000_000 * 10^decimals;
 //! 6. SetAuthority(MintTokens -> None);
 //! 7. re-read the mint and assert supply/authorities; write LaunchConfig.
 
 use anchor_lang::{
     prelude::*,
-    system_program::{self, CreateAccount},
+    system_program::{self, Allocate, Assign, CreateAccount, Transfer},
 };
 use anchor_spl::{
     associated_token::{self, get_associated_token_address_with_program_id, AssociatedToken},
@@ -32,9 +36,9 @@ pub struct Launch<'info> {
     #[account(mut)]
     pub creator: Signer<'info>,
 
-    /// Fresh keypair for the new mint. Must sign; `create_account` fails if the
-    /// address already holds an account (so an existing mint, classic or
-    /// Token-2022, can never be "onboarded").
+    /// Fresh keypair for the new mint. Must sign. The address may hold lamports
+    /// (pre-funding is tolerated) but must be system-owned with no data, so an
+    /// existing mint (classic or Token-2022) can never be "onboarded".
     #[account(mut)]
     pub mint: Signer<'info>,
 
@@ -52,10 +56,13 @@ pub struct Launch<'info> {
     #[account(seeds = [MINT_AUTHORITY_SEED, launch_config.key().as_ref()], bump)]
     pub mint_authority: UncheckedAccount<'info>,
 
-    /// CHECK: owner of the account receiving the full supply (future: curve vault).
-    pub launch_destination_owner: UncheckedAccount<'info>,
+    /// CHECK: data-less PDA (canonical bump verified) that owns the launch
+    /// destination. Program-derived, NOT caller-chosen; hybrid_launch has no
+    /// instruction that signs with it, so nobody can withdraw the supply.
+    #[account(seeds = [LAUNCH_VAULT_SEED, mint.key().as_ref(), launch_config.key().as_ref()], bump)]
+    pub launch_vault: UncheckedAccount<'info>,
 
-    /// CHECK: must equal ATA(launch_destination_owner, mint, classic Token); created by CPI.
+    /// CHECK: must equal ATA(launch_vault, mint, classic Token); created by CPI.
     #[account(mut)]
     pub launch_destination: UncheckedAccount<'info>,
 
@@ -74,7 +81,7 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
     require_keys_eq!(
         ctx.accounts.launch_destination.key(),
         get_associated_token_address_with_program_id(
-            &ctx.accounts.launch_destination_owner.key(),
+            &ctx.accounts.launch_vault.key(),
             &mint_key,
             &token_program_id
         ),
@@ -83,18 +90,7 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
 
     // 2. Classic SPL mint account (82 bytes).
     let space = <anchor_spl::token::spl_token::state::Mint as anchor_lang::solana_program::program_pack::Pack>::LEN;
-    system_program::create_account(
-        CpiContext::new(
-            ctx.accounts.system_program.key(),
-            CreateAccount {
-                from: ctx.accounts.creator.to_account_info(),
-                to: ctx.accounts.mint.to_account_info(),
-            },
-        ),
-        Rent::get()?.minimum_balance(space),
-        space as u64,
-        &token_program_id,
-    )?;
+    create_mint_account(&ctx, space, &token_program_id)?;
 
     // 3. Freeze authority is never set.
     token::initialize_mint2(
@@ -110,7 +106,7 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
         associated_token::Create {
             payer: ctx.accounts.creator.to_account_info(),
             associated_token: ctx.accounts.launch_destination.to_account_info(),
-            authority: ctx.accounts.launch_destination_owner.to_account_info(),
+            authority: ctx.accounts.launch_vault.to_account_info(),
             mint: ctx.accounts.mint.to_account_info(),
             system_program: ctx.accounts.system_program.to_account_info(),
             token_program: ctx.accounts.token_program.to_account_info(),
@@ -159,6 +155,17 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
                 && mint.freeze_authority.is_none(),
             LaunchError::PostLaunchCheckFailed
         );
+        let dest = ctx.accounts.launch_destination.to_account_info();
+        require_keys_eq!(*dest.owner, SPL_TOKEN_PROGRAM_ID, LaunchError::PostLaunchCheckFailed);
+        let d = anchor_spl::token::TokenAccount::try_deserialize(&mut &dest.try_borrow_data()?[..])?;
+        require!(
+            d.owner == ctx.accounts.launch_vault.key()
+                && d.mint == mint_key
+                && d.amount == amounts.total_supply_base
+                && d.delegate.is_none()
+                && d.close_authority.is_none(),
+            LaunchError::PostLaunchCheckFailed
+        );
     }
 
     ctx.accounts.launch_config.set_inner(LaunchConfig {
@@ -168,6 +175,8 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
         creator: ctx.accounts.creator.key(),
         mint: mint_key,
         launch_destination: ctx.accounts.launch_destination.key(),
+        launch_vault: ctx.accounts.launch_vault.key(),
+        launch_vault_bump: ctx.bumps.launch_vault,
         decimals: params.decimals,
         total_supply_base: amounts.total_supply_base,
         ratio_whole_tokens: params.ratio_whole_tokens,
@@ -189,5 +198,35 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
         params.ratio_whole_tokens,
         params.collection_size
     );
+    Ok(())
+}
+
+/// Create the mint account. Mirrors the ATA program's handling of pre-funded
+/// addresses (QA-HL-01): a system-owned, data-less account that already holds
+/// lamports is topped up to rent-exempt, allocated and assigned (the mint
+/// keypair signs the tx, so allocate/assign are authorised). Otherwise a plain
+/// `create_account`. An account with data or any non-system owner is rejected.
+fn create_mint_account(ctx: &Context<Launch>, space: usize, token_program_id: &Pubkey) -> Result<()> {
+    let sys = ctx.accounts.system_program.key();
+    let mint = ctx.accounts.mint.to_account_info();
+    let creator = ctx.accounts.creator.to_account_info();
+    let rent_min = Rent::get()?.minimum_balance(space);
+    let current = mint.lamports();
+    if current == 0 {
+        return system_program::create_account(
+            CpiContext::new(sys, CreateAccount { from: creator, to: mint }),
+            rent_min,
+            space as u64,
+            token_program_id,
+        );
+    }
+    require_keys_eq!(*mint.owner, system_program::ID, LaunchError::MintAccountInUse);
+    require!(mint.data_is_empty() && !mint.executable, LaunchError::MintAccountInUse);
+    let top_up = rent_min.saturating_sub(current);
+    if top_up > 0 {
+        system_program::transfer(CpiContext::new(sys, Transfer { from: creator, to: mint.clone() }), top_up)?;
+    }
+    system_program::allocate(CpiContext::new(sys, Allocate { account_to_allocate: mint.clone() }), space as u64)?;
+    system_program::assign(CpiContext::new(sys, Assign { account_to_assign: mint }), token_program_id)?;
     Ok(())
 }

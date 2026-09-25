@@ -34,8 +34,9 @@ solana config set --url localhost --keypair /workspace/launchpad/.keys/devnet-on
 cd /workspace/launchpad
 source scripts/env.sh                # PATH + ANCHOR_BUILD_SBF_ARCH=v2
 ./scripts/build.sh                   # anchor build (SBPF v2) → target/deploy/*.so, target/idl/*.json
-./scripts/test.sh                    # anchor test --validator legacy: builds (SBPF v2 + IDL), starts local
-                                     # validator, runs `cargo test --workspace --locked`, stops validator
+./scripts/test.sh                    # builds (SBPF v2 + IDL), starts an ISOLATED solana-test-validator on a random
+                                     # free port block with a unique temp ledger (programs loaded at genesis), then
+                                     # `anchor test --skip-local-validator` → `cargo test --workspace --locked`
 ./scripts/test.sh --skip-build       # reuse existing build
 cargo test -p hybrid_launch --lib    # fast pure-Rust unit tests (validation math)
 cargo test -p track-a-hybrid-tests   # LiteSVM tests (needs a prior build: target/deploy + target/idl)
@@ -58,8 +59,11 @@ cargo test -p track-a-hybrid-tests   # LiteSVM tests (needs a prior build: targe
 
 ## Gotchas (all hit and resolved while scaffolding)
 
-1. **`anchor test` defaults to surfpool in Anchor 1.2.** Surfpool isn't installed, so use `--validator legacy` (or
-   `ANCHOR_TEST_VALIDATOR=legacy`). It can't be set in Anchor.toml. `scripts/test.sh` does this.
+1. **`anchor test` defaults to surfpool in Anchor 1.2, and its legacy validator uses the default ports** (8899/8900,
+   gossip 8000+), which collide with other agents on the shared box. `scripts/test.sh` starts its own
+   `solana-test-validator` on a random free 64-port block (rpc, faucet, gossip, `--dynamic-port-range`) with a
+   unique `mktemp` ledger, loads programs with `--bpf-program` (the 4.x loader refuses to *deploy* SBPF v2), and
+   runs `anchor test --skip-local-validator --skip-deploy`. It also puts `~/.cargo/bin` first in PATH.
 2. **SBPF v3 vs litesvm 0.10.** Anchor 1.2 builds v3 by default, and litesvm 0.10 fails to load it
    (`InvalidAccountData`). `scripts/env.sh` exports `ANCHOR_BUILD_SBF_ARCH=v2`. litesvm 0.16 needs rustc > 1.89.
 3. **Pin `solana_version` in Anchor.toml.** Without it, Anchor 1.2 infers the version from `Cargo.lock` and runs

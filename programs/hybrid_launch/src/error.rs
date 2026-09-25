@@ -4,7 +4,7 @@ use anchor_lang::prelude::*;
 pub enum LaunchError {
     #[msg("decimals must be <= 9")]
     InvalidDecimals,
-    #[msg("ratio must be one of 10_000, 50_000, 100_000, 200_000, 1_000_000")]
+    #[msg("ratio must be one of 10_000, 50_000, 100_000, 200_000, 500_000, 1_000_000, 2_500_000, 5_000_000")]
     RatioNotAllowed,
     #[msg("collection_size must be >= 1")]
     ZeroCollectionSize,
@@ -16,10 +16,15 @@ pub enum LaunchError {
     CaptureFeeBelowRerollFee,
     #[msg("fee destination must be BURN")]
     FeeDestinationNotBurn,
-    #[msg("launch_destination is not the classic-SPL ATA of launch_destination_owner for this mint")]
+    #[msg("launch_destination is not the classic-SPL ATA of the launch_vault PDA for this mint")]
     InvalidLaunchDestination,
     #[msg("Arithmetic overflow")]
     MathOverflow,
     #[msg("Post-launch invariant check failed")]
     PostLaunchCheckFailed,
+    // New variants are appended so existing error codes stay stable.
+    #[msg("collection_size must be >= MIN_COLLECTION_SIZE (100)")]
+    CollectionBelowMinimum,
+    #[msg("mint address already holds data or is owned by a program")]
+    MintAccountInUse,
 }

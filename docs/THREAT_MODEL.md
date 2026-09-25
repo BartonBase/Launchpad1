@@ -75,17 +75,17 @@ which had no source and speculated about a "bot drain". That speculation (old S-
 
 | ID | Threat | Defense | Test |
 |---|---|---|---|
-| T-HL-01 | Existing mint onboarded (pre-minted supply, retained authorities, foreign program) | The mint must be a fresh keypair that signs; `create_account` fails if the address is in use | ✅ `attack_existing_classic_mint_cannot_be_onboarded`, `attack_existing_token_2022_mint_cannot_be_onboarded`, `attack_mint_keypair_not_signing_is_rejected` |
-| T-HL-02 | Ratio outside the allowed set | `ALLOWED_RATIOS = {10k, 50k, 100k, 200k, 1M}` | ✅ `attack_ratio_outside_allowed_set_is_rejected` |
+| T-HL-01 | Existing mint onboarded (pre-minted supply, retained authorities, foreign program); pre-funded mint address griefs the launch (QA-HL-01) | The mint must be a fresh keypair that signs; an address with data or a non-system owner is rejected (`MintAccountInUse`); a pre-funded empty system account is topped up + allocated + assigned | ✅ `attack_existing_classic_mint_cannot_be_onboarded`, `attack_existing_token_2022_mint_cannot_be_onboarded`, `attack_mint_keypair_not_signing_is_rejected`, `attack_mint_address_with_data_or_program_owner_is_rejected`, `prefunded_mint_address_does_not_block_launch`, QA `qa_finding_prefunded_mint_address_should_not_block_launch` |
+| T-HL-02 | Ratio outside the allowed set | `ALLOWED_RATIOS = {10k, 50k, 100k, 200k, 500k, 1M, 2.5M, 5M}`; `collection_size ≥ 100` | ✅ `attack_ratio_outside_allowed_set_is_rejected`, `attack_collection_below_minimum_100_is_rejected`, `every_ratio_launches_at_min_100_and_at_max_1b_over_ratio` |
 | T-HL-03 | Collection bigger than supply / u64 wrap | `collection_size × ratio_base ≤ supply_base` via `checked_mul`; overflow rejects | ✅ `attack_collection_size_times_ratio_above_1b_is_rejected`, `attack_collection_size_overflow_is_rejected`, unit `attack_collection_size_overflow_is_rejected_not_wrapped`, `supply_table_max_collection_size_per_ratio` |
 | T-HL-04 | Decimals overflow the 1B × 10^d math | `decimals ≤ 9` (1B × 10^9 < u64::MAX) | ✅ `attack_decimals_above_9_are_rejected` |
 | T-HL-05 | Excessive fees / unwrap-rewrap cheaper than re-roll | `fee_bps ≤ 1000` (10% of ratio); `capture_fee_bps ≥ reroll_fee_bps` | ✅ `attack_fee_above_cap_is_rejected`, `attack_capture_fee_below_reroll_fee_is_rejected` |
 | T-HL-06 | Fee routed to a wallet (Stonk.fun S-2) | `fee_destination` must equal BURN; no destination account is stored | ✅ `attack_fee_destination_other_than_burn_is_rejected` |
 | T-HL-07 | Re-launch overwrites config | `init` on `["launch_config", mint]`; mint address can't be recreated | ✅ `attack_relaunch_of_same_mint_is_rejected` |
 | T-HL-08 | Spoofed PDAs (attacker keeps mint authority / fake config) | `seeds` + `bump` on both PDAs | ✅ `attack_spoofed_mint_authority_pda_is_rejected`, `attack_spoofed_launch_config_pda_is_rejected` |
-| T-HL-09 | Supply minted to an attacker-chosen account | `launch_destination` must equal the classic ATA of the recorded owner for this mint | ✅ `attack_launch_destination_not_the_derived_ata_is_rejected` |
+| T-HL-09 | Supply minted to an attacker-chosen account (QA-HL-02) | `launch_destination` must equal the classic ATA of the launch-vault PDA (seeds checked) | ✅ `attack_launch_destination_not_the_derived_ata_is_rejected`, `attack_caller_chosen_launch_vault_owner_is_rejected` |
 | T-HL-10 | Config changed later | No update/close instruction exists | ✅ `config_has_no_mutation_or_close_instruction_in_idl` |
-| T-HL-11 | Launch destination owner dumps the supply | Out of scope for this program: the owner should be the curve/sale vault PDA (open question). Until then the destination is recorded publicly in `LaunchConfig` | 🔍 / open question |
+| T-HL-11 | Launch destination owner dumps the supply (Stonk.fun S-2, QA-HL-02) | Owner is a program PDA with no signing instruction; no person can withdraw. The future curve/distribution path arrives only via multisig + timelock upgrade | ✅ `supply_sits_in_launch_vault_pda_with_no_withdraw_instruction` |
 
 ### Burn path (re-roll fee = BURN, ADR-009)
 

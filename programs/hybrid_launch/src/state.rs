@@ -15,8 +15,12 @@ pub struct LaunchConfig {
     pub creator: Pubkey,
     /// Classic SPL Token mint; mint + freeze authority are `None`.
     pub mint: Pubkey,
-    /// Token account that received the full supply (future: bonding-curve vault).
+    /// ATA(launch_vault, mint): received the full supply. Owned by the PDA below;
+    /// no instruction can move tokens out of it (distribution mechanism TBD).
     pub launch_destination: Pubkey,
+    /// PDA `["launch_vault", mint, launch_config]` owning `launch_destination`.
+    pub launch_vault: Pubkey,
+    pub launch_vault_bump: u8,
     pub decimals: u8,
     /// 1_000_000_000 * 10^decimals.
     pub total_supply_base: u64,

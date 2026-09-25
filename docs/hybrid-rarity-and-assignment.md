@@ -1,11 +1,13 @@
 # Hybrid collections: cosmetic rarity, assignment, escrow selection, re-rolls
 
-Status: **Proposed design.** Owner: Solana Program Engineer. Date: 2026-09-24, updated after the SCOPE CHANGE (ADR-009).
+Status: **ACCEPTED design (engine = `hybrid_vault`, ADR-008 accepted 2026-09-24).** Owner: Solana Program Engineer. Date: 2026-09-24, updated after the SCOPE CHANGE (ADR-009).
 **Basis (decided):** Token-2022 is dropped/deferred (ADR-009, supersedes ADR-004's two-type model). The product is
 SPL-404 hybrid launches only: classic SPL Token, untaxed, convertible, exact unwrap. There's no transfer fee anywhere in
 the wrap/unwrap/re-roll path, so every amount below is exact. The engine-independent launch step (mint 1B, revoke
-authorities, immutable LaunchConfig) is **built** as `programs/hybrid_launch` (ADR-010). The engine choice (MPL-Hybrid
-vs `hybrid_vault`) is still Barton's (ADR-008, Q-H1). Re-roll fee = **burn** (§4).
+authorities, immutable LaunchConfig) is **built** as `programs/hybrid_launch` (ADR-010). The engine is **`hybrid_vault`**
+(ADR-008 ACCEPTED, decided 2026-09-24 by the Solana Program Engineer because MPL-Hybrid can't meet Barton's stated
+requirements; reversible if Barton objects). MPL-Hybrid is reference only. Re-roll and capture fees = **burn**, at
+**settle** (§3.3, §4).
 
 Inputs: BRIEF.md §Decisions (2026-09-24), [transfer-tax-vs-wrap.md](transfer-tax-vs-wrap.md), Auditor B findings B-01/B-12/B-16 and sim (`../security/auditor-b/sim/reroll_ev_output.txt`).
 Decision record: [DECISIONS.md](DECISIONS.md) ADR-008. Threats: [THREAT_MODEL.md](THREAT_MODEL.md) T-HV-*.
@@ -16,8 +18,8 @@ Decision record: [DECISIONS.md](DECISIONS.md) ADR-008. Threats: [THREAT_MODEL.md
 |---|---|
 | 1. Supply check | `collection_size × ratio ≤ 1,000,000,000`, checked with `checked_mul` in base units by the on-chain `initialize` (source of truth) and mirrored in the launch wizard. Undersized collections are allowed, and the copy says how much of the supply can be in NFT form at once. |
 | 2. Rarity assignment | **Pre-committed trait list plus a VRF permutation.** The creator commits a Merkle root of the full trait list before launch. A VRF seed drawn at lock keys a Feistel permutation from NFT index to list position. Each NFT's metadata is bound on-chain with a Merkle proof. Anyone can recompute it. |
-| 3. Escrow selection | **No configuration of MPL-Hybrid meets "no choosing, no peeking."** Recommend (iii): a minimal custom `hybrid_vault` program. Capture and reroll are two-step (lock payment → VRF → permissionless settle), settled in strict FIFO order over a sequenced pool. Release is instant and exact. MPL-Hybrid isn't kept in the swap path. |
-| 4. Re-rolls | Re-roll = hand in your NFT, get a VRF-random *different* NFT from the pool, same two-step flow. The fee is a **token fee as a % of the ratio** (scale-invariant) plus a small SOL fee that covers VRF and rent. The capture fee must be ≥ the reroll fee, so unwrap→rewrap is never a cheaper reroll. Fees are capped and **fixed at init** (ADR-009: no mutable economics). The token fee is **burned** (Barton's default, ADR-009); only the SOL cost fee is paid out (to the VRF/rent payer). |
+| 3. Escrow selection | **No configuration of MPL-Hybrid meets "no choosing, no peeking."** **Accepted (iii):** a minimal custom `hybrid_vault` program. Capture and reroll are two-step (lock payment → VRF → permissionless settle), settled in strict FIFO order over a sequenced pool. Release is instant and exact. MPL-Hybrid isn't kept in the swap path. |
+| 4. Re-rolls | Re-roll = hand in your NFT, get a VRF-random *different* NFT from the pool, same two-step flow. The fee is a **token fee as a % of the ratio** (scale-invariant) plus a small SOL fee that covers VRF and rent. The capture fee must be ≥ the reroll fee, so unwrap→rewrap is never a cheaper reroll. Fees are capped and **fixed at init** (ADR-009: no mutable economics). The token fee is escrowed at request and **burned at settle** (refunded on expire); only the SOL cost fee is paid out (to the VRF/rent payer). |
 
 ---
 
@@ -38,12 +40,12 @@ Hard rule (BRIEF): total supply is exactly 1,000,000,000 tokens, and every NFT r
 
 1. **On-chain (source of truth):** `hybrid_vault::initialize(ratio, collection_size, …)`, in base units:
    ```text
-   require!(ratio ∈ {10_000, 50_000, 100_000, 200_000, 1_000_000})          // whole tokens
+   require!(ratio ∈ {10_000, 50_000, 100_000, 200_000, 500_000, 1_000_000, 2_500_000, 5_000_000})  // whole tokens (Barton 2026-09-24)
    ratio_base  = ratio.checked_mul(10^decimals)?                             // u64, errors on overflow
    supply_base = 1_000_000_000u64.checked_mul(10^decimals)?
    require!(mint.supply == supply_base && mint.mint_authority == None && mint.freeze_authority == None)
    require!(supply_base % ratio_base == 0)                                    // always true for the allowed set; asserted anyway
-   require!(collection_size >= 1)
+   require!(collection_size >= 100)                                           // minimum collection size (Barton 2026-09-24)
    require!(collection_size.checked_mul(ratio_base)? <= supply_base)          // the supply check
    ```
    `ratio`, `collection_size`, and the mint are stored in the vault config and are **immutable**. No instruction changes
@@ -177,8 +179,12 @@ MPL-Hybrid alone can't do it. Every workable option adds custom code that holds 
 ### 3.3 Options
 
 All three use the same core pattern: **two-step VRF.**
-- **Request tx:** the user's tokens (or NFT, for reroll) plus fees are moved into a vault PDA. The request stores the VRF
+- **Request tx:** the user's tokens (or NFT, for reroll) are moved into a vault PDA. The request stores the VRF
   account and seed. There's no cancel once VRF is fulfilled.
+- **Token fee timing (FINAL, 2026-09-24): burn at SETTLE.** At request time the token fee is escrowed in the request
+  PDA's token account (owned by the program, no withdraw path). `settle` burns it with an SPL Token `burn` (no wallet
+  ever receives it). `expire` refunds it together with the locked tokens (or the handed-in NFT for a re-roll). A burn
+  can't be undone, so burning at request would make a fair refund on expiry impossible.
 - **Settle tx:** permissionless. It reads the fulfilled VRF, selects, and delivers to the stored recipient.
 
 The user can't revert the outcome because selection happens in a transaction they don't need to sign and can't
@@ -198,7 +204,8 @@ attacker steers the pick. The fix is a **sequenced pool with FIFO settlement**:
 - Selection: `idx = uniform_below(r, pool_len)` with rejection sampling (no modulo bias, R-01.4), then swap-remove from
   a zero-copy `u32` index array.
 - **Head-of-line liveness:** each request has `deadline_slot`. If its VRF account is still *unfulfilled* after the
-  deadline, anyone can `expire` it: principal is refunded, the fee is refunded minus VRF cost, and the queue advances.
+  deadline, anyone can `expire` it: principal and the escrowed token fee are refunded in full (the SOL cost fee minus VRF cost is
+  still open, N7), and the queue advances.
   A *fulfilled* request can only be settled. Settle is permissionless and our crank runs it, so a requester who
   withholds a Switchboard reveal gains nothing (anyone can reveal).
 - **Reservations:** at request time, require `pool_len + incoming_len − pending_requests ≥ 1` (for reroll, not counting
@@ -235,7 +242,7 @@ model, but done with VRF and sampling *without* replacement.
   stable NFTs with fixed traits.
 - *Verdict:* not needed. Under (iii), pooled NFTs *can* be fully visible because nobody can target one.
 
-#### (iii) Minimal custom swap program replacing MPL-Hybrid: `hybrid_vault` **RECOMMENDED**
+#### (iii) Minimal custom swap program replacing MPL-Hybrid: `hybrid_vault` **ACCEPTED (2026-09-24)**
 
 Instructions (all tokens are classic SPL Token, program pinned):
 
@@ -243,11 +250,11 @@ Instructions (all tokens are classic SPL Token, program pinned):
 |---|---|---|
 | `initialize` | creator (once) | §1 checks (or read them from the immutable `hybrid_launch::LaunchConfig`), store immutable `ratio`, `collection_size`, `mint`, `trait_root`, `leaf_count`, fee params (capped, immutable), token fee destination = burn. CPI-creates the Core collection with the program PDA as update authority and no Permanent delegates |
 | `request_permutation_seed` / `store_seed` | anyone | §2 lock step. Capture stays closed until the seed is stored |
-| `request_capture` | user | transfer exactly `ratio` tokens to the vault ATA, **burn** the token fee from the user's account (`token::burn`, separate from the ratio), SOL fee (VRF + worst-case asset rent); create `Request{seq, kind=Capture, recipient, vrf_account, deadline}` |
+| `request_capture` | user | transfer exactly `ratio` tokens to the vault ATA, **escrow** the token fee in the request PDA's token account (separate from the ratio; burned at `settle`, refunded on `expire`), SOL fee (VRF + worst-case asset rent); create `Request{seq, kind=Capture, recipient, vrf_account, deadline}` |
 | `request_reroll(asset)` | NFT owner | transfer the NFT into the vault (goes to incoming with this request's `seq`, so it's excluded from its own draw), fees as above |
-| `settle` | anyone | head of queue only. Merge incoming `< seq`, verify pinned VRF account fulfilled, select, mint-on-first-exit (Merkle proof, §2) or transfer the existing asset to `recipient`, close the request |
+| `settle` | anyone | head of queue only. Merge incoming `< seq`, verify pinned VRF account fulfilled, select, mint-on-first-exit (Merkle proof, §2) or transfer the existing asset to `recipient`, **burn the escrowed token fee**, close the request |
 | `release(asset)` | NFT owner | single tx, deterministic: NFT → vault (incoming, new `seq`), exactly `ratio` tokens → owner. No randomness needed |
-| `expire` | anyone | only if the VRF is unfulfilled after `deadline_slot`. Refund as above |
+| `expire` | anyone | only if the VRF is unfulfilled after `deadline_slot`. Refund the locked tokens (or NFT) **and the escrowed token fee** |
 | ~~`propose_fees` / `execute_fees`~~ | n/a | **Removed by ADR-009:** fees are fixed at init. The only admin power considered is `pause_new_requests` (multisig + timelock, never blocks `release`/`settle`/`expire`), see admin-multisig-timelock.md |
 
 Invariants, asserted in tests and fuzzing after every instruction:
@@ -356,8 +363,9 @@ VRF and rent and nothing else.
 
 ## Open questions (new, for Barton)
 
-- **Q-H1:** Accept replacing MPL-Hybrid with a custom `hybrid_vault` (reverses the "no custom 404" decision for hybrid
-  launches; adds it to audit scope)?
+- ~~**Q-H1:** Accept replacing MPL-Hybrid with a custom `hybrid_vault`?~~ **ACCEPTED (2026-09-24):** `hybrid_vault`,
+  decided by the Solana Program Engineer (Barton's requirements rule out MPL-Hybrid); reversible if Barton objects.
+  It's in audit scope.
 - **Q-H2:** Re-roll and capture fees as a **% of the ratio in tokens** plus a small SOL cost fee (recommended), instead
   of the SOL-only fees in the current mock (0.01/0.02 SOL)? Default 2%?
 - ~~**Q-H3:** Fee destination~~ **Resolved (ADR-009): BURN**, Barton's decision; supersedes my "no burn"
@@ -369,8 +377,8 @@ VRF and rent and nothing else.
   Recommended.
 - **Q-H7:** Show full pool contents and traits publicly (fine under this design and honest), or show only the census?
 - **Q-H8:** Two-transaction capture/reroll with a few seconds of "drawing" delay: acceptable UX?
-- **Q-H9:** Is the 100,000-NFT maximum (ratio 10k) acceptable given ~2 SOL of pool-account rent, or should we cap
-  collection size lower (e.g. 20,000)?
+- ~~**Q-H9:** Is the 100,000-NFT maximum acceptable?~~ **Resolved by Barton's ratio set (2026-09-24):** ratios 10k,
+  50k, 100k, 200k, 500k, 1M, 2.5M, 5M; max = 1B / ratio (100,000 … 200); minimum 100 for all.
 
 ## References
 

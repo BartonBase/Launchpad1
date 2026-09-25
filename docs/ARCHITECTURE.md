@@ -31,8 +31,8 @@ for mainnet. Related: [DECISIONS.md](DECISIONS.md), [THREAT_MODEL.md](THREAT_MOD
 | Supply | Exactly 1,000,000,000 × 10^decimals, minted once by `hybrid_launch`. Afterwards it can only go down (burns) |
 | Mint / freeze authority | Mint revoked in the same instruction; freeze never set |
 | Transfer tax | None |
-| Ratio `R` | ∈ {10k, 50k, 100k, 200k, 1M} whole tokens per NFT |
-| Collection size `N` | `N × R ≤ 1B` (checked_mul). Max: 100,000 / 20,000 / 10,000 / 5,000 / 1,000 |
+| Ratio `R` | ∈ {10k, 50k, 100k, 200k, 500k, 1M, 2.5M, 5M} whole tokens per NFT (Barton 2026-09-24) |
+| Collection size `N` | `100 ≤ N` and `N × R ≤ 1B` (checked_mul). Max: 100,000 / 20,000 / 10,000 / 5,000 / 2,000 / 1,000 / 400 / 200 |
 | NFT | Metaplex Core collection, cosmetic rarity; traits from a pre-committed list + VRF permutation (ADR-008) |
 | Convert | Exact R both ways. Capture/re-roll are VRF-selected (blind); release is instant |
 | Fees | Capture and re-roll token fees as bps of R (≤ 10%, capture ≥ re-roll), **burned**; SOL cost fee for VRF/rent (engine) |
@@ -45,7 +45,7 @@ for mainnet. Related: [DECISIONS.md](DECISIONS.md), [THREAT_MODEL.md](THREAT_MOD
 | SPL Token | standard, audited | `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA` | hybrid fungible |
 | Associated Token Account | standard | `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL` | |
 | **`hybrid_launch`** | **custom (this repo)** | localnet `9Loc4hQZJh4SuBCGPiPs1wAfwywUAM7av5upyGHfc6Q8` | **built + tested** (ADR-010): `launch` only |
-| Engine: **`hybrid_vault`** or MPL-Hybrid | custom (ADR-008, proposed) / Metaplex | — / `MPL4o4wMzndgh8T1NVDxELQCj5UQfYTYEkabX3wNKtb` | **Barton's choice (Q-H1).** MPL-Hybrid is "Audit Pending", upgradeable by `mp14o4AQ…`, can't do blind assignment or native fee burn |
+| Engine: **`hybrid_vault`** | custom (ADR-008 **ACCEPTED** 2026-09-24) | localnet `BEfL9dccCUtgBVfLmJieeSr3ju29fpVqLM3NgttxqXqG` | in development on branch `wip/hybrid-vault`. MPL-Hybrid (`MPL4o4w…`) is reference only |
 | Metaplex Core | Metaplex | `CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d` | NFT standard |
 | Bonding curve / AMM | own or third party (TBD, N6) | — | open; anti-sniping is an open design item (admin-multisig-timelock.md §6) |
 | VRF | Switchboard On-Demand (preferred) or ORAO | SB devnet `Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2` / mainnet `SBondMDrcV3K4kxZR1HNVT7osZxAHVHgYXL5Ze1oMUv`; ORAO `VRFzZoJdhFWL8rkvu87LpKM3RbcVezpMEc6X5GVDr7y` | open (DECISIONS Q1) |
@@ -63,12 +63,13 @@ Program IDs are localnet keypairs (throwaway). Devnet deploys will get new IDs.
 | `mint` | **fresh keypair, signer** | created by the program (82 bytes, owner classic SPL Token) |
 | `LaunchConfig` | `["launch_config", mint]`, `init` | immutable; no update/close instruction |
 | `mint_authority` | `["mint_authority", launch_config]` | data-less PDA; mint authority for one `mint_to`, then revoked |
-| `launch_destination` | classic ATA(`launch_destination_owner`, mint) | receives all 1B. Owner should be the curve/sale vault PDA (open, N2) |
+| `launch_vault` | `["launch_vault", mint, launch_config]` | data-less PDA; owns the launch destination. Not caller-chosen; nothing signs for it (QA-HL-02, N2 decided) |
+| `launch_destination` | classic ATA(`launch_vault`, mint) | receives all 1B; no withdraw instruction. Distribution (curve) TBD |
 | `token_program` | `Program<Token>` | rejects Token-2022 |
 
 **`launch(params)`** in one tx: create mint → `initialize_mint2` (freeze None) → create ATA → `mint_to` 1B × 10^d →
 `set_authority(MintTokens, None)` → re-read and assert (owner, supply, decimals, authorities) → write `LaunchConfig`.
-`params = {decimals ≤ 9, ratio_whole_tokens ∈ allowed set, collection_size (1..=1B/R), capture_fee_bps,
+`params = {decimals ≤ 9, ratio_whole_tokens ∈ allowed set, collection_size (100..=1B/R), capture_fee_bps,
 reroll_fee_bps (≤ 1000, capture ≥ re-roll), fee_destination = BURN}`.
 
 `LaunchConfig` fields: `version, bump, mint_authority_bump, creator, mint, launch_destination, decimals,

@@ -30,6 +30,7 @@ pub fn validate(p: &LaunchParams) -> Result<DerivedAmounts> {
     require!(p.decimals <= MAX_DECIMALS, LaunchError::InvalidDecimals);
     require!(ALLOWED_RATIOS.contains(&p.ratio_whole_tokens), LaunchError::RatioNotAllowed);
     require!(p.collection_size >= 1, LaunchError::ZeroCollectionSize);
+    require!(p.collection_size >= MIN_COLLECTION_SIZE, LaunchError::CollectionBelowMinimum);
     require!(p.capture_fee_bps <= MAX_TOKEN_FEE_BPS, LaunchError::FeeAboveCap);
     require!(p.reroll_fee_bps <= MAX_TOKEN_FEE_BPS, LaunchError::FeeAboveCap);
     require!(p.capture_fee_bps >= p.reroll_fee_bps, LaunchError::CaptureFeeBelowRerollFee);
@@ -86,7 +87,18 @@ mod tests {
 
     #[test]
     fn supply_table_max_collection_size_per_ratio() {
-        let table = [(10_000, 100_000), (50_000, 20_000), (100_000, 10_000), (200_000, 5_000), (1_000_000, 1_000)];
+        // Supply table (Barton 2026-09-24): ratio -> max N = 1B / ratio; min N = 100 for all.
+        let table = [
+            (10_000, 100_000),
+            (50_000, 20_000),
+            (100_000, 10_000),
+            (200_000, 5_000),
+            (500_000, 2_000),
+            (1_000_000, 1_000),
+            (2_500_000, 400),
+            (5_000_000, 200),
+        ];
+        assert_eq!(table.len(), ALLOWED_RATIOS.len());
         for (ratio, max) in table {
             assert_eq!(max_collection_size(ratio), Some(max));
             for d in [0u8, 6, 9] {
@@ -95,6 +107,10 @@ mod tests {
                 assert_eq!(got.max_tokens_in_nft_form, got.total_supply_base, "max size uses 100% of supply");
                 let over = LaunchParams { collection_size: max + 1, ..ok };
                 assert!(validate(&over).is_err(), "max+1 must fail for ratio {ratio} decimals {d}");
+                let min = LaunchParams { collection_size: MIN_COLLECTION_SIZE, ..ok };
+                validate(&min).expect("min size must pass");
+                let under = LaunchParams { collection_size: MIN_COLLECTION_SIZE - 1, ..ok };
+                assert!(validate(&under).is_err(), "99 must fail for ratio {ratio} decimals {d}");
             }
         }
     }
@@ -109,11 +125,19 @@ mod tests {
     fn fee_amounts_are_exact_for_every_ratio_and_bps() {
         for ratio in ALLOWED_RATIOS {
             for bps in [0u16, 1, 7, 200, 999, 1_000] {
-                let p = LaunchParams { ratio_whole_tokens: ratio, collection_size: 1, capture_fee_bps: bps, reroll_fee_bps: 0, decimals: 0, ..base() };
+                let p = LaunchParams { ratio_whole_tokens: ratio, collection_size: MIN_COLLECTION_SIZE, capture_fee_bps: bps, reroll_fee_bps: 0, decimals: 0, ..base() };
                 let d = validate(&p).unwrap();
                 assert_eq!(u128::from(d.capture_fee_amount) * 10_000, u128::from(d.ratio_base) * u128::from(bps));
             }
         }
+    }
+
+    #[test]
+    fn collection_below_minimum_is_rejected() {
+        for n in [0u64, 1, 50, 99] {
+            assert!(validate(&LaunchParams { collection_size: n, ..base() }).is_err(), "N={n}");
+        }
+        validate(&LaunchParams { collection_size: 100, ..base() }).unwrap();
     }
 
     #[test]
