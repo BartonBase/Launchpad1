@@ -226,11 +226,41 @@ and token::authority = user; mint == vault.mint; asset = asset(handed_in) for a 
 collection == vault.collection.
 
 Refunds the principal (N tokens, or the handed-in NFT), the **full** mint escrow (mint_escrow -> user) and rents (the
-request and rand_lock close to the user). The tier fee is **never** refunded. To batch, put several `expire_request`
-ixs in one tx. There is no K-per-call variant yet.
+request and rand_lock close to the user). The tier fee is **never** refunded.
+
+### 5. `expire_requests(count: u8)`: batch expire (M-04)
+
+The same rules as `expire_request`, applied to the next `count` consecutive queue heads (1 ≤ count ≤
+`MAX_EXPIRE_PER_CALL` = 7) in ONE instruction. All-or-nothing: if any head isn't expirable, nothing changes.
+
+| # | account | signer | writable | constraint / PDA seeds |
+|---|---|---|---|---|
+| 0 | `caller` | ✔ | ✔ | anyone |
+| 1 | `vault` |  | ✔ | PDA ["vault", vault.launch_config] |
+| 2 | `launch_config` |  |  | == vault.launch_config (raw exit_view read) |
+| 3 | `pool` |  |  | == vault.pool |
+| 4 | `mint` |  |  | == vault.mint |
+| 5 | `vault_authority` |  |  | PDA ["vault_authority", vault] |
+| 6 | `vault_tokens` |  | ✔ | PDA ["vault_tokens", vault] |
+| 7 | `collection` |  | ✔ | == vault.collection |
+| 8 | `mpl_core_program` |  |  | address CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d |
+| 9 | `token_program` |  |  | address TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA |
+| 10 | `system_program` |  |  | address 11111111111111111111111111111111 |
+| 11.. | remaining accounts: `count` groups of 7, in queue order (head first) | | | see below |
+
+Per-request group (all writable except randomness; checked on-chain, `ExpireBatchAccountMismatch` 6060 on any mismatch):
+`request` (PDA ["request", vault, seq] for the CURRENT head), `rand_lock` (PDA ["rand_lock", randomness]),
+`randomness` (read-only, == request.randomness), `user` (== request.user), `user_token` (classic token account,
+mint == vault.mint, owner == user), `mint_escrow` (PDA ["mint_escrow", vault, seq]), `asset` (re-roll: asset(handed_in);
+capture: any, unused). A bad count or a remaining-accounts length other than 7 × count fails with `ExpireBatchInvalid` (6059).
+
+Limits: 11 + 7 × 7 = 60 accounts, under Solana's 64-account lock limit. A legacy tx fits K ≤ 3 (1,170 bytes measured
+at K = 3). K = 4..7 needs a v0 tx with an address lookup table (K = 7: 368 bytes, 151,577 CU measured on LiteSVM).
+Compute is ~20–26k CU per head.
 
 ## Errors appended (hybrid_vault; append-only, never renumbered)
 
+`ExpireBatchInvalid` 6059, `ExpireBatchAccountMismatch` 6060 (batch expire).
 `MintArgsMissing` 6055, `MintEscrowShort` 6056, `AlreadyMinted` 6057, `MintCostConstantStale` 6058 (after
 `CollectionAboveCap` 6054). `CollectionNotFullyMinted` (6035) and `GraduationFundShortfall` (6052) became
 `Reserved*` (unused, numbers kept). hybrid_launch: `GraduationUnfundable` (6015) became `ReservedGraduationUnfundable`.

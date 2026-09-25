@@ -108,6 +108,11 @@ pub struct User {
     pub kp: Keypair,
     pub ata: Pubkey,
 }
+impl User {
+    pub fn clone_user(&self) -> User {
+        User { kp: self.kp.insecure_clone(), ata: self.ata }
+    }
+}
 
 impl Env {
     pub fn send(&mut self, ixs: &[Instruction], signers: &[&Keypair]) -> Result<(), String> {
@@ -597,6 +602,94 @@ impl Env {
         )
     }
 
+    /// Per-request remaining accounts for `expire_requests` (stride 7, in queue order).
+    pub fn expire_group(&self, seq: u64, user_token: Pubkey) -> Vec<AccountMeta> {
+        let req = self.request_state(seq);
+        let asset = if req.kind == 0 { self.asset_pda(0) } else { self.asset_pda(req.handed_in_index) };
+        vec![
+            AccountMeta::new(self.request_pda(seq), false),
+            AccountMeta::new(self.rand_lock_pda(&req.randomness), false),
+            AccountMeta::new_readonly(req.randomness, false),
+            AccountMeta::new(req.user, false),
+            AccountMeta::new(user_token, false),
+            AccountMeta::new(self.escrow_pda(seq), false),
+            AccountMeta::new(asset, false),
+        ]
+    }
+    /// `expire_requests(count)` with explicit remaining accounts.
+    pub fn expire_batch_ix_raw(&self, count: u8, caller: Pubkey, remaining: Vec<AccountMeta>) -> Instruction {
+        let mut metas = hybrid_vault::accounts::ExpireRequests {
+            caller,
+            vault: self.ids.vault,
+            launch_config: self.ids.launch_config,
+            pool: self.ids.pool,
+            mint: self.ids.mint,
+            vault_authority: self.ids.vault_authority,
+            vault_tokens: self.ids.vault_tokens,
+            collection: self.ids.collection,
+            mpl_core_program: MPL_CORE_ID,
+            token_program: SPL_TOKEN_ID,
+            system_program: system_program::ID,
+        }
+        .to_account_metas(None);
+        metas.extend(remaining);
+        Instruction::new_with_bytes(hybrid_vault::ID, &hybrid_vault::instruction::ExpireRequests { count }.data(), metas)
+    }
+    /// `expire_requests` over `heads` = [(seq, user_token)] in queue order.
+    pub fn expire_batch_ix(&self, heads: &[(u64, Pubkey)], caller: Pubkey) -> Instruction {
+        let rem = heads.iter().flat_map(|(s, t)| self.expire_group(*s, *t)).collect();
+        self.expire_batch_ix_raw(heads.len() as u8, caller, rem)
+    }
+    /// Send with a 1.4M CU limit; returns compute units consumed.
+    pub fn send_max_cu(&mut self, ixs: &[Instruction], signers: &[&Keypair]) -> Result<u64, String> {
+        let mut data = vec![2u8];
+        data.extend_from_slice(&1_400_000u32.to_le_bytes());
+        let cb = Instruction::new_with_bytes(solana_sdk_ids_compute_budget(), &data, vec![]);
+        let mut all = vec![cb];
+        all.extend_from_slice(ixs);
+        let payer = signers[0].pubkey();
+        let msg = Message::new_with_blockhash(&all, Some(&payer), &self.svm.latest_blockhash());
+        let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), signers).map_err(|e| e.to_string())?;
+        let res = self.svm.send_transaction(tx).map(|m| m.compute_units_consumed).map_err(|e| format!("{:?} logs={:#?}", e.err, e.meta.logs));
+        self.svm.expire_blockhash();
+        res
+    }
+
+    /// Create an address lookup table holding `addresses` (raw account: 56-byte LookupTableMeta,
+    /// active, never deactivated, extended at slot 0) and return its key.
+    pub fn create_alt(&mut self, addresses: &[Pubkey]) -> Pubkey {
+        let key = Pubkey::new_unique();
+        let mut data = vec![0u8; 56];
+        data[0..4].copy_from_slice(&1u32.to_le_bytes());
+        data[4..12].copy_from_slice(&u64::MAX.to_le_bytes());
+        data[21] = 1;
+        data[22..54].copy_from_slice(self.creator.pubkey().as_ref());
+        for a in addresses {
+            data.extend_from_slice(a.as_ref());
+        }
+        let lamports = self.svm.minimum_balance_for_rent_exemption(data.len());
+        let alt_program: Pubkey = "AddressLookupTab1e1111111111111111111111111".parse().unwrap();
+        self.svm
+            .set_account(key, solana_account::Account { lamports, data, owner: alt_program, executable: false, rent_epoch: 0 })
+            .unwrap();
+        key
+    }
+    /// Send a v0 transaction using lookup table `alt` (+ a 1.4M CU limit); returns (CU, tx bytes).
+    pub fn send_v0(&mut self, ixs: &[Instruction], signers: &[&Keypair], alt: Pubkey, alt_addrs: Vec<Pubkey>) -> Result<(u64, usize), String> {
+        let mut data = vec![2u8];
+        data.extend_from_slice(&1_400_000u32.to_le_bytes());
+        let mut all = vec![Instruction::new_with_bytes(solana_sdk_ids_compute_budget(), &data, vec![])];
+        all.extend_from_slice(ixs);
+        let table = solana_message::AddressLookupTableAccount { key: alt, addresses: alt_addrs };
+        let msg = solana_message::v0::Message::try_compile(&signers[0].pubkey(), &all, &[table], self.svm.latest_blockhash())
+            .map_err(|e| e.to_string())?;
+        let tx = VersionedTransaction::try_new(VersionedMessage::V0(msg), signers).map_err(|e| e.to_string())?;
+        let size = bincode_len(&tx);
+        let res = self.svm.send_transaction(tx).map(|m| (m.compute_units_consumed, size)).map_err(|e| format!("{:?} logs={:#?}", e.err, e.meta.logs));
+        self.svm.expire_blockhash();
+        res
+    }
+
     /// TEST-ONLY mock graduation record for `mint` (owner = MOCK_GRADUATION_OWNER).
     pub fn set_graduation(&mut self, owner: Pubkey, mint: Pubkey, graduated: u8) -> Pubkey {
         let k = Pubkey::new_unique();
@@ -849,4 +942,15 @@ pub fn val(seed: u8) -> [u8; 32] {
     let mut v = [seed; 32];
     v[0] = seed.wrapping_mul(31).wrapping_add(7);
     v
+}
+
+pub fn solana_sdk_ids_compute_budget() -> Pubkey {
+    "ComputeBudget111111111111111111111111111111".parse().unwrap()
+}
+
+/// Wire size of a versioned transaction (signatures + message), without a bincode dependency.
+pub fn bincode_len(tx: &VersionedTransaction) -> usize {
+    let n = tx.signatures.len();
+    let short_vec = if n < 0x80 { 1 } else { 2 };
+    short_vec + 64 * n + tx.message.serialize().len()
 }

@@ -123,6 +123,10 @@ pub enum VaultError {
     AlreadyMinted,
     #[msg("Live rent for a Core asset + create fee exceeds the mint escrow constant")]
     MintCostConstantStale,
+    #[msg("expire_requests: count must be 1..=MAX_EXPIRE_PER_CALL with 7 remaining accounts per request")]
+    ExpireBatchInvalid,
+    #[msg("expire_requests: a per-request account doesn't match the request (PDA, owner, user, randomness or token account)")]
+    ExpireBatchAccountMismatch,
 }
 
 #[cfg(test)]
@@ -191,6 +195,8 @@ mod tests {
             (VaultError::MintEscrowShort, 6056),
             (VaultError::AlreadyMinted, 6057),
             (VaultError::MintCostConstantStale, 6058),
+            (VaultError::ExpireBatchInvalid, 6059),
+            (VaultError::ExpireBatchAccountMismatch, 6060),
         ];
         for (e, code) in pinned {
             assert_eq!(u32::from(*e), *code, "{e:?}");

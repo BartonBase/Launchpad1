@@ -275,7 +275,8 @@ shelved/deferred. Kept for the record.
   (3,600 s); the chosen oracle must itself be fresh, otherwise `OracleStale`.
 - `recommit_randomness` up to `MAX_RECOMMITS` = 3. After that, and after `REVEAL_TIMEOUT_SLOTS` + `EXPIRE_GRACE_SLOTS`,
   anyone can `expire_request`: it refunds the principal (tokens or the handed-in NFT) + the full mint escrow (ADR-016),
-  **never the tier fee**. There's no K-per-call expire; batch with several ixs per tx (an Auditor A ask, open).
+  **never the tier fee**. Batch expire: `expire_requests(count)` expires up to `MAX_EXPIRE_PER_CALL` = 7 consecutive heads in one
+  instruction, all-or-nothing (bounded by the 64-account lock limit; K > 3 needs v0 + ALT).
 - **VRF cost (M-37): the requester pays at cost, separately (Auditor A decision).** Measured via RPC 2026-09-25:
   mainnet queue reward = 5 lamports, 7 oracles; devnet reward 0, 2 oracles. The randomness account is 408 bytes
   (rent 3,730,560 lamports, reusable). Estimated per request: reveal ~10k lamports + settle 5k + priority ≈ 0.00002 SOL,

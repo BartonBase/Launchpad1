@@ -477,7 +477,7 @@ fn idl_has_no_cancel_refund_update_close_withdraw_or_burn_instruction() {
     let mut names: Vec<String> = idl["instructions"].as_array().unwrap().iter().map(|i| i["name"].as_str().unwrap().to_string()).collect();
     names.sort();
     let mut expected = vec![
-        "expire_request", "init_randomness", "init_vault", "merge_incoming", "open_vault", "recommit_randomness",
+        "expire_request", "expire_requests", "init_randomness", "init_vault", "merge_incoming", "open_vault", "recommit_randomness",
         "request_capture", "request_reroll", "reveal_randomness", "settle_capture", "settle_reroll", "unwrap",
     ];
     expected.sort();
@@ -1331,3 +1331,175 @@ fn first_mint_cost_breakdown_is_exact_and_unspent_deposit_is_refunded() {
     assert!(core_fee_in_asset == 0 || core_fee_in_asset == hybrid_launch::CORE_CREATE_FEE_LAMPORTS);
     assert!(rent <= hybrid_launch::CORE_ASSET_RENT_LAMPORTS, "actual asset is no bigger than the escrowed worst case");
 }
+
+// ---- M-04 batch expire: expire_requests(count) ----
+
+/// `k` stuck requests (captures, plus one re-roll if `with_reroll`), all past expiry.
+/// Returns [(seq, user, user_token)] in queue order.
+fn stuck_heads(env: &mut Env, k: usize, with_reroll: bool) -> Vec<(u64, User)> {
+    let mut out = vec![];
+    let reroller = if with_reroll { Some(env.new_user(USER_TOKENS)) } else { None };
+    let idx = reroller.as_ref().map(|u| env.capture(u, val(90)));
+    for i in 0..k {
+        let r = env.new_randomness();
+        if i == 1 && with_reroll {
+            let u = reroller.as_ref().unwrap();
+            let seq = env.request_reroll(u, idx.unwrap(), &r).unwrap();
+            out.push((seq, u.clone_user()));
+        } else {
+            let u = env.new_user(USER_TOKENS);
+            let seq = env.request_capture(&u, &r).unwrap();
+            out.push((seq, u));
+        }
+    }
+    for _ in 0..hybrid_vault::MAX_RECOMMITS {
+        env.warp(hybrid_vault::REVEAL_TIMEOUT_SLOTS + 1);
+        let s = kp_funded(env);
+        for (seq, _) in &out {
+            env.recommit(*seq, &s).unwrap();
+        }
+    }
+    env.warp(hybrid_vault::REVEAL_TIMEOUT_SLOTS + hybrid_vault::EXPIRE_GRACE_SLOTS + 2);
+    out
+}
+
+#[test]
+fn m04_batch_expire_k_heads_in_one_instruction_refunds_principal_and_escrow_never_fee() {
+    let mut env = setup(N);
+    let heads = stuck_heads(&mut env, 3, true);
+    let before: Vec<(u64, u64)> = heads.iter().map(|(_, u)| (env.token_amount(&u.ata), env.lamports(&u.kp.pubkey()))).collect();
+    let owed: Vec<u64> = heads
+        .iter()
+        .map(|(seq, _)| {
+            let r = env.request_state(*seq);
+            env.lamports(&env.request_pda(*seq)) + env.lamports(&env.rand_lock_pda(&r.randomness)) + env.lamports(&env.escrow_pda(*seq))
+        })
+        .collect();
+    let handed_in = env.request_state(heads[1].0).handed_in_index;
+    let rec0 = env.lamports(&env.ids.fee_recipient);
+    let s = kp_funded(&mut env);
+    let ix = env.expire_batch_ix(&heads.iter().map(|(q, u)| (*q, u.ata)).collect::<Vec<_>>(), s.pubkey());
+    let legacy = VersionedTransaction::try_new(
+        VersionedMessage::Legacy(Message::new_with_blockhash(&[ix.clone()], Some(&s.pubkey()), &env.svm.latest_blockhash())),
+        &[&s],
+    )
+    .unwrap();
+    assert!(bincode_len(&legacy) <= 1_232, "K = 3 fits a LEGACY tx ({} bytes)", bincode_len(&legacy));
+    let cu = env.send_max_cu(&[ix], &[&s]).expect("expire 3 heads in ONE instruction");
+    eprintln!("BATCH-EXPIRE k=3 legacy (2 captures + 1 re-roll): {cu} CU, {} bytes", bincode_len(&legacy));
+    let v = env.vault_state();
+    assert_eq!(v.total_expired, 3);
+    assert_eq!(v.next_settle_seq, heads[2].0 + 1);
+    assert_eq!(env.lamports(&env.ids.fee_recipient), rec0, "no fee refunded or charged");
+    for (i, (seq, u)) in heads.iter().enumerate() {
+        assert!(!env.exists(&env.request_pda(*seq)), "request closed");
+        assert_eq!(env.lamports(&env.escrow_pda(*seq)), 0, "escrow drained");
+        if i == 1 {
+            assert_eq!(env.asset_owner(handed_in), u.kp.pubkey(), "handed-in NFT back");
+            assert_eq!(env.token_amount(&u.ata), before[i].0);
+        } else {
+            assert_eq!(env.token_amount(&u.ata), before[i].0 + env.ratio_base, "exactly N tokens back");
+        }
+        assert_eq!(env.lamports(&u.kp.pubkey()) - before[i].1, owed[i], "rents + FULL escrow back");
+    }
+    env.assert_invariants();
+}
+
+#[test]
+fn m04_batch_expire_max_per_call_fits_compute() {
+    let mut env = setup(N);
+    let k = hybrid_vault::MAX_EXPIRE_PER_CALL as usize;
+    let heads = stuck_heads(&mut env, k, true);
+    let s = kp_funded(&mut env);
+    let ix = env.expire_batch_ix(&heads.iter().map(|(q, u)| (*q, u.ata)).collect::<Vec<_>>(), s.pubkey());
+    // K > 3 doesn't fit a legacy tx (1,232 bytes), so send it as a real client must: a v0 tx whose
+    // non-signer accounts come from an address lookup table.
+    let mut addrs: Vec<Pubkey> = ix.accounts.iter().filter(|m| m.pubkey != s.pubkey()).map(|m| m.pubkey).collect();
+    addrs.sort();
+    addrs.dedup();
+    let alt = env.create_alt(&addrs);
+    env.warp(1);
+    let (cu, bytes) = env.send_v0(&[ix], &[&s], alt, addrs).expect("MAX_EXPIRE_PER_CALL heads in one v0 tx");
+    eprintln!("BATCH-EXPIRE k={k} (v0 + ALT): {cu} CU, {bytes} tx bytes");
+    assert!(bytes <= 1_232, "fits a packet with the ALT");
+    assert!(cu < 1_400_000);
+    assert_eq!(env.vault_state().total_expired, k as u64);
+    env.assert_invariants();
+}
+
+#[test]
+fn m04_batch_expire_rejects_bad_count_and_account_counts() {
+    let mut env = setup(N);
+    let heads = stuck_heads(&mut env, 2, false);
+    let s = kp_funded(&mut env);
+    let rem: Vec<AccountMeta> = heads.iter().flat_map(|(q, u)| env.expire_group(*q, u.ata)).collect();
+    for (count, r) in [
+        (0u8, vec![]),
+        (hybrid_vault::MAX_EXPIRE_PER_CALL + 1, rem.clone()),
+        (2, rem[..13].to_vec()),
+        (1, rem.clone()),
+    ] {
+        let ix = env.expire_batch_ix_raw(count, s.pubkey(), r);
+        expect_vault_err(env.send(&[ix], &[&s]), VaultError::ExpireBatchInvalid);
+    }
+    assert_eq!(env.vault_state().total_expired, 0);
+}
+
+#[test]
+fn m04_batch_expire_is_all_or_nothing_and_fifo_only() {
+    let mut env = setup(N);
+    let heads = stuck_heads(&mut env, 3, false);
+    let s = kp_funded(&mut env);
+    // Out of order: second head first.
+    let ix = env.expire_batch_ix(&[(heads[1].0, heads[1].1.ata), (heads[0].0, heads[0].1.ata)], s.pubkey());
+    expect_vault_err(env.send(&[ix], &[&s]), VaultError::ExpireBatchAccountMismatch);
+    // A fresh request behind the stuck ones isn't expirable: the whole batch fails, nothing changes.
+    let late = env.new_user(USER_TOKENS);
+    let r = env.new_randomness();
+    let late_seq = env.request_capture(&late, &r).unwrap();
+    let tok0 = env.token_amount(&heads[0].1.ata);
+    let mut all: Vec<(u64, Pubkey)> = heads.iter().map(|(q, u)| (*q, u.ata)).collect();
+    all.push((late_seq, late.ata));
+    let ix = env.expire_batch_ix(&all, s.pubkey());
+    expect_vault_err(env.send(&[ix], &[&s]), VaultError::RecommitsRemaining);
+    assert_eq!(env.vault_state().total_expired, 0, "atomic: nothing expired");
+    assert_eq!(env.token_amount(&heads[0].1.ata), tok0);
+    // The three stuck heads alone expire fine.
+    let ix = env.expire_batch_ix(&all[..3], s.pubkey());
+    env.send(&[ix], &[&s]).unwrap();
+    assert_eq!(env.vault_state().total_expired, 3);
+    env.assert_invariants();
+}
+
+#[test]
+fn m04_batch_expire_rejects_substituted_per_request_accounts() {
+    let mut env = setup(N);
+    let heads = stuck_heads(&mut env, 2, false);
+    let s = kp_funded(&mut env);
+    let attacker = env.new_user(USER_TOKENS);
+    let good: Vec<AccountMeta> = heads.iter().flat_map(|(q, u)| env.expire_group(*q, u.ata)).collect();
+    let other_escrow = env.escrow_pda(heads[1].0);
+    let cases: Vec<(usize, Pubkey)> = vec![
+        (3, attacker.kp.pubkey()), // user swapped
+        (4, attacker.ata),         // refund to the attacker's token account
+        (5, other_escrow),         // another request's escrow
+        (1, env.rand_lock_pda(&env.request_state(heads[1].0).randomness)), // wrong rand_lock
+        (0, env.request_pda(heads[1].0)), // wrong request for the head
+    ];
+    for (pos, sub) in cases {
+        let mut rem = good.clone();
+        rem[pos].pubkey = sub;
+        let ix = env.expire_batch_ix_raw(2, s.pubkey(), rem);
+        assert!(env.send(&[ix], &[&s]).is_err(), "substitution at {pos} must fail");
+    }
+    // Read-only where writable is required.
+    let mut rem = good.clone();
+    rem[5].is_writable = false;
+    let ix = env.expire_batch_ix_raw(2, s.pubkey(), rem);
+    expect_vault_err(env.send(&[ix], &[&s]), VaultError::ExpireBatchAccountMismatch);
+    assert_eq!(env.vault_state().total_expired, 0);
+    let ix = env.expire_batch_ix_raw(2, s.pubkey(), good);
+    env.send(&[ix], &[&s]).unwrap();
+    env.assert_invariants();
+}
+

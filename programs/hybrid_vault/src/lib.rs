@@ -107,6 +107,12 @@ pub mod hybrid_vault {
         instructions::expire::handle_expire(ctx)
     }
 
+    /// M-04 batch expire: up to MAX_EXPIRE_PER_CALL consecutive queue heads in one instruction
+    /// (7 remaining accounts per request; see instructions/expire.rs).
+    pub fn expire_requests<'info>(ctx: Context<'info, ExpireRequests<'info>>, count: u8) -> Result<()> {
+        instructions::expire::handle_expire_batch(ctx, count)
+    }
+
     pub fn merge_incoming(ctx: Context<MergeIncoming>, max: u32) -> Result<()> {
         instructions::admin::handle_merge_incoming(ctx, max)
     }

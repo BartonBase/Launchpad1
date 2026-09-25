@@ -61,6 +61,13 @@ pub const VAULT_VERSION: u8 = 2;
 /// Re-commits allowed per request after the first commit (each with a different oracle), before
 /// the principal-only expire becomes possible (audit M-04 rule 4, B's H4).
 pub const MAX_RECOMMITS: u8 = 3;
+/// `expire_requests` (M-04 batch expire): at most this many consecutive queue heads per call.
+/// Bound: Solana's 64-account-lock limit per tx (11 shared + 7 per request = 60 at K = 7, 61 with a
+/// compute-budget ix). Compute is not the limit (~26k CU per head measured). More than 3 heads
+/// exceed a legacy tx's 1,232 bytes, so K > 3 needs a v0 tx with an address lookup table.
+pub const MAX_EXPIRE_PER_CALL: u8 = 7;
+/// Accounts per request in `expire_requests`' remaining_accounts.
+pub const EXPIRE_BATCH_STRIDE: usize = 7;
 /// After the last re-commit's deadline, wait this long (~1 day) before anyone may expire.
 pub const EXPIRE_GRACE_SLOTS: u64 = 216_000;
 /// M-04 staleness filter: an oracle whose Switchboard `last_heartbeat` is older than this (seconds)

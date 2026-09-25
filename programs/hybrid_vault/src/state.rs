@@ -79,7 +79,8 @@ pub struct Request {
     pub value: [u8; 32],
     /// Asset index handed in for a re-roll, NO_HANDED_IN for a capture.
     pub handed_in_index: u32,
-    /// Lazy-mint escrow held in this account's lamports on top of rent (ADR-016).
+    /// Lazy-mint escrow amount deposited at request (ADR-016); the lamports sit in the separate
+    /// `["mint_escrow", vault, seq]` PDA, not in this account.
     pub mint_escrow_lamports: u64,
 }
 
