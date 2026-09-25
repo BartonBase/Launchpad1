@@ -1,5 +1,7 @@
 # Admin powers, multisig + timelock, upgrade authority (Track A)
 
+> **UPDATE 2026-09-25: there is NO pause (ADR-015).** §3's `pause_new_requests` proposal is rejected and kept for the record. The only admin power left is the program upgrade (Squads + timelock until freeze; M-16 accepted). Devnet deploys go through `scripts/deploy-devnet.sh`, which refuses to deploy if a test-only artifact (`mock_switchboard.so`, the mock-graduation marker) is in `target/deploy`.
+
 Owner: Solana Program Engineer. Status: **Proposed** (2026-09-24, after ADR-009). Nothing here is deployed; localnet
 and devnet only. Constraint source: ADR-009 §C (Stonk.fun lessons 2–3: no operator wallet custodying value, no mutable
 economics after launch; if anything must stay adjustable, use a multisig plus a long, visible timelock with hard caps).
@@ -17,7 +19,7 @@ move funds, or change economics.
 | Token mint | Mint authority | **None** (revoked in `hybrid_launch::launch`, same tx) | ✅ tested |
 | Token mint | Freeze authority | **None** (never set) | ✅ tested |
 | `hybrid_launch::LaunchConfig` | Change ratio, collection size, fees, fee destination, mint | **None**: no update/close instruction | ✅ `config_has_no_mutation_or_close_instruction_in_idl` |
-| Fee destination | Redirect fees | **None**: fees are burned, there's no destination account | ADR-009 D |
+| Fee destination | Redirect fees | **None**: the recipient is the `PLATFORM_FEE_RECIPIENT` code constant; changing it needs a program upgrade (multisig + timelock) | ADR-013 |
 | Vault / escrow (engine) | Withdraw, sweep, change backing ratio | **None**. Only `release` moves backing, and only exactly `ratio` to an NFT holder | ADR-008, T-HV-10 |
 | NFT collection (engine) | Metadata/plugin updates | **None** after the trait root is committed (PDA update authority, no update ix) | T-HV-06 |
 | Engine | **Pause new captures/re-rolls** | **Only candidate power (open, N4).** See §3 | Risk-reducing only |

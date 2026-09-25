@@ -11,13 +11,17 @@
 //! authority, revokes the mint authority in the same instruction, and writes an
 //! immutable [`state::LaunchConfig`]: ratio in {10k, 50k, 100k, 200k, 500k, 1M,
 //! 2.5M, 5M}, `100 <= collection_size` and `collection_size * ratio <= 1B`
-//! (checked_mul), token fees within caps, fee destination = BURN. There is no
-//! instruction that changes or closes it. The full supply goes to the ATA of a
+//! (checked_mul), `collection_size <= MAX_COLLECTION_SIZE`, and ONE flat SOL fee for capture,
+//! release and re-roll derived from the ratio tier table (0.002 / 0.005 / 0.01 SOL, hard cap
+//! 0.01 SOL), paid to the PLATFORM_FEE_RECIPIENT constant (ADR-013). There is NO token fee.
+//! There is no instruction that changes or closes it. The full supply goes to the ATA of a
 //! program-derived `launch_vault` PDA that no instruction can sign for.
 
 pub mod constants;
 pub mod error;
 pub mod instructions;
+pub mod needs_barton;
+pub mod stable_layout;
 pub mod state;
 pub mod validation;
 
@@ -25,6 +29,7 @@ use anchor_lang::prelude::*;
 
 pub use constants::*;
 pub use instructions::*;
+pub use stable_layout::*;
 pub use state::*;
 pub use validation::*;
 

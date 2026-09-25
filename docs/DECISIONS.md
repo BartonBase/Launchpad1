@@ -7,6 +7,8 @@ by Barton)**.
 > **Current scope (ADR-009, 2026-09-24 2:51 PM MT):** SPL-404 hybrid launches only (Track A). Token-2022, transfer tax,
 > tax treasury and holder lottery (Track B) are **SHELVED/DEFERRED**. ADR-004 is superseded; ADR-005 and ADR-006 are
 > shelved. New: ADR-009 (scope change + Stonk.fun constraints + burn), ADR-010 (`hybrid_launch`).
+> **2026-09-25:** ADR-013 (flat SOL fee, release free; burn superseded), ADR-012 (VRF), ADR-015 (no pause), ADR-014
+> (DBC graduation, not built), ADR-016 (**lazy minting**, supersedes batch pre-mint), ADR-017 (frozen LaunchConfig prefix); ADR-011 (2% token fee) superseded.
 
 ---
 
@@ -162,6 +164,8 @@ shelved/deferred. Kept for the record.
 
 ## ADR-009: Scope change: Token-2022 shelved; Stonk.fun design constraints; re-roll fee = BURN
 
+> Partially superseded: Decision D (burn) by ADR-013; the ratio set by ADR-016 (10k dropped, N ≤ 10,000); C3's "pause" allowance by ADR-015 (no pause).
+
 **Status: Accepted (decided by Barton, 2026-09-24 2:51 PM MT, BRIEF "SCOPE CHANGE").** Recorded by the engineer.
 
 - **Context.** Barton dropped Token-2022 for now and moved 100% of the focus to SPL-404 hybrid launches. Barton also
@@ -192,7 +196,7 @@ shelved/deferred. Kept for the record.
   4. **Fee destinations on-chain and matching the site.** Burned fees show up as supply reduction; publish a
      reconciliation script (lesson 6).
   5. **Anti-sniping for the bonding-curve launch window.** Open design item until the curve venue is chosen.
-- **Decision D: re-roll fee = BURN.** Barton's decision (he skipped the question and burn became the default; the BRIEF
+- **Decision D: re-roll fee = BURN.** **SUPERSEDED by ADR-013 (flat tiered SOL fee; no burn, no token fee).** Barton's decision (he skipped the question and burn became the default; the BRIEF
   records it). This **supersedes my earlier recommendation (Q-H3: creator/platform split, "no burn")**. Copy: "Fixed at
   1,000,000,000 at launch. No one can mint more; re-roll burns can only reduce it." Short form: "fixed 1B at launch;
   re-roll fees are burned". `hybrid_launch` only accepts `fee_destination = BURN`.
@@ -258,6 +262,94 @@ shelved/deferred. Kept for the record.
   TBD and must arrive through the upgrade process (multisig plus timelock), because today nothing can move them.
   Open: default decimals (N3).
 
+## ADR-011: 2% token fee on capture/re-roll
+
+**Status: SUPERSEDED by ADR-013** (flat tiered SOL fee, 2026-09-25). Recorded only so the number stays reserved.
+
+## ADR-012: VRF: Switchboard On-Demand, program-chosen oracle, heartbeat filter, bounded recommits, principal + escrow expire
+
+**Status: Accepted (engineering; Auditor A v2 M-04). Implemented on localnet (mock Switchboard). Devnet proof blocked.**
+
+- The program picks the oracle from `vault.sb_queue` deterministically (vault, seq). A candidate is skipped only when
+  the caller supplies that oracle's account as proof its heartbeat is older than `MAX_ORACLE_HEARTBEAT_AGE_SECS`
+  (3,600 s); the chosen oracle must itself be fresh, otherwise `OracleStale`.
+- `recommit_randomness` up to `MAX_RECOMMITS` = 3. After that, and after `REVEAL_TIMEOUT_SLOTS` + `EXPIRE_GRACE_SLOTS`,
+  anyone can `expire_request`: it refunds the principal (tokens or the handed-in NFT) + the full mint escrow (ADR-016),
+  **never the tier fee**. There's no K-per-call expire; batch with several ixs per tx (an Auditor A ask, open).
+- **VRF cost (M-37): the requester pays at cost, separately (Auditor A decision).** Measured via RPC 2026-09-25:
+  mainnet queue reward = 5 lamports, 7 oracles; devnet reward 0, 2 oracles. The randomness account is 408 bytes
+  (rent 3,730,560 lamports, reusable). Estimated per request: reveal ~10k lamports + settle 5k + priority ≈ 0.00002 SOL,
+  far below the 0.002 minimum tier. **A real devnet measurement is still blocked** by the Switchboard crate's SBF build
+  issue (getrandom); these are not faked measurements.
+
+## ADR-013: Flat tiered SOL fee on capture/re-roll; release free (supersedes the burn and the 2% token fee)
+
+**Status: Accepted (Barton, 2026-09-25; release free confirmed 5:04 PM MT). Implemented.**
+
+- **Decision.** One flat SOL fee per ratio tier, charged at **request** on `request_capture` and `request_reroll`
+  (the same amount for both, so re-roll ≤ capture holds) and **never refunded** (not on expire either). Paid to the
+  code constant `hybrid_launch::PLATFORM_FEE_RECIPIENT` (account constraint), not a launch-time copy.
+  Release (`unwrap`) is **free**: it returns exactly `ratio` tokens per NFT, and the user pays only the tx fee.
+- **Tiers** (`needs_barton::FEE_TIERS`): 50k → 0.002 SOL; 100k, 200k → 0.005; 500k, 1M, 2.5M, 5M → 0.01.
+  `MAX_FEE_LAMPORTS` = 0.01 SOL hard cap.
+- **Fail-safe charging (M-08).** The vault charges `min(stored, tier(ratio) or u64::MAX, MAX_FEE)`, so it never
+  reverts on a mismatch and never overcharges; the LaunchConfig version must be 3 (fail closed).
+- **Removed:** the token fee (2%/bps), the burn path, the FeeVault, `sweep_fees`, `fee_vault_bump` and
+  `FEE_VAULT_SEED` (the error became `ReservedNothingToSweep`, 6049).
+- **Copy:** "Supply fixed at 1,000,000,000; nobody can mint more. Capture/re-roll cost a flat SOL fee; release is free
+  and returns exactly N tokens."
+- **Metaplex Core fees (reference):** Create 0.0015 SOL, Execute 0.00004872 SOL, Transfer free.
+
+## ADR-014: Graduation via Meteora DBC; 25% buffer in a locked PDA
+
+**Status: Accepted (Barton, 2026-09-25). NOT BUILT.** The curve is Meteora DBC (graduation-design §3). The release vault
+opens only after on-chain verification of graduation. On localnet it's behind the `test-mock-graduation` feature, and
+the production build carries no mock (checked). **The DBC verifier and the 25% buffer PDA are not implemented;** a test
+that the buffer can't be withdrawn is blocked on that.
+- **DBC mint (M-03/M-10/M-13), open:** either `hybrid_launch` verifies the mint DBC created, or DBC is given a
+  PDA-signed mint via CPI. Research item: whether `initialize_virtual_pool_with_spl_token` requires `base_mint` as a
+  keypair signer (it appears so in DBC 0.2.1), which forces the first option.
+
+## ADR-015: No pause
+
+**Status: Accepted (Barton, 2026-09-25). Implemented.** No instruction, key or multisig action can pause or halt any
+vault instruction. Test `no_pause_path_exists_no_key_can_halt_any_instruction` scans the IDL. Resolves N4.
+
+## ADR-016: LAZY MINTING (supersedes batch pre-mint and the launch-time affordability rule)
+
+**Status: Accepted (Barton, 2026-09-25 5:13 PM MT). Implemented and tested on localnet.** Resolves **Q-H5**.
+Interface: [lazy-mint-interface.md](lazy-mint-interface.md). Design: graduation-design §2.5/§4.4.
+
+- **No pre-mint.** `mint_assets` (crank), the graduation fund and the affordability check are removed.
+  `graduation_slice_pct` is always 0; `GraduationUnfundable` became `ReservedGraduationUnfundable` (6015);
+  `CollectionNotFullyMinted` (6035) and `GraduationFundShortfall` (6052) are reserved. The 100 ≤ N ≤ 10,000 bounds stay;
+  the 10k ratio is dropped.
+- **Gate:** graduated AND the Core collection exists (update authority = vault_authority, sizes consistent) AND pool
+  capacity == N. There's no minted == N requirement.
+- **Request escrow:** capture and re-roll move `MINT_ESCROW_LAMPORTS` = (3,570,480 rent + 1,500,000 Core fee) × 125% =
+  6,338,100 lamports into the system-owned PDA `["mint_escrow", vault, seq]`, alongside the principal; the fee is charged
+  at request. A live-rent check (`MintCostConstantStale`) makes an underfunded request impossible. It's a separate PDA
+  because Core needs a data-less system payer and the program can't debit its own Request inside a CPI-ing ix.
+- **Uniform pick** over all indices the vault holds (unminted + returned): lazy Fisher-Yates pool of 0..N−1.
+- **Mint-once:** a minted bitmap in the pool account; `minted_count ≤ N` is asserted every ix.
+- **Settle (permissionless):** transfer if the pick is minted; else verify the settler-supplied leaf + proof against the
+  pre-curve root and Core-create (payer = escrow PDA, owner = user, collection set + verified, immutable URI). The
+  remaining escrow always goes to the user; the settler pays only its tx fee (tip 0, T-HV-16). Settle can't strand funds.
+- **Re-roll** returns the handed-in asset to the vault: no re-mint, no burn.
+- **Expire:** principal + full escrow back, never the fee.
+- **Cost:** the pool account (64 + 16N + N/8 bytes) is ~1.12 SOL rent at N = 10k, creator-funded at vault creation.
+  A u16 packing could cut this later. Settle-with-mint is ~1.2 KB at 10k, so it needs v0 + ALT.
+- **Accepted downside:** marketplaces show only minted assets until they're captured.
+
+## ADR-017: Frozen LaunchConfig prefix for exit paths (M-41); M-16 accepted
+
+**Status: Accepted, implemented.** release, settle and expire read LaunchConfig raw through `config::exit_view`: owner ==
+hybrid_launch, discriminator, length ≥ `LC_STABLE_PREFIX_LEN` (221), and only `ratio_base` (offset 157) and
+`collection_size` (165); the mint is checked against `vault.mint`. The offsets are frozen in
+`hybrid_launch::stable_layout` and guarded by tests (`offsets_are_frozen`, `appended_field_keeps_prefix`), so a
+LaunchConfig upgrade can never lock users out of exits. Capture still fails closed on an unknown version.
+**M-16 (upgrade authority is a trust assumption until freeze) is accepted** and documented in THREAT_MODEL.
+
 ---
 
 ## Open questions for Barton
@@ -284,30 +376,31 @@ Status after ADR-009. Obsolete items are struck through and kept for the record.
 9. ~~**Q-H1:** Engine: MPL-Hybrid or the custom `hybrid_vault`?~~ **ACCEPTED: `hybrid_vault`** (decided 2026-09-24 by
    the Solana Program Engineer because MPL-Hybrid can't meet Barton's stated requirements; reversible if Barton
    objects; ADR-008).
-10. **Q-H2:** Capture/re-roll fees as a % of the ratio in tokens (default 2%) plus a small SOL cost fee?
+10. ~~**Q-H2:** Capture/re-roll fees as a % of the ratio in tokens~~ **Resolved: flat tiered SOL fee (ADR-013).**
 11. ~~**Q-H3:** Fee destination~~ **Resolved: BURN** (Barton, ADR-009). Supersedes my "no burn" recommendation.
-12. **Q-H4:** OK to require capture fee ≥ re-roll fee, with unwrap free of token fees? (Enforced in `hybrid_launch`.)
-13. **Q-H5:** Lazy minting or creator pre-mint?
+12. ~~**Q-H4:**~~ **Resolved:** re-roll fee == capture fee (one tier fee), release free (ADR-013).
+13. ~~**Q-H5:** Lazy minting or creator pre-mint?~~ **Resolved: LAZY MINTING (Barton 2026-09-25 5:13 PM MT, ADR-016).**
 14. **Q-H6:** Forbid creator/team NFT allocations outside the pool?
 15. **Q-H7:** Show full pool contents/traits publicly, or only the census?
 16. **Q-H8:** Is two-transaction capture/re-roll acceptable UX?
+- **OPEN (HOLD for Barton):** re-roll fee sink / excluding the fee wallet from capture.
 17. ~~**Q-H9:** Keep the 100,000-NFT maximum or cap lower?~~ **Resolved by Barton's ratio set** (2026-09-24): max =
     1B / ratio (100,000 at 10k), min 100.
 
 ### New (scope change, ADR-009/010)
 
-- **N1 Capture fee burned too?** Engineering default: yes, same burn path, so no fee account exists anywhere.
+- ~~**N1 Capture fee burned too?**~~ **Obsolete: no burn (ADR-013).** Engineering default: yes, same burn path, so no fee account exists anywhere.
   (`hybrid_launch` applies `fee_destination = BURN` to both fees.)
 - **N2 Launch destination. DECIDED (engineering, security-driven, 2026-09-24; QA-HL-02):** 1B goes to a PDA launch
   vault; distribution mechanism (curve) TBD. The destination is the ATA of `["launch_vault", mint, launch_config]`,
   not caller-chosen, with no withdraw instruction. A creator allocation, if Barton wants one, would have to be a
   visible, capped, program-enforced rule (still a question for Barton).
 - **N3 Decimals default.** 6 (pump.fun-style) or 9? `hybrid_launch` accepts 0–9.
-- **N4 Pause at all?** Recommended: at most "pause new captures/re-rolls", multisig + timelock, never blocking
+- ~~**N4 Pause at all?**~~ **Resolved: no pause (ADR-015).** Recommended: at most "pause new captures/re-rolls", multisig + timelock, never blocking
   release/settle/expire. Or no pause at all (simplest, most trustworthy)?
 - **N5 Upgrade authority.** Squads multisig until audit + stabilization, then frozen (`--final`)? For how long?
 - **N6 Bonding curve venue + anti-sniping mechanism.** Own curve vs an audited venue; then which mechanism (see
   admin-multisig-timelock.md §Anti-sniping).
-- **N7 Fee burn timing. DECIDED (final, 2026-09-24): burn at SETTLE.** The token fee is escrowed in the request
+- ~~**N7 Fee burn timing.**~~ **Superseded (ADR-013/012/016): the SOL fee is charged at request and never refunded; expire refunds the principal + the mint escrow.** Old text: DECIDED (final, 2026-09-24): burn at SETTLE.** The token fee is escrowed in the request
   PDA's token account at request time, burned at settle, and refunded together with the locked tokens on expire.
   Still open: refund the SOL cost fee minus VRF cost on expire?

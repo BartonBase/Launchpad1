@@ -36,17 +36,21 @@ pub fn create_collection<'info>(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn create_asset_in_vault<'info>(
+/// Core CreateV2 of a vault asset: collection = the vault's, authority = vault_authority (collection
+/// update authority), no plugins, `owner` as given (the user, for a lazy mint at settle).
+pub fn create_asset<'info>(
     core: &AccountInfo<'info>,
     asset: &AccountInfo<'info>,
     collection: &AccountInfo<'info>,
     vault_authority: &AccountInfo<'info>,
     payer: &AccountInfo<'info>,
+    owner: &AccountInfo<'info>,
     system_program: &AccountInfo<'info>,
     name: String,
     uri: String,
     asset_seeds: &[&[u8]],
     authority_seeds: &[&[u8]],
+    payer_seeds: &[&[u8]],
 ) -> Result<()> {
     check_program(core)?;
     CreateV2CpiBuilder::new(core)
@@ -54,11 +58,11 @@ pub fn create_asset_in_vault<'info>(
         .collection(Some(collection))
         .authority(Some(vault_authority))
         .payer(payer)
-        .owner(Some(vault_authority))
+        .owner(Some(owner))
         .system_program(system_program)
         .name(name)
         .uri(uri)
-        .invoke_signed(&[asset_seeds, authority_seeds])?;
+        .invoke_signed(&[asset_seeds, authority_seeds, payer_seeds])?;
     Ok(())
 }
 

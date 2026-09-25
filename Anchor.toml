@@ -15,7 +15,7 @@ cluster = "localnet"
 wallet = "/workspace/launchpad/.keys/devnet-only-deployer.json"
 
 [scripts]
-test = "cargo test --workspace --locked -- --show-output"
+test = "./scripts/build-test-sbf.sh && cargo test --workspace --locked -- --show-output"
 
 [hooks]
 

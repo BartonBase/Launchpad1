@@ -40,6 +40,9 @@ source scripts/env.sh                # PATH + ANCHOR_BUILD_SBF_ARCH=v2
 ./scripts/test.sh --skip-build       # reuse existing build
 cargo test -p hybrid_launch --lib    # fast pure-Rust unit tests (validation math)
 cargo test -p track-a-hybrid-tests   # LiteSVM tests (needs a prior build: target/deploy + target/idl)
+./scripts/build-test-sbf.sh          # REQUIRED before vault tests: test build (mock graduation + mock Switchboard) → target/test-sbf
+                                     # after any program change, re-run BOTH anchor build and build-test-sbf.sh
+                                     # QA's regression suite: cargo test -p track-a-hybrid-tests --features qa-regression
 ./scripts/devnet-airdrop-once.sh     # ONE devnet airdrop attempt (rate-limited; failure is fine)
 ```
 
@@ -90,3 +93,10 @@ cargo test -p track-a-hybrid-tests   # LiteSVM tests (needs a prior build: targe
   program IDs in Anchor.toml.
 - Devnet airdrop: one attempt on 2026-09-24 was rate-limited ("airdrop request failed"), so there's no devnet deploy
   yet. Use https://faucet.solana.com if needed.
+
+## Shared-box caveat: SBF toolchain collisions
+
+QA builds with cargo-build-sbf platform-tools v1.57; this repo pins v1.54. Both flip the same rustup `solana` toolchain
+link, so concurrent builds fail with "No such file" or an apparently uninstalled toolchain. Don't build at the same
+time as another team; if it happens, rerun `./scripts/build.sh`. Also, `anchor build` leaves
+`target/deploy/mock_switchboard.so` (a workspace member). `scripts/deploy-devnet.sh` refuses to deploy while it's present.

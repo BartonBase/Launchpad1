@@ -1,9 +1,13 @@
-//! `unwrap`: one tx, never pausable. The user returns vault asset `index` and receives exactly
-//! `ratio` tokens. No token fee exists on this path. The returned NFT enters `incoming` tagged with
+//! `unwrap` (release): FREE (Barton 2026-09-25 5:04 PM MT). One tx, never gated by `open`; no pause
+//! exists (ADR-015). The user returns vault asset `index` and receives EXACTLY `ratio` tokens. There
+//! is no SOL fee and no fee account, so nothing about any fee wallet can revert a release (M-26).
+//! Upgrade-proof (M-41): the LaunchConfig is read ONLY via `config::exit_view` (ratio_base and
+//! collection_size at frozen offsets); the mint is checked against the vault's own `mint`. No
+//! version, fee, wallet or bounds check runs here. The returned NFT enters `incoming` tagged with
 //! next_seq, so it can't be drawn by any request made before it came back.
 
-use crate::{constants::*, core_cpi, error::VaultError, invariants, pool::PoolView, state::Vault};
 use super::vault_token_ops::pay_out;
+use crate::{asset_source, config, constants::*, error::VaultError, invariants, pool::PoolView, state::Vault};
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 
@@ -13,13 +17,18 @@ pub struct Unwrap<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
 
-    #[account(mut, seeds = [VAULT_SEED, vault.launch_config.as_ref()], bump = vault.bump, has_one = mint)]
+    #[account(mut, seeds = [VAULT_SEED, vault.launch_config.as_ref()], bump = vault.bump)]
     pub vault: Box<Account<'info, Vault>>,
+
+    /// CHECK: address-pinned; read raw by config::exit_view (owner + discriminator + frozen offsets).
+    #[account(address = vault.launch_config)]
+    pub launch_config: UncheckedAccount<'info>,
 
     /// CHECK: validated by PoolView::load + address pinned.
     #[account(mut, address = vault.pool, owner = crate::ID)]
     pub pool: UncheckedAccount<'info>,
 
+    #[account(address = vault.mint @ VaultError::MintMismatch)]
     pub mint: Box<Account<'info, Mint>>,
 
     /// CHECK: PDA; new owner of the NFT, signs the token payout.
@@ -29,14 +38,11 @@ pub struct Unwrap<'info> {
     #[account(mut, seeds = [VAULT_TOKENS_SEED, vault.key().as_ref()], bump = vault.vault_tokens_bump)]
     pub vault_tokens: Box<Account<'info, TokenAccount>>,
 
-    #[account(seeds = [FEE_ESCROW_SEED, vault.key().as_ref()], bump = vault.fee_escrow_bump)]
-    pub fee_escrow: Box<Account<'info, TokenAccount>>,
-
     #[account(
         mut,
         token::mint = mint,
         token::authority = user,
-        constraint = user_token.key() != vault.vault_tokens && user_token.key() != vault.fee_escrow @ VaultError::AliasedTokenAccount,
+        constraint = user_token.key() != vault.vault_tokens @ VaultError::AliasedTokenAccount,
     )]
     pub user_token: Box<Account<'info, TokenAccount>>,
 
@@ -55,24 +61,19 @@ pub struct Unwrap<'info> {
 }
 
 pub fn handle_unwrap(ctx: Context<Unwrap>, index: u32) -> Result<()> {
-    // Deliberately NO pause check and NO fee: unwrap must always work and return exactly `ratio`.
+    // Deliberately NO open check (and no pause exists at all, ADR-015). No fee (release is free).
     let vault_key = ctx.accounts.vault.key();
-    require!(index < ctx.accounts.vault.collection_size, VaultError::IndexOutOfRange);
+    let econ = config::exit_view(&ctx.accounts.launch_config.to_account_info())?;
+    require!(index < econ.collection_size, VaultError::IndexOutOfRange);
     let a = &ctx.accounts;
-
-    core_cpi::transfer_asset(
+    asset_source::take_back(
         &a.mpl_core_program.to_account_info(),
         &a.asset.to_account_info(),
         &a.collection.to_account_info(),
         &a.user.to_account_info(),
-        &a.user.to_account_info(),
         &a.vault_authority.to_account_info(),
         &a.system_program.to_account_info(),
-        None,
     )?;
-    core_cpi::assert_asset_state(&a.asset, &a.vault.collection, &a.vault_authority.key())?;
-
-    let ratio = a.vault.ratio_base;
     pay_out(
         &a.token_program,
         &a.vault_tokens,
@@ -81,7 +82,7 @@ pub fn handle_unwrap(ctx: Context<Unwrap>, index: u32) -> Result<()> {
         &a.vault_authority.to_account_info(),
         &vault_key,
         a.vault.authority_bump,
-        ratio,
+        econ.ratio_base,
     )?;
 
     let tag = a.vault.next_seq;
@@ -97,5 +98,5 @@ pub fn handle_unwrap(ctx: Context<Unwrap>, index: u32) -> Result<()> {
     ctx.accounts.vault_tokens.reload()?;
     let mut data = ctx.accounts.pool.try_borrow_mut_data()?;
     let pool = PoolView::load(&mut data, &vault_key)?;
-    invariants::check(&ctx.accounts.vault, &pool, ctx.accounts.vault_tokens.amount, ctx.accounts.fee_escrow.amount)
+    invariants::check(&ctx.accounts.vault, econ.ratio_base, econ.collection_size, &pool, ctx.accounts.vault_tokens.amount)
 }

@@ -3,7 +3,7 @@ use anchor_lang::prelude::*;
 /// Immutable launch record for one Track A mint. PDA `["launch_config", mint]`.
 ///
 /// There is NO instruction that modifies or closes this account: ratio,
-/// collection size, fees, fee destination and mint are fixed at launch
+/// collection size, SOL fees, fee recipient and mint are fixed at launch
 /// (Stonk.fun lesson: no mutable economics after launch).
 #[account]
 #[derive(InitSpace, Debug, PartialEq, Eq)]
@@ -32,13 +32,15 @@ pub struct LaunchConfig {
     pub collection_size: u64,
     /// collection_size * ratio_base (<= total_supply_base).
     pub max_tokens_in_nft_form: u64,
-    /// Capture (wrap) fee, bps of the ratio, and the exact base-unit amount.
-    pub capture_fee_bps: u16,
-    pub capture_fee_amount: u64,
-    /// Re-roll fee, bps of the ratio, and the exact base-unit amount.
-    pub reroll_fee_bps: u16,
-    pub reroll_fee_amount: u64,
-    /// Always FEE_DESTINATION_BURN.
-    pub fee_destination: u8,
+    /// The flat SOL fee (lamports) charged on EVERY capture, release and re-roll, fixed forever
+    /// (ADR-013) = fee_for_ratio(ratio_whole_tokens) at launch; <= MAX_FEE_LAMPORTS (0.01 SOL).
+    /// There is no token fee.
+    pub fee_lamports: u64,
+    /// PLATFORM_FEE_RECIPIENT at launch time: the only address any fee can reach (F-06 / M-05).
+    pub fee_recipient: Pubkey,
+    /// Graduation threshold (lamports raised; DBC migration threshold). `graduation_slice_pct` is
+    /// always 0 since lazy minting (ADR-016); the field stays for the append-only layout.
+    pub graduation_threshold_lamports: u64,
+    pub graduation_slice_pct: u8,
     pub launched_at: i64,
 }

@@ -4,16 +4,16 @@ use anchor_lang::prelude::*;
 
 use crate::{constants::*, error::LaunchError};
 
-/// Creator-chosen launch parameters.
+/// Creator-chosen launch parameters (ADR-013 flat SOL fee model).
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LaunchParams {
     pub decimals: u8,
     pub ratio_whole_tokens: u64,
     pub collection_size: u64,
-    pub capture_fee_bps: u16,
-    pub reroll_fee_bps: u16,
-    /// Must be FEE_DESTINATION_BURN.
-    pub fee_destination: u8,
+    // No fee field of any kind: the flat SOL fee is fee_for_ratio(ratio) from the const tier table
+    // and the recipient is PLATFORM_FEE_RECIPIENT, both fixed by the program (M-05, M-07, M-08).
+    /// Graduation threshold (SOL raised on the curve), lamports. Default 85 SOL.
+    pub graduation_threshold_lamports: u64,
 }
 
 /// Values derived from validated params.
@@ -22,8 +22,28 @@ pub struct DerivedAmounts {
     pub total_supply_base: u64,
     pub ratio_base: u64,
     pub max_tokens_in_nft_form: u64,
-    pub capture_fee_amount: u64,
-    pub reroll_fee_amount: u64,
+    pub fee_lamports: u64,
+    /// Always 0 since lazy minting (ADR-016): no graduation slice funds any pre-mint.
+    pub graduation_slice_pct: u8,
+}
+
+/// Threshold bounds only. The affordability rule (slice of the raise must fund N pre-mints) was
+/// DROPPED with lazy minting (Barton 2026-09-25 5:13 PM MT, ADR-016): each mint is paid from the
+/// requester's escrow at settle.
+pub fn check_graduation_threshold(threshold_lamports: u64) -> Result<()> {
+    require!(
+        (MIN_GRADUATION_THRESHOLD_LAMPORTS..=MAX_GRADUATION_THRESHOLD_LAMPORTS).contains(&threshold_lamports),
+        LaunchError::GraduationThresholdOutOfRange
+    );
+    Ok(())
+}
+
+/// The flat SOL fee for a ratio, checked against the floor and the hard cap (shared with
+/// hybrid_vault's re-validation).
+pub fn checked_fee_for_ratio(ratio_whole_tokens: u64) -> Result<u64> {
+    let fee = fee_for_ratio(ratio_whole_tokens).ok_or(LaunchError::RatioNotAllowed)?;
+    require!((MIN_FEE_LAMPORTS..=MAX_FEE_LAMPORTS).contains(&fee), LaunchError::SolFeeOutOfRange);
+    Ok(fee)
 }
 
 pub fn validate(p: &LaunchParams) -> Result<DerivedAmounts> {
@@ -31,15 +51,14 @@ pub fn validate(p: &LaunchParams) -> Result<DerivedAmounts> {
     require!(ALLOWED_RATIOS.contains(&p.ratio_whole_tokens), LaunchError::RatioNotAllowed);
     require!(p.collection_size >= 1, LaunchError::ZeroCollectionSize);
     require!(p.collection_size >= MIN_COLLECTION_SIZE, LaunchError::CollectionBelowMinimum);
-    require!(p.capture_fee_bps <= MAX_TOKEN_FEE_BPS, LaunchError::FeeAboveCap);
-    require!(p.reroll_fee_bps <= MAX_TOKEN_FEE_BPS, LaunchError::FeeAboveCap);
-    require!(p.capture_fee_bps >= p.reroll_fee_bps, LaunchError::CaptureFeeBelowRerollFee);
-    require!(p.fee_destination == FEE_DESTINATION_BURN, LaunchError::FeeDestinationNotBurn);
+    require!(p.collection_size <= MAX_COLLECTION_SIZE, LaunchError::CollectionAboveCap);
+    let fee_lamports = checked_fee_for_ratio(p.ratio_whole_tokens)?;
+    check_graduation_threshold(p.graduation_threshold_lamports)?;
+    let graduation_slice_pct = 0;
 
     let scale = 10u64.checked_pow(u32::from(p.decimals)).ok_or(LaunchError::MathOverflow)?;
     let total_supply_base = TOTAL_SUPPLY_WHOLE_TOKENS.checked_mul(scale).ok_or(LaunchError::MathOverflow)?;
     let ratio_base = p.ratio_whole_tokens.checked_mul(scale).ok_or(LaunchError::MathOverflow)?;
-    // Ratio divides the supply exactly (true for every allowed ratio; asserted anyway).
     require!(total_supply_base % ratio_base == 0, LaunchError::RatioNotAllowed);
     // The supply check: collection_size * ratio <= 1B (checked_mul => overflow is a rejection too).
     let max_tokens_in_nft_form = p
@@ -48,26 +67,14 @@ pub fn validate(p: &LaunchParams) -> Result<DerivedAmounts> {
         .ok_or(LaunchError::CollectionTooLargeForSupply)?;
     require!(max_tokens_in_nft_form <= total_supply_base, LaunchError::CollectionTooLargeForSupply);
 
-    let fee = |bps: u16| -> Result<u64> {
-        let v = u128::from(ratio_base) * u128::from(bps);
-        // ratio_base is a multiple of 10_000, so this division is exact.
-        require!(v % 10_000 == 0, LaunchError::MathOverflow);
-        u64::try_from(v / 10_000).map_err(|_| error!(LaunchError::MathOverflow))
-    };
-    Ok(DerivedAmounts {
-        total_supply_base,
-        ratio_base,
-        max_tokens_in_nft_form,
-        capture_fee_amount: fee(p.capture_fee_bps)?,
-        reroll_fee_amount: fee(p.reroll_fee_bps)?,
-    })
+    Ok(DerivedAmounts { total_supply_base, ratio_base, max_tokens_in_nft_form, fee_lamports, graduation_slice_pct })
 }
 
-/// Largest allowed collection size for a ratio (whole tokens): 1B / ratio.
+/// Largest allowed collection size for a ratio (whole tokens): min(1B / ratio, MAX_COLLECTION_SIZE).
 pub fn max_collection_size(ratio_whole_tokens: u64) -> Option<u64> {
     ALLOWED_RATIOS
         .contains(&ratio_whole_tokens)
-        .then(|| TOTAL_SUPPLY_WHOLE_TOKENS / ratio_whole_tokens)
+        .then(|| (TOTAL_SUPPLY_WHOLE_TOKENS / ratio_whole_tokens).min(MAX_COLLECTION_SIZE))
 }
 
 #[cfg(test)]
@@ -79,18 +86,18 @@ mod tests {
             decimals: 6,
             ratio_whole_tokens: 1_000_000,
             collection_size: 1_000,
-            capture_fee_bps: 200,
-            reroll_fee_bps: 200,
-            fee_destination: FEE_DESTINATION_BURN,
+            graduation_threshold_lamports: DEFAULT_GRADUATION_THRESHOLD_LAMPORTS,
         }
     }
 
+    /// Enough raise to fund any N <= 10k (10k x 0.00509 x 1.25 / 10% = 636.25 SOL).
+    const BIG_RAISE: u64 = 700_000_000_000;
+
     #[test]
     fn supply_table_max_collection_size_per_ratio() {
-        // Supply table (Barton 2026-09-24): ratio -> max N = 1B / ratio; min N = 100 for all.
+        // max N = min(10_000, 1B / ratio) (Barton 2026-09-25 4:55 PM MT); min N = 100 for all.
         let table = [
-            (10_000, 100_000),
-            (50_000, 20_000),
+            (50_000, 10_000),
             (100_000, 10_000),
             (200_000, 5_000),
             (500_000, 2_000),
@@ -102,34 +109,98 @@ mod tests {
         for (ratio, max) in table {
             assert_eq!(max_collection_size(ratio), Some(max));
             for d in [0u8, 6, 9] {
-                let ok = LaunchParams { ratio_whole_tokens: ratio, collection_size: max, decimals: d, ..base() };
+                let ok = LaunchParams { ratio_whole_tokens: ratio, collection_size: max, decimals: d, graduation_threshold_lamports: BIG_RAISE };
                 let got = validate(&ok).expect("max size must pass");
-                assert_eq!(got.max_tokens_in_nft_form, got.total_supply_base, "max size uses 100% of supply");
-                let over = LaunchParams { collection_size: max + 1, ..ok };
-                assert!(validate(&over).is_err(), "max+1 must fail for ratio {ratio} decimals {d}");
-                let min = LaunchParams { collection_size: MIN_COLLECTION_SIZE, ..ok };
-                validate(&min).expect("min size must pass");
-                let under = LaunchParams { collection_size: MIN_COLLECTION_SIZE - 1, ..ok };
-                assert!(validate(&under).is_err(), "99 must fail for ratio {ratio} decimals {d}");
+                if TOTAL_SUPPLY_WHOLE_TOKENS / ratio <= MAX_COLLECTION_SIZE {
+                    assert_eq!(got.max_tokens_in_nft_form, got.total_supply_base, "max size uses 100% of supply");
+                }
+                assert!(validate(&LaunchParams { collection_size: max + 1, ..ok }).is_err(), "max+1 r={ratio} d={d}");
+                validate(&LaunchParams { collection_size: MIN_COLLECTION_SIZE, ..ok }).expect("min size must pass");
+                assert!(validate(&LaunchParams { collection_size: MIN_COLLECTION_SIZE - 1, ..ok }).is_err());
             }
         }
+    }
+
+    #[test]
+    fn largest_ratio_with_9_decimals_does_not_overflow() {
+        // 5M * 10^9 = 5e15 base units per NFT; 200 NFTs = 1e18 = full supply (< u64::MAX 1.8e19).
+        // (Any bps-style product such as ratio * 10_000 would overflow u64; none remains since the
+        // token fee was dropped, and new percentage math must use u128 intermediates.)
+        let p = LaunchParams { ratio_whole_tokens: 5_000_000, decimals: 9, collection_size: 200, ..base() };
+        let d = validate(&p).unwrap();
+        assert_eq!(d.ratio_base, 5_000_000 * 10u64.pow(9));
+        assert_eq!(d.max_tokens_in_nft_form, d.total_supply_base);
+        assert!(u64::try_from(u128::from(d.ratio_base) * 10_000).is_err(), "the u64 product really would overflow");
+        assert!(validate(&LaunchParams { collection_size: 201, ..p }).is_err());
+    }
+
+    #[test]
+    fn attack_collection_size_above_cap_is_rejected() {
+        let p = LaunchParams { ratio_whole_tokens: 50_000, collection_size: MAX_COLLECTION_SIZE + 1, graduation_threshold_lamports: BIG_RAISE, ..base() };
+        assert!(validate(&p).is_err());
+        validate(&LaunchParams { collection_size: MAX_COLLECTION_SIZE, ..p }).unwrap();
+    }
+
+    #[test]
+    fn attack_10k_ratio_is_dropped_and_rejected() {
+        assert!(!ALLOWED_RATIOS.contains(&10_000));
+        assert!(validate(&LaunchParams { ratio_whole_tokens: 10_000, collection_size: 100, ..base() }).is_err());
+        assert!(fee_for_ratio(10_000).is_none());
+    }
+
+    #[test]
+    fn lazy_mint_any_n_up_to_cap_launches_at_any_valid_threshold() {
+        // Affordability dropped (ADR-016): 10k NFTs at the 10 SOL minimum threshold are fine.
+        for n in [100u64, 1_336, 5_000, MAX_COLLECTION_SIZE] {
+            let d = validate(&LaunchParams { ratio_whole_tokens: 50_000, collection_size: n, graduation_threshold_lamports: MIN_GRADUATION_THRESHOLD_LAMPORTS, ..base() }).unwrap();
+            assert_eq!(d.graduation_slice_pct, 0);
+        }
+        assert!(validate(&LaunchParams { graduation_threshold_lamports: MIN_GRADUATION_THRESHOLD_LAMPORTS - 1, ..base() }).is_err());
     }
 
     #[test]
     fn attack_collection_size_overflow_is_rejected_not_wrapped() {
-        let p = LaunchParams { collection_size: u64::MAX, ..base() };
-        assert!(validate(&p).is_err());
+        assert!(validate(&LaunchParams { collection_size: u64::MAX, ..base() }).is_err());
     }
 
     #[test]
-    fn fee_amounts_are_exact_for_every_ratio_and_bps() {
-        for ratio in ALLOWED_RATIOS {
-            for bps in [0u16, 1, 7, 200, 999, 1_000] {
-                let p = LaunchParams { ratio_whole_tokens: ratio, collection_size: MIN_COLLECTION_SIZE, capture_fee_bps: bps, reroll_fee_bps: 0, decimals: 0, ..base() };
-                let d = validate(&p).unwrap();
-                assert_eq!(u128::from(d.capture_fee_amount) * 10_000, u128::from(d.ratio_base) * u128::from(bps));
-            }
+    fn fee_tier_for_every_ratio_matches_barton_table() {
+        let want = [
+            (50_000, 2_000_000),
+            (100_000, 5_000_000),
+            (200_000, 5_000_000),
+            (500_000, 10_000_000),
+            (1_000_000, 10_000_000),
+            (2_500_000, 10_000_000),
+            (5_000_000, 10_000_000),
+        ];
+        assert_eq!(want.map(|w| w.0), ALLOWED_RATIOS);
+        for (r, fee) in want {
+            let d = validate(&LaunchParams { ratio_whole_tokens: r, collection_size: MIN_COLLECTION_SIZE, ..base() }).unwrap();
+            assert_eq!(d.fee_lamports, fee, "r={r}");
+            // Same fee on capture, release and re-roll => re-roll <= capture + release in every tier.
+            assert!(fee <= fee + fee);
         }
+    }
+
+    #[test]
+    fn fee_can_never_exceed_the_0_01_sol_hard_cap() {
+        assert_eq!(MAX_FEE_LAMPORTS, 10_000_000);
+        for r in ALLOWED_RATIOS {
+            assert!(checked_fee_for_ratio(r).unwrap() <= MAX_FEE_LAMPORTS);
+        }
+        // Any ratio outside the table (so any "custom" fee) is refused.
+        for r in [0u64, 1, 10_000, 20_000, 10_000_000, u64::MAX] {
+            assert!(checked_fee_for_ratio(r).is_err(), "r={r}");
+            assert!(validate(&LaunchParams { ratio_whole_tokens: r, ..base() }).is_err());
+        }
+    }
+
+    #[test]
+    fn fee_floor_is_at_or_above_rent_exempt_minimum_for_a_0_byte_account() {
+        assert_eq!(RENT_EXEMPT_MIN_0_BYTES, (128 * 3_480) * 2);
+        assert!(MIN_FEE_LAMPORTS >= RENT_EXEMPT_MIN_0_BYTES);
+        assert_eq!(FEE_TIERS.iter().map(|t| t.1).min(), Some(MIN_FEE_LAMPORTS));
     }
 
     #[test]

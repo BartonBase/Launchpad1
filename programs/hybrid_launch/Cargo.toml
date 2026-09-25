@@ -15,6 +15,8 @@ default = []
 cpi = ["no-entrypoint"]
 no-entrypoint = []
 no-log-ix-name = []
+# Mainnet build: refuses to compile until PLATFORM_FEE_OWNER is Barton's Squads vault (constants.rs).
+mainnet = []
 # anchor-spl 1.2.0's idl_build.rs unconditionally references `token_interface`, which only
 # exists with its `token_2022` feature. Enabled ONLY for IDL generation; the on-chain
 # program never uses Token-2022 (and rejects it via Program<Token>).

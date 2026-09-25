@@ -31,23 +31,28 @@ pub const TOTAL_SUPPLY_WHOLE_TOKENS: u64 = 1_000_000_000;
 #[constant]
 pub const MAX_DECIMALS: u8 = 9;
 
-/// Allowed wrap ratios (whole tokens per NFT), Barton 2026-09-24. All divide 1B
-/// and are multiples of 10_000, so `ratio * bps / 10_000` is always exact.
-/// Max collection size = 1B / ratio: 100_000 / 20_000 / 10_000 / 5_000 / 2_000 /
-/// 1_000 / 400 / 200.
-pub const ALLOWED_RATIOS: [u64; 8] = [10_000, 50_000, 100_000, 200_000, 500_000, 1_000_000, 2_500_000, 5_000_000];
+/// Allowed wrap ratios (whole tokens per NFT). All divide 1B. Max collection size =
+/// min(1B / ratio, MAX_COLLECTION_SIZE).
+/// 10k was DROPPED by Barton 2026-09-25 4:55 PM MT (its mint cost exceeds the NFT's token value).
+pub const ALLOWED_RATIOS: [u64; 7] = [50_000, 100_000, 200_000, 500_000, 1_000_000, 2_500_000, 5_000_000];
 
 /// Minimum collection size for every ratio (Barton, 2026-09-24).
 #[constant]
 pub const MIN_COLLECTION_SIZE: u64 = 100;
 
-/// Hard cap for capture / re-roll token fees: 1_000 bps = 10% of the ratio.
-#[constant]
-pub const MAX_TOKEN_FEE_BPS: u16 = 1_000;
-
-/// Fee destination codes. Only BURN exists (Barton, 2026-09-24): no program or
-/// wallet ever custodies a fee pile.
-pub const FEE_DESTINATION_BURN: u8 = 0;
+// Values awaiting a Barton decision (collection cap, fee cap/defaults, fee recipient) live in
+// `needs_barton.rs` and are re-exported here.
+pub use crate::needs_barton::*;
 
 /// LaunchConfig layout version.
-pub const LAUNCH_CONFIG_VERSION: u8 = 1;
+/// v3 = flat SOL fee model (Barton 2026-09-25 4:49 PM MT); v2 (2% token fee) never shipped.
+pub const LAUNCH_CONFIG_VERSION: u8 = 3;
+
+const _: () = {
+    // FEE_TIERS covers exactly ALLOWED_RATIOS, in order.
+    let mut i = 0;
+    while i < ALLOWED_RATIOS.len() {
+        assert!(crate::needs_barton::FEE_TIERS[i].0 == ALLOWED_RATIOS[i]);
+        i += 1;
+    }
+};

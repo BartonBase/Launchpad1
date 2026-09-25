@@ -1,5 +1,14 @@
 # Answers to QA's open questions (Q1–Q11, qa/archive/TEST_PLAN.v0.2.md §11)
 
+> **CURRENT MODEL (2026-09-25; supersedes any burn / 2% / bps / token-fee / pause text below, which is kept for the
+> record):** capture and re-roll each pay ONE flat SOL tier fee (0.002 / 0.005 / 0.01 SOL by ratio, cap 0.01) at request,
+> to the fixed `PLATFORM_FEE_RECIPIENT`, never refunded (ADR-013). Release is free and returns exactly N tokens.
+> Nothing is burned. No pause exists (ADR-015). Minting is lazy: the requester escrows the worst-case Core mint cost
+> (0.0063381 SOL; actual ≈ 0.00507, the rest refunded at settle), and settle mints a never-minted pick straight to the
+> user from that escrow (ADR-016, [lazy-mint-interface.md](lazy-mint-interface.md)). Expire refunds the principal +
+> the escrow, never the fee. Core cost per asset is 0.0035–0.0067 SOL depending on plugins (ours ≈ 0.00509 all-in
+> with plugins; lean/no plugins ≈ 0.00507 raw at the escrowed 385-byte size). Ratios: {50k … 5M}, 100 ≤ N ≤ 10,000.
+
 From: Solana Program Engineer, 2026-09-24 (after the SCOPE CHANGE, ADR-009). Each answer is labeled
 **[engineering]** (decided by engineering within Barton's constraints, can be tested now) or **[needs Barton]**.
 Track B (Token-2022 tax / treasury / raffle) is **shelved**, so its questions are marked **OBSOLETE**. Newer QA
@@ -25,9 +34,8 @@ questions (qa/TEST_PLAN.md §14) are cross-referenced where they overlap.
 - Nothing in `hybrid_launch` is pausable; it has no admin.
 - In the engine, the only pausable instructions are **`request_capture` and `request_reroll`** (new money in).
 - **Never pausable:** `release` (unwrap, exact `ratio` back), `settle` of already-paid requests, `expire` of
-  unfulfilled requests. The token fee is escrowed in the request PDA's token account at request time, **burned at
-  `settle`** and refunded with the locked tokens on `expire` (DECISIONS N7, final). There's no separate "burn crank"
-  to pause, and no fee-withdraw instruction exists.
+  unfulfilled requests. **Superseded: there is no pause at all (ADR-015)** and no token fee; the SOL fee is charged at
+  request and never refunded, and no fee-withdraw instruction exists.
 - The pause auto-expires and is shown on the site. Details: [admin-multisig-timelock.md](admin-multisig-timelock.md) §3.
 - Suggested QA tests: while paused, `release`/`settle`/`expire` succeed and `request_*` fails; the pause lapses at
   `MAX_PAUSE_SLOTS`.
@@ -40,7 +48,7 @@ questions (qa/TEST_PLAN.md §14) are cross-referenced where they overlap.
 |---|---|
 | Mint authority | **None**, revoked in the same `launch` instruction (✅ tested) |
 | Freeze authority | **None**, never set (✅ tested) |
-| `LaunchConfig` (ratio, size, fees, fee destination = burn, mint) | **Nobody**: immutable, no update/close instruction (✅ IDL test) |
+| `LaunchConfig` (ratio, size, tier fee, mint; fees go to the `PLATFORM_FEE_RECIPIENT` constant) | **Nobody**: immutable, no update/close instruction (✅ IDL test) |
 | Engine config (fees, ratio, destinations) | **Nobody**: fixed at init (ADR-009 C3) |
 | Pause new captures (if kept) | Squads guardian multisig, auto-expiring (option a) or the timelocked governance multisig (option b) |
 | Program upgrade | Squads governance multisig vault PDA, 7-day timelock proposed; frozen (`--final`) after audit + stabilization |
@@ -69,16 +77,18 @@ half (onboarding existing Token-2022 mints) is **OBSOLETE**.
 - **Q1 engine:** **ACCEPTED: `hybrid_vault`** (ADR-008 / Q-H1, decided 2026-09-24 by the Solana Program Engineer
   because MPL-Hybrid can't meet Barton's stated requirements; reversible if Barton objects). MPL-Hybrid is reference
   only.
-- **Q2 capture fee:** token bps of R, ≤ 1,000 bps, `capture ≥ re-roll` enforced by `hybrid_launch`, burned like the
-  re-roll fee ([engineering] default, DECISIONS N1; needs Barton's confirmation).
-- **Q3 fee timing / expire:** **Token fee: decided (final, N7): burn at SETTLE.** Escrowed in the request PDA's token
-  account at request time, burned at `settle`, refunded together with the locked tokens on `expire`. **SOL part:**
-  [needs Barton]; engineering default is that it pays VRF + rent only, refunded minus VRF cost on `expire`.
+- **Q2 capture fee:** **decided (ADR-013):** one flat SOL tier fee, the same for capture and re-roll (0.002 / 0.005 /
+  0.01 SOL by ratio, hard cap 0.01), paid to `PLATFORM_FEE_RECIPIENT`. No token fee, no burn. Release is free.
+- **Q3 fee timing / expire:** **decided (ADR-013/016):** the tier fee is charged at **request** and **never refunded**.
+  The request also escrows the worst-case lazy-mint cost (`MINT_ESCROW_LAMPORTS` = 0.0063381 SOL) in a per-request PDA;
+  settle spends ≈ 0.00507 SOL of it only if the pick is minted for the first time and refunds the rest to the user;
+  `expire` refunds the principal (tokens or the handed-in NFT) + the whole escrow. Release returns exactly N tokens,
+  free. VRF is paid by the requester at cost, separately (≈ 0.00002 SOL, ADR-012). Core cost per asset is
+  0.0035–0.0067 SOL depending on plugins (≈ 0.00509 all-in).
 - **Q4 bonding curve:** [needs Barton] (N6); options in admin-multisig-timelock.md §6.
 - **Q6 multisig/timelock:** see Q6 above.
 - **Q7 pause:** see Q3 above.
-- **Q9 supply copy after burns:** [engineering] proposal: "Up to {N×R} $TICKER could be held as NFTs at launch" plus
-  a live line "Current supply: {supply} ({burned} burned by re-roll fees)". Every circulating NFT stays fully backed
-  (ADR-009 burn check).
+- **Q9 supply copy:** nothing is burned (ADR-013), so supply stays exactly 1B: "Supply fixed at 1,000,000,000; nobody
+  can mint more. Up to {N×R} $TICKER can be held as NFTs." Every circulating NFT is fully backed.
 - **Q10 decimals:** [needs Barton] (N3). `hybrid_launch` accepts 0–9; overflow edges are covered by
   `attack_decimals_above_9_are_rejected` and the `checked_mul` tests.

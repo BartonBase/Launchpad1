@@ -1,7 +1,8 @@
 //! `launch`: create a Track A classic SPL Token mint with a fixed 1B supply and
 //! an immutable LaunchConfig, in ONE instruction:
-//! 1. validate params (ratio set, collection_size * ratio <= 1B via checked_mul,
-//!    fee caps, capture fee >= re-roll fee, fee destination = BURN);
+//! 1. validate params (ratio set, 100 <= collection_size, collection_size * ratio <= 1B via
+//!    checked_mul, collection_size <= MAX_COLLECTION_SIZE; the flat SOL fee is looked up from the
+//!    ratio tier table, never supplied; there is no token fee, ADR-013);
 //! 2. create the 82-byte mint account owned by the CLASSIC Token program
 //!    (`token_program: Program<Token>` rejects Token-2022: INV-13). Pre-funded
 //!    but empty system accounts are tolerated like the ATA program does
@@ -66,6 +67,11 @@ pub struct Launch<'info> {
     #[account(mut)]
     pub launch_destination: UncheckedAccount<'info>,
 
+    /// CHECK: the platform fee recipient constant (ADR-013). Must be a plain system account (or not
+    /// yet exist, which is also system-owned) and not executable, so fee transfers can always credit it.
+    #[account(address = PLATFORM_FEE_RECIPIENT @ LaunchError::FeeRecipientInvalid)]
+    pub fee_recipient: UncheckedAccount<'info>,
+
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
@@ -73,6 +79,16 @@ pub struct Launch<'info> {
 
 pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
     let amounts = validate(&params)?;
+    {
+        let r = ctx.accounts.fee_recipient.to_account_info();
+        require_keys_eq!(*r.owner, system_program::ID, LaunchError::FeeRecipientInvalid);
+        require!(!r.executable && r.data_is_empty(), LaunchError::FeeRecipientInvalid);
+    }
+    // The fundability rule uses a conservative rent constant; fail closed if live rent is higher.
+    require!(
+        Rent::get()?.minimum_balance(CORE_ASSET_SPACE_BYTES) <= CORE_ASSET_RENT_LAMPORTS,
+        LaunchError::MintCostConstantStale
+    );
 
     let token_program_id = ctx.accounts.token_program.key();
     let mint_key = ctx.accounts.mint.key();
@@ -183,11 +199,10 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
         ratio_base: amounts.ratio_base,
         collection_size: params.collection_size,
         max_tokens_in_nft_form: amounts.max_tokens_in_nft_form,
-        capture_fee_bps: params.capture_fee_bps,
-        capture_fee_amount: amounts.capture_fee_amount,
-        reroll_fee_bps: params.reroll_fee_bps,
-        reroll_fee_amount: amounts.reroll_fee_amount,
-        fee_destination: FEE_DESTINATION_BURN,
+        fee_lamports: amounts.fee_lamports,
+        fee_recipient: PLATFORM_FEE_RECIPIENT,
+        graduation_threshold_lamports: params.graduation_threshold_lamports,
+        graduation_slice_pct: amounts.graduation_slice_pct,
         launched_at: Clock::get()?.unix_timestamp,
     });
 

@@ -1,16 +1,19 @@
-//! Raw-layout pool account (too large for Borsh/Anchor `init` at 100k NFTs; pre-created top-level
-//! by the creator, owned by hybrid_vault, then initialised by `init_vault`).
+//! Raw-layout pool account (too large for Borsh/Anchor `init`; pre-created top-level by the creator,
+//! owned by hybrid_vault, then initialised by `init_vault`). LAZY MINT layout v2 (ADR-016,
+//! docs/lazy-mint-interface.md): every index 0..N is drawable from the start, minted or not.
 //!
 //! Layout (little endian):
-//!   [0..8)   discriminator  POOL_DISCRIMINATOR
+//!   [0..8)   discriminator  POOL_DISCRIMINATOR ("hvpool02")
 //!   [8..40)  vault pubkey
 //!   [40..44) capacity (= collection_size)
 //!   [44..48) pool_len
 //!   [48..52) incoming_head (ring index)
 //!   [52..56) incoming_len
 //!   [56..64) reserved
-//!   [64 .. 64+4*cap)            pool entries: u32 asset index, unordered (swap_remove)
+//!   [64 .. 64+4*cap)            pool slots: u32 (asset index + 1); 0 = "the slot's own position"
+//!                               (lazy Fisher-Yates: O(1) init with pool_len = cap), swap_remove
 //!   [64+4*cap .. 64+16*cap)     incoming ring: (u32 asset index, u64 tag), FIFO, tags non-decreasing
+//!   [64+16*cap .. +ceil(cap/8)) minted bitmap (bit i = asset i exists; set once, never cleared)
 //!
 //! Selection fairness (hybrid-rarity doc §3.3): only `pool` entries are drawable. An unwrapped NFT
 //! enters `incoming` tagged with the vault's `next_seq` at that time, and is merged into `pool` only
@@ -20,12 +23,12 @@
 use crate::error::VaultError;
 use anchor_lang::prelude::*;
 
-pub const POOL_DISCRIMINATOR: [u8; 8] = *b"hvpool01";
+pub const POOL_DISCRIMINATOR: [u8; 8] = *b"hvpool02";
 pub const POOL_HEADER: usize = 64;
 const INCOMING_ENTRY: usize = 12;
 
 pub fn pool_account_size(capacity: u32) -> usize {
-    POOL_HEADER + 16 * capacity as usize
+    POOL_HEADER + 16 * capacity as usize + (capacity as usize).div_ceil(8)
 }
 
 fn rd_u32(d: &[u8], o: usize) -> u32 {
@@ -48,7 +51,8 @@ pub fn init(d: &mut [u8], vault: &Pubkey, capacity: u32) -> Result<()> {
     d[..8].copy_from_slice(&POOL_DISCRIMINATOR);
     d[8..40].copy_from_slice(vault.as_ref());
     wr_u32(d, 40, capacity);
-    wr_u32(d, 44, 0);
+    // Every index is drawable from the start (slots are 0 = identity, so no per-index writes).
+    wr_u32(d, 44, capacity);
     wr_u32(d, 48, 0);
     wr_u32(d, 52, 0);
     Ok(())
@@ -92,14 +96,41 @@ impl<'a> PoolView<'a> {
     }
 
     pub fn pool_get(&self, i: u32) -> u32 {
-        rd_u32(self.d, self.pool_off(i))
+        match rd_u32(self.d, self.pool_off(i)) {
+            0 => i,
+            v => v - 1,
+        }
+    }
+    fn pool_set(&mut self, i: u32, asset_index: u32) {
+        let o = self.pool_off(i);
+        wr_u32(self.d, o, asset_index + 1);
+    }
+
+    fn bitmap_off(&self) -> usize {
+        POOL_HEADER + 16 * self.cap as usize
+    }
+    pub fn is_minted(&self, index: u32) -> bool {
+        index < self.cap && self.d[self.bitmap_off() + (index / 8) as usize] & (1 << (index % 8)) != 0
+    }
+    /// Set the minted bit for `index`; errors if it was already set (each index is minted at most once).
+    pub fn mark_minted(&mut self, index: u32) -> Result<()> {
+        require!(index < self.cap, VaultError::IndexOutOfRange);
+        require!(!self.is_minted(index), VaultError::AlreadyMinted);
+        let o = self.bitmap_off() + (index / 8) as usize;
+        self.d[o] |= 1 << (index % 8);
+        Ok(())
+    }
+    /// Population count of the bitmap (tests / off-chain audits; O(N/8)).
+    pub fn minted_popcount(&self) -> u32 {
+        let o = self.bitmap_off();
+        self.d[o..o + (self.cap as usize).div_ceil(8)].iter().map(|b| b.count_ones()).sum()
     }
 
     pub fn pool_push(&mut self, asset_index: u32) -> Result<()> {
         require!(self.total()? < self.cap, VaultError::AssetAccountingBroken);
+        require!(asset_index < self.cap, VaultError::IndexOutOfRange);
         let len = self.pool_len();
-        let o = self.pool_off(len);
-        wr_u32(self.d, o, asset_index);
+        self.pool_set(len, asset_index);
         wr_u32(self.d, 44, len + 1);
         Ok(())
     }
@@ -110,8 +141,7 @@ impl<'a> PoolView<'a> {
         require!(i < len, VaultError::NoAssetAvailable);
         let picked = self.pool_get(i);
         let last = self.pool_get(len - 1);
-        let o = self.pool_off(i);
-        wr_u32(self.d, o, last);
+        self.pool_set(i, last);
         wr_u32(self.d, 44, len - 1);
         Ok(picked)
     }
@@ -167,11 +197,50 @@ impl<'a> PoolView<'a> {
 mod tests {
     use super::*;
 
+    /// Pool with every index drawn out (pool_len 0), for the FIFO tests.
     fn buf(cap: u32) -> (Vec<u8>, Pubkey) {
         let v = Pubkey::new_unique();
         let mut d = vec![0u8; pool_account_size(cap)];
         init(&mut d, &v, cap).unwrap();
+        wr_u32(&mut d, 44, 0);
         (d, v)
+    }
+
+    #[test]
+    fn lazy_init_makes_every_index_drawable_exactly_once() {
+        let v = Pubkey::new_unique();
+        let cap = 1000;
+        let mut d = vec![0u8; pool_account_size(cap)];
+        init(&mut d, &v, cap).unwrap();
+        let mut p = PoolView::load(&mut d, &v).unwrap();
+        assert_eq!(p.pool_len(), cap);
+        let mut seen = vec![false; cap as usize];
+        let mut x: u64 = 7;
+        while p.pool_len() > 0 {
+            x = x.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let i = ((x >> 33) % p.pool_len() as u64) as u32;
+            let idx = p.pool_swap_remove(i).unwrap();
+            assert!(!seen[idx as usize], "index {idx} drawn twice");
+            seen[idx as usize] = true;
+        }
+        assert!(seen.iter().all(|s| *s));
+    }
+
+    #[test]
+    fn minted_bitmap_sets_once_and_counts() {
+        let v = Pubkey::new_unique();
+        let mut d = vec![0u8; pool_account_size(10_000)];
+        init(&mut d, &v, 10_000).unwrap();
+        assert_eq!(pool_account_size(10_000), 64 + 160_000 + 1_250);
+        let mut p = PoolView::load(&mut d, &v).unwrap();
+        for i in [0u32, 7, 8, 9_999] {
+            assert!(!p.is_minted(i));
+            p.mark_minted(i).unwrap();
+            assert!(p.is_minted(i));
+            assert!(p.mark_minted(i).is_err(), "never minted twice");
+        }
+        assert_eq!(p.minted_popcount(), 4);
+        assert!(p.mark_minted(10_000).is_err());
     }
 
     #[test]

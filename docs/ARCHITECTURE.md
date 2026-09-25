@@ -1,5 +1,10 @@
 # On-chain architecture
 
+> **CURRENT (2026-09-25):** flat SOL tier fee on capture/re-roll at request, to `PLATFORM_FEE_RECIPIENT`, never refunded
+> (ADR-013); release free; **no burn, no token fee, no pause** (ADR-015); **lazy minting** from a per-request mint escrow
+> (ADR-016, [lazy-mint-interface.md](lazy-mint-interface.md)); ratios {50k…5M}, 100 ≤ N ≤ 10,000; exits read a frozen
+> LaunchConfig prefix (ADR-017). Older burn/bps/pause text below is historical.
+
 Owner: Solana Program Engineer. Status: **v0.2 (2026-09-24, after ADR-009)**, localnet/devnet only. Not audited, not
 for mainnet. Related: [DECISIONS.md](DECISIONS.md), [THREAT_MODEL.md](THREAT_MODEL.md),
 [admin-multisig-timelock.md](admin-multisig-timelock.md), [hybrid-rarity-and-assignment.md](hybrid-rarity-and-assignment.md),
@@ -28,15 +33,15 @@ for mainnet. Related: [DECISIONS.md](DECISIONS.md), [THREAT_MODEL.md](THREAT_MOD
 | Property | Value |
 |---|---|
 | Fungible mint | Classic SPL Token (`Tokenkeg…`). Token-2022 is rejected on-chain |
-| Supply | Exactly 1,000,000,000 × 10^decimals, minted once by `hybrid_launch`. Afterwards it can only go down (burns) |
+| Supply | Exactly 1,000,000,000 × 10^decimals, minted once by `hybrid_launch`. Nothing can mint or burn it afterwards (ADR-013: no burn) |
 | Mint / freeze authority | Mint revoked in the same instruction; freeze never set |
 | Transfer tax | None |
-| Ratio `R` | ∈ {10k, 50k, 100k, 200k, 500k, 1M, 2.5M, 5M} whole tokens per NFT (Barton 2026-09-24) |
+| Ratio `R` | ∈ {50k, 100k, 200k, 500k, 1M, 2.5M, 5M} whole tokens per NFT (10k dropped 2026-09-25); 100 ≤ N ≤ min(1B/R, 10,000) |
 | Collection size `N` | `100 ≤ N` and `N × R ≤ 1B` (checked_mul). Max: 100,000 / 20,000 / 10,000 / 5,000 / 2,000 / 1,000 / 400 / 200 |
 | NFT | Metaplex Core collection, cosmetic rarity; traits from a pre-committed list + VRF permutation (ADR-008) |
 | Convert | Exact R both ways. Capture/re-roll are VRF-selected (blind); release is instant |
-| Fees | Capture and re-roll token fees as bps of R (≤ 10%, capture ≥ re-roll), **burned**; SOL cost fee for VRF/rent (engine) |
-| Copy | "Fixed at 1,000,000,000 at launch. No one can mint more; re-roll burns can only reduce it." |
+| Fees | One flat SOL tier fee for capture and re-roll (0.002/0.005/0.01 SOL, cap 0.01) to `PLATFORM_FEE_RECIPIENT`, at request, never refunded; release free; the requester also escrows the lazy-mint cost (ADR-013/016) |
+| Copy | "Supply fixed at 1,000,000,000; nobody can mint more. Release is free and returns exactly N tokens." |
 
 ## Components
 
@@ -119,7 +124,7 @@ flowchart TD
 | Mint authority | **None** (revoked in `launch`) | no |
 | Freeze authority | **None** (never set) | no |
 | `LaunchConfig` (ratio, N, fees, fee destination, mint) | nobody | no instruction exists |
-| Fee destination | **burn**; no account | no |
+| Fee destination | `PLATFORM_FEE_RECIPIENT` code constant | no (program upgrade only) |
 | Hybrid collection update authority + vault | engine PDA; no metadata-update, add-plugin or withdraw instruction | no |
 | Pause new captures/re-rolls (if kept, N4) | Squads guardian (auto-expiring) or timelocked governance multisig; never blocks release | only reduces risk |
 | Program upgrade authority | Squads governance vault PDA (7-day timelock proposed), then `--final` after audit + stabilization | yes, until frozen |
