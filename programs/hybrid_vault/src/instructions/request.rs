@@ -243,7 +243,7 @@ pub fn handle_request_capture(ctx: Context<RequestCapture>) -> Result<()> {
         check_can_request(&ctx.accounts.vault, &econ, &pool)?;
     }
     let a = &ctx.accounts;
-    let (ratio, sol) = (econ.ratio_base, econ.request_fee_lamports);
+    let (ratio, sol) = (econ.ratio_base, econ.request_fee()?);
     user_pays(&a.token_program, &a.user_token, &a.vault_tokens.to_account_info(), &a.user, &a.mint, ratio)?;
     sol_fee(&a.system_program, &a.user, &a.fee_recipient.to_account_info(), sol)?;
     escrow_mint_cost(&a.system_program, &a.user, &a.mint_escrow.to_account_info())?;
@@ -287,7 +287,7 @@ pub fn handle_request_reroll(ctx: Context<RequestReroll>, index: u32) -> Result<
     }
     require!(index < econ.collection_size, VaultError::IndexOutOfRange);
     let a = &ctx.accounts;
-    let sol = econ.request_fee_lamports;
+    let sol = econ.request_fee()?;
 
     // Hand the NFT in (user signs as owner). Held by the vault, NOT drawable for this request.
     asset_source::take_back(

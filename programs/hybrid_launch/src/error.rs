@@ -53,6 +53,8 @@ pub enum LaunchError {
     DbcAlreadyGraduated,
     #[msg("DBC config is not on the platform allowlist (APPROVED_DBC_CONFIGS)")]
     DbcConfigNotApproved,
+    #[msg("stored fee is not exactly the tier for the ratio (QA-FEE-03; 0 and off-tier fees are invalid)")]
+    FeeNotTier,
 }
 
 #[cfg(test)]
@@ -86,6 +88,7 @@ mod tests {
             (LaunchError::DbcCreatorMismatch, 6021),
             (LaunchError::DbcAlreadyGraduated, 6022),
             (LaunchError::DbcConfigNotApproved, 6023),
+            (LaunchError::FeeNotTier, 6024),
         ];
         for (e, code) in pinned {
             assert_eq!(u32::from(*e), *code, "{e:?}");

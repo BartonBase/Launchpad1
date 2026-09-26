@@ -48,6 +48,13 @@ Updated 2026-09-25 (MT). Branch `wip/hybrid-vault`, mirrored to `onchain/hybrid-
       `target/devnet-e2e`. The mainnet build can't include the feature.
     - Deployer after the run: 4.9347 SOL (net ≈ 0.24 SOL, including 0.052 SOL of extend rent).
       The throwaway keys under `.keys/devnet-e2e` are swept.
+- **QA-FEE-03 (ADR-019, 2026-09-26):** exact-tier fee check on capture and re-roll (vault 6061 `FeeNotTier`), and
+  at config creation (launch 6024 `FeeNotTier`), through one shared `tier_fee_lamports`.
+  - Suites are green on the default build and on the devnet-e2e build
+    (`cargo test -p track-a-hybrid-tests --features devnet-e2e` with `CARGO_TARGET_DIR=target/devnet-e2e`).
+  - **Devnet is NOT upgraded with this yet.** `hybrid_vault` grew to 692,152 B, above its 691,744 B program data,
+    so it needs a 10,240 B extend (≈ 0.052 SOL, not refunded) plus a ~3.5 SOL temporary buffer. The devnet
+    programs still run the pre-QA-FEE-03 code.
 - **Graduation (ADR-014 Limits):** the DAMM v2 migration is simulated in tests. Fields were confirmed on a real
   migrated devnet pool.
 - **Needs Barton:**
@@ -55,8 +62,8 @@ Updated 2026-09-25 (MT). Branch `wip/hybrid-vault`, mirrored to `onchain/hybrid-
     are set;
   - the multisig/timelock setup (M-09);
   - fee-wallet custody (M-17).
-- **QA review triggers (QA-owned tests):** `register_dbc_launch` affects 3 tests in `qa_launch`, and
-  `expire_requests` affects 1 in `qa_regression`. See `audit-fixes-round1.md`, last section.
+- **QA review triggers (QA-owned tests):** `register_dbc_launch` affects 3 tests in `qa_launch`; `expire_requests`
+  affects 1 in `qa_regression`; QA-FEE-03 affects `qa_sol_fee::qa_FEE03_M08_…` (it expects the old min-charge behaviour). See `audit-fixes-round1.md`, last section.
 - The audit itself: round-1 status is in `docs/audit-fixes-round1.md`.
 
 ## Build and test
@@ -69,5 +76,5 @@ cargo test --workspace --locked --no-fail-fast
 ```
 - Don't run a bare `anchor build`: it defaults to platform-tools v1.57, which is QA's.
 - Use your own `CARGO_TARGET_DIR` when QA is building at the same time.
-- Expected at HEAD: all engineer suites green; the only failures are the 4 QA review triggers above.
+- Expected at HEAD: all engineer suites green; the only failures are the 5 QA review triggers above.
 - Fixtures: `tests/track-a-hybrid/fixtures/{switchboard-devnet,dbc}`, read-only public dumps; see their READMEs.

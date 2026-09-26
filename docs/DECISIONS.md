@@ -334,7 +334,7 @@ shelved/deferred. Kept for the record.
   Release (`unwrap`) is **free**: it returns exactly `ratio` tokens per NFT, and the user pays only the tx fee.
 - **Tiers** (`needs_barton::FEE_TIERS`): 50k → 0.002 SOL; 100k, 200k → 0.005; 500k, 1M, 2.5M, 5M → 0.01.
   `MAX_FEE_LAMPORTS` = 0.01 SOL hard cap.
-- **Fail-safe charging (M-08).** The vault charges `min(stored, tier(ratio) or u64::MAX, MAX_FEE)`, so it never
+- ~~**Fail-safe charging (M-08).**~~ **Superseded by ADR-019 (QA-FEE-03): exact tier or revert.** The vault charges `min(stored, tier(ratio) or u64::MAX, MAX_FEE)`, so it never
   reverts on a mismatch and never overcharges; the LaunchConfig version must be 3 (fail closed).
 - **Removed:** the token fee (2%/bps), the burn path, the FeeVault, `sweep_fees`, `fee_vault_bump` and
   `FEE_VAULT_SEED` (the error became `ReservedNothingToSweep`, 6049).
@@ -542,6 +542,36 @@ LaunchConfig upgrade can never lock users out of exits. Capture still fails clos
     > in the pool, a re-roll can cost slightly more on average than releasing and capturing again (for example, about
     > 0.000025 SOL more with 100 left), because a re-roll can't draw the NFT you hand in, and that NFT is already
     > minted. Any first-mint cost comes out of your refundable deposit; the rest is returned automatically."
+
+## ADR-019: QA-FEE-03: the stored fee must be EXACTLY the tier (Barton, 2026-09-26; relayed by QA)
+
+**Decision:** a zero fee is invalid. Capture and re-roll check that `LaunchConfig.fee_lamports` is exactly the
+tier derived from the ratio, and reject anything else, including 0:
+- ratio 50k → 2,000,000 lamports;
+- 100k and 200k → 5,000,000;
+- 500k to 5M → 10,000,000;
+- hard cap 0.01 SOL.
+
+This supersedes the M-08 "min(stored, tier, MAX)" rule.
+
+**Implementation:**
+- **One shared derivation:** `hybrid_launch::tier_fee_lamports(ratio)` (FEE_TIERS, non-zero, within
+  [MIN, MAX]) and `is_exact_tier_fee(stored, ratio)`. `checked_fee_for_ratio` (launch and register) and
+  `hybrid_vault::config::request_fee` (capture and re-roll) both call it.
+- **New error codes, appended so existing codes don't shift:**
+  - `hybrid_vault` **6061 `FeeNotTier`**, returned by `request_capture` and `request_reroll` before any token,
+    SOL or NFT moves;
+  - `hybrid_launch` **6024 `FeeNotTier`**, returned by `register_dbc_launch` and native `launch` right before
+    the LaunchConfig is stored (defensive; the fee there is derived, so only a bad tier table could trip it).
+- **Unchanged:** the user-exit paths (release, settle, expire) still never read the fee (ADR-017 / M-41), so a
+  bad stored fee can't freeze them. init_vault and open_vault don't check the fee.
+- **Tests:**
+  - vault: capture and re-roll reject 0 / ±1 / other tiers / above-cap / u64::MAX, and accept and charge each of
+    the 7 exact tiers;
+  - DBC: `register_dbc_launch` stores exactly the tier for all 7 ratios;
+  - unit: `qa_fee03_stored_fee_must_be_exactly_the_tier` (0 and off-tier rejected, each tier accepted).
+- **QA review trigger:** `qa_sol_fee::qa_FEE03_M08_vault_rejects_forged_config_off_tier_or_above_cap` still
+  expects the old M-08 "charge min" behaviour. It now gets 6061, as this decision requires.
 
 ## Creative Director questions (answered 2026-09-25; figures measured on LiteSVM unless marked ESTIMATE)
 

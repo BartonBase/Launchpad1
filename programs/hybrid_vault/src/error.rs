@@ -127,6 +127,8 @@ pub enum VaultError {
     ExpireBatchInvalid,
     #[msg("expire_requests: a per-request account doesn't match the request (PDA, owner, user, randomness or token account)")]
     ExpireBatchAccountMismatch,
+    #[msg("LaunchConfig fee is not exactly the tier for its ratio (QA-FEE-03; 0 and off-tier fees are invalid)")]
+    FeeNotTier,
 }
 
 #[cfg(test)]
@@ -197,6 +199,7 @@ mod tests {
             (VaultError::MintCostConstantStale, 6058),
             (VaultError::ExpireBatchInvalid, 6059),
             (VaultError::ExpireBatchAccountMismatch, 6060),
+            (VaultError::FeeNotTier, 6061),
         ];
         for (e, code) in pinned {
             assert_eq!(u32::from(*e), *code, "{e:?}");

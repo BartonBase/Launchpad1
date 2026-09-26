@@ -126,19 +126,70 @@ fn set_stored_fee(env: &mut Env, fee: u64) {
     patch_config(env, |d| d[hybrid_launch::LC_OFF_FEE_LAMPORTS..hybrid_launch::LC_OFF_FEE_LAMPORTS + 8].copy_from_slice(&fee.to_le_bytes()));
 }
 
+/// Patch the LaunchConfig's ratio_whole_tokens (the fee key; token amounts use ratio_base) and fee.
+fn set_ratio_and_fee(env: &mut Env, ratio_whole: u64, fee: u64) {
+    patch_config(env, |d| {
+        d[hybrid_launch::LC_OFF_RATIO_WHOLE_TOKENS..hybrid_launch::LC_OFF_RATIO_WHOLE_TOKENS + 8].copy_from_slice(&ratio_whole.to_le_bytes());
+        d[hybrid_launch::LC_OFF_FEE_LAMPORTS..hybrid_launch::LC_OFF_FEE_LAMPORTS + 8].copy_from_slice(&fee.to_le_bytes());
+    });
+}
+
+/// Off-tier stored fees for `tier` (QA-FEE-03): 0, one lamport off either way, another tier's value, above the cap.
+fn bad_fees(tier: u64) -> Vec<u64> {
+    let mut v = vec![0, 1, tier - 1, tier + 1, hybrid_launch::MAX_FEE_LAMPORTS + 1, u64::MAX];
+    v.extend([2_000_000u64, 5_000_000, 10_000_000].into_iter().filter(|f| *f != tier));
+    v
+}
+
 #[test]
-fn m08_request_fee_is_min_of_stored_tier_and_cap_never_an_exact_match_revert() {
-    // M-08: a patched/forged or stale stored fee never reverts capture; the charge is min(stored, tier, MAX).
+fn qa_fee03_capture_rejects_zero_and_off_tier_fee_before_charging_anything() {
     let mut env = setup(N);
     let alice = env.new_user(USER_TOKENS);
-    for (stored, charged) in [(u64::MAX, FEE), (hybrid_launch::MAX_FEE_LAMPORTS + 1, FEE), (5_000_000, 5_000_000), (3_000_000, 3_000_000)] {
-        set_stored_fee(&mut env, stored);
-        let rec0 = env.lamports(&env.ids.fee_recipient);
+    for bad in bad_fees(FEE) {
+        set_stored_fee(&mut env, bad);
+        let (rec0, tok0) = (env.lamports(&env.ids.fee_recipient), env.token_amount(&alice.ata));
         let r = env.new_randomness();
-        let seq = env.request_capture(&alice, &r).unwrap_or_else(|e| panic!("stored {stored}: {e}"));
-        assert_eq!(env.lamports(&env.ids.fee_recipient) - rec0, charged, "stored {stored}");
-        env.reveal(seq, val(stored as u8)).unwrap();
-        env.settle(seq, val(stored as u8)).unwrap();
+        expect_vault_err(env.request_capture(&alice, &r), VaultError::FeeNotTier);
+        assert_eq!((env.lamports(&env.ids.fee_recipient), env.token_amount(&alice.ata)), (rec0, tok0), "stored {bad}: nothing charged");
+    }
+}
+
+#[test]
+fn qa_fee03_reroll_rejects_zero_and_off_tier_fee() {
+    let mut env = setup(N);
+    let alice = env.new_user(USER_TOKENS);
+    let idx = env.capture(&alice, val(3));
+    for bad in bad_fees(FEE) {
+        set_stored_fee(&mut env, bad);
+        let r = env.new_randomness();
+        expect_vault_err(env.request_reroll(&alice, idx, &r), VaultError::FeeNotTier);
+        assert_eq!(env.asset_owner(idx), alice.kp.pubkey(), "stored {bad}: NFT not taken");
+    }
+}
+
+#[test]
+fn qa_fee03_capture_and_reroll_accept_each_exact_tier_and_charge_it() {
+    let mut env = setup(N);
+    let alice = env.new_user(USER_TOKENS);
+    for (k, &(ratio, tier)) in hybrid_launch::FEE_TIERS.iter().enumerate() {
+        assert_eq!(hybrid_launch::tier_fee_lamports(ratio), Some(tier));
+        set_ratio_and_fee(&mut env, ratio, tier);
+        let rec0 = env.lamports(&env.ids.fee_recipient);
+        let got = env.capture(&alice, val(80 + k as u8));
+        assert_eq!(env.lamports(&env.ids.fee_recipient) - rec0, tier, "capture ratio {ratio}");
+        // Every off-tier value for THIS ratio is still refused.
+        for bad in bad_fees(tier) {
+            set_ratio_and_fee(&mut env, ratio, bad);
+            let r = env.new_randomness();
+            expect_vault_err(env.request_reroll(&alice, got, &r), VaultError::FeeNotTier);
+        }
+        set_ratio_and_fee(&mut env, ratio, tier);
+        let rec1 = env.lamports(&env.ids.fee_recipient);
+        let r = env.new_randomness();
+        let seq = env.request_reroll(&alice, got, &r).unwrap_or_else(|e| panic!("re-roll ratio {ratio}: {e}"));
+        assert_eq!(env.lamports(&env.ids.fee_recipient) - rec1, tier, "re-roll ratio {ratio}");
+        env.reveal(seq, val(90 + k as u8)).unwrap();
+        env.settle(seq, val(90 + k as u8)).unwrap();
         env.assert_invariants();
     }
 }

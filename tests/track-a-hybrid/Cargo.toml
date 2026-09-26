@@ -40,6 +40,9 @@ path = "qa-roots/qa_regression.rs"
 
 [features]
 qa-regression = []
+# Run the suites against the devnet-e2e hybrid_launch build (0.1 SOL graduation floor); see
+# scripts/build-devnet-e2e.sh. Host constants then match the .so under test.
+devnet-e2e = ["hybrid_launch/devnet-e2e"]
 
 [dev-dependencies]
 anchor-lang = "=1.2.0"

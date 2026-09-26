@@ -126,9 +126,10 @@ fn register_rejects_config_without_our_buffer_or_with_burn_or_low_threshold() {
         ),
         ("metadata authority kept by creator", Box::new(|d: &mut Vec<u8>| d[dbc::CFG_OFF_TOKEN_UPDATE_AUTHORITY] = 0), LaunchError::DbcConfigRejected),
         (
-            "threshold below 10 SOL",
+            "threshold below the floor (10 SOL; 0.1 SOL on the devnet-e2e build)",
             Box::new(|d: &mut Vec<u8>| {
-                d[dbc::CFG_OFF_MIGRATION_QUOTE_THRESHOLD..dbc::CFG_OFF_MIGRATION_QUOTE_THRESHOLD + 8].copy_from_slice(&1_000_000_000u64.to_le_bytes())
+                d[dbc::CFG_OFF_MIGRATION_QUOTE_THRESHOLD..dbc::CFG_OFF_MIGRATION_QUOTE_THRESHOLD + 8]
+                    .copy_from_slice(&(hybrid_launch::MIN_GRADUATION_THRESHOLD_LAMPORTS - 1).to_le_bytes())
             }),
             LaunchError::GraduationThresholdOutOfRange,
         ),
@@ -349,6 +350,7 @@ fn platform_devnet_config_fields_match_every_register_check() {
 }
 
 #[test]
+#[cfg(not(feature = "devnet-e2e"))]
 fn platform_devnet_config_is_below_the_default_10_sol_floor() {
     // Default (non devnet-e2e) build: the 0.1 SOL threshold is refused, so only the devnet-e2e build
     // can register against it.
@@ -367,4 +369,31 @@ fn platform_devnet_config_registers_when_the_threshold_meets_the_floor() {
     env.send(&[ix], &[&creator]).expect("platform devnet config registers");
     let lc = env.svm.get_account(&pda(&[b"launch_config", mint.pubkey().as_ref()], &hybrid_launch::ID)).expect("LaunchConfig");
     assert_eq!(lc.owner, hybrid_launch::ID);
+}
+
+#[test]
+fn qa_fee03_register_stores_exactly_the_tier_for_every_ratio() {
+    // register_dbc_launch derives the fee with the shared tier function and requires an exact,
+    // non-zero tier before storing it (0 / off-tier: validation::qa_fee03 unit test; FeeNotTier 6024).
+    let (mut env, _) = setup_dbc_closed(100);
+    for &(ratio, tier) in hybrid_launch::FEE_TIERS.iter() {
+        let (creator, mint, d) = fresh_pool(&mut env);
+        let ix = env.register_dbc_ix(creator.pubkey(), mint.pubkey(), &d, ratio, 100);
+        env.send(&[ix], &[&creator]).unwrap_or_else(|e| panic!("ratio {ratio}: {e}"));
+        let lc = env.svm.get_account(&pda(&[b"launch_config", mint.pubkey().as_ref()], &hybrid_launch::ID)).unwrap();
+        let o = hybrid_launch::LC_OFF_FEE_LAMPORTS;
+        assert_eq!(u64::from_le_bytes(lc.data[o..o + 8].try_into().unwrap()), tier, "ratio {ratio}");
+    }
+    let (creator, mint, d) = fresh_pool(&mut env);
+    let ix = env.register_dbc_ix(creator.pubkey(), mint.pubkey(), &d, 10_000, 100);
+    launch_err(env.send(&[ix], &[&creator]), LaunchError::RatioNotAllowed);
+}
+
+#[test]
+#[cfg(feature = "devnet-e2e")]
+fn devnet_e2e_build_registers_the_platform_config_at_0_1_sol() {
+    let (mut env, _) = setup_dbc_closed(100);
+    let (creator, mint, d) = platform_config_pool(&mut env, None);
+    let ix = env.register_dbc_ix(creator.pubkey(), mint.pubkey(), &d, RATIO_WHOLE, 100);
+    env.send(&[ix], &[&creator]).expect("devnet-e2e build accepts the 0.1 SOL platform config");
 }

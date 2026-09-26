@@ -41,9 +41,23 @@ pub fn check_graduation_threshold(threshold_lamports: u64) -> Result<()> {
 /// The flat SOL fee for a ratio, checked against the floor and the hard cap (shared with
 /// hybrid_vault's re-validation).
 pub fn checked_fee_for_ratio(ratio_whole_tokens: u64) -> Result<u64> {
-    let fee = fee_for_ratio(ratio_whole_tokens).ok_or(LaunchError::RatioNotAllowed)?;
-    require!((MIN_FEE_LAMPORTS..=MAX_FEE_LAMPORTS).contains(&fee), LaunchError::SolFeeOutOfRange);
-    Ok(fee)
+    fee_for_ratio(ratio_whole_tokens).ok_or(LaunchError::RatioNotAllowed)?;
+    Ok(tier_fee_lamports(ratio_whole_tokens).ok_or(LaunchError::SolFeeOutOfRange)?)
+}
+
+/// QA-FEE-03 (Barton 2026-09-26): THE single tier derivation used by launch, register_dbc_launch and
+/// hybrid_vault's capture/re-roll. `Some(fee)` only for a ratio in FEE_TIERS whose fee is non-zero and
+/// within [MIN_FEE_LAMPORTS, MAX_FEE_LAMPORTS] (hard cap 0.01 SOL).
+pub fn tier_fee_lamports(ratio_whole_tokens: u64) -> Option<u64> {
+    match fee_for_ratio(ratio_whole_tokens) {
+        Some(f) if f != 0 && f >= MIN_FEE_LAMPORTS && f <= MAX_FEE_LAMPORTS => Some(f),
+        _ => None,
+    }
+}
+
+/// QA-FEE-03: a stored fee is valid only if it is EXACTLY the tier for the ratio (0 is never valid).
+pub fn is_exact_tier_fee(stored_fee_lamports: u64, ratio_whole_tokens: u64) -> bool {
+    stored_fee_lamports != 0 && tier_fee_lamports(ratio_whole_tokens) == Some(stored_fee_lamports)
 }
 
 pub fn validate(p: &LaunchParams) -> Result<DerivedAmounts> {
@@ -216,4 +230,24 @@ mod tests {
         let d = validate(&LaunchParams { collection_size: 500, ..base() }).unwrap();
         assert_eq!(d.max_tokens_in_nft_form * 2, d.total_supply_base);
     }
+
+    /// QA-FEE-03: exact tier only; 0, off-tier and above-cap are invalid; unknown ratio invalid.
+    #[test]
+    fn qa_fee03_stored_fee_must_be_exactly_the_tier() {
+        for &(r, tier) in FEE_TIERS.iter() {
+            assert_eq!(tier_fee_lamports(r), Some(tier));
+            assert_eq!(checked_fee_for_ratio(r).unwrap(), tier, "creation uses the same derivation");
+            assert!(is_exact_tier_fee(tier, r), "ratio {r}");
+            for bad in [0, 1, tier - 1, tier + 1, MAX_FEE_LAMPORTS + 1, u64::MAX] {
+                assert!(!is_exact_tier_fee(bad, r), "ratio {r} stored {bad}");
+            }
+        }
+        assert_eq!((tier_fee_lamports(50_000), tier_fee_lamports(100_000), tier_fee_lamports(200_000)), (Some(2_000_000), Some(5_000_000), Some(5_000_000)));
+        for r in [500_000, 1_000_000, 2_500_000, 5_000_000] {
+            assert_eq!(tier_fee_lamports(r), Some(10_000_000));
+        }
+        assert!(tier_fee_lamports(10_000).is_none() && !is_exact_tier_fee(0, 10_000));
+        assert_eq!(MAX_FEE_LAMPORTS, 10_000_000, "hard cap 0.01 SOL");
+    }
+
 }

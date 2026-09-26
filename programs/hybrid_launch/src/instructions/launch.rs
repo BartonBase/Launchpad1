@@ -184,6 +184,8 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
         );
     }
 
+    // QA-FEE-03: the stored fee must be exactly the tier (shared derivation), never 0 or off-tier.
+    require!(crate::validation::is_exact_tier_fee(amounts.fee_lamports, params.ratio_whole_tokens), LaunchError::FeeNotTier);
     ctx.accounts.launch_config.set_inner(LaunchConfig {
         version: LAUNCH_CONFIG_VERSION,
         bump: ctx.bumps.launch_config,

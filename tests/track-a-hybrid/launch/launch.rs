@@ -516,7 +516,8 @@ fn lazy_mint_no_affordability_rule_any_n_up_to_10k_at_min_threshold() {
         let cfg = LaunchConfig::try_deserialize(&mut env.svm.get_account(&a.config).unwrap().data.as_slice()).unwrap();
         assert_eq!((cfg.graduation_threshold_lamports, cfg.graduation_slice_pct), (10_000_000_000, 0));
     }
-    for t in [0u64, 9_999_999_999, u64::MAX] {
+    // Below the floor of the build under test (10 SOL; 0.1 SOL with --features devnet-e2e).
+    for t in [0u64, hybrid_launch::MIN_GRADUATION_THRESHOLD_LAMPORTS - 1, u64::MAX] {
         expect_launch_error(
             try_params(LaunchParams { graduation_threshold_lamports: t, collection_size: 100, ..params() }),
             LaunchError::GraduationThresholdOutOfRange,

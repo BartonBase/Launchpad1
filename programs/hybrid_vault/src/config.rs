@@ -2,10 +2,10 @@
 //!
 //! Two readers, on purpose (audit M-41):
 //! - `econ` (init, mint, open, capture, re-roll): typed load, fail-closed on version and structure,
-//!   M-22 cap (collection_size <= MAX_COLLECTION_SIZE). The SOL fee is min(stored, current tier, MAX)
-//!   (M-08), so a later tier cut or cap cut applies to old launches and a stored value can never
-//!   push a charge above today's rules. It never reverts over a fee mismatch. Fees always go to
-//!   today's PLATFORM_FEE_RECIPIENT constant (a rotated wallet doesn't strand old launches).
+//!   M-22 cap (collection_size <= MAX_COLLECTION_SIZE). Capture and re-roll charge `request_fee`, which
+//!   REQUIRES the stored fee to be exactly the tier for the ratio (QA-FEE-03, Barton 2026-09-26;
+//!   supersedes the M-08 min(stored, tier, MAX) rule): 0 or any off-tier value reverts with FeeNotTier.
+//!   Fees always go to today's PLATFORM_FEE_RECIPIENT constant (a rotated wallet doesn't strand old launches).
 //! - `exit_view` (release, settle, expire): the user-exit paths. Reads ONLY ratio_base and
 //!   collection_size as raw bytes at FROZEN offsets (hybrid_launch::stable_layout) after owner +
 //!   discriminator checks. No version, fee, wallet or bounds check, so no launch-program upgrade
@@ -15,8 +15,8 @@
 use crate::error::VaultError;
 use anchor_lang::{prelude::*, Discriminator};
 use hybrid_launch::{
-    fee_for_ratio, LaunchConfig, LC_DISCRIMINATOR_LEN, LC_OFF_COLLECTION_SIZE, LC_OFF_RATIO_BASE, LC_STABLE_PREFIX_LEN,
-    MAX_COLLECTION_SIZE, MAX_FEE_LAMPORTS, PLATFORM_FEE_RECIPIENT,
+    is_exact_tier_fee, LaunchConfig, LC_DISCRIMINATOR_LEN, LC_OFF_COLLECTION_SIZE, LC_OFF_RATIO_BASE, LC_STABLE_PREFIX_LEN,
+    MAX_COLLECTION_SIZE, PLATFORM_FEE_RECIPIENT,
 };
 
 pub const SUPPORTED_LAUNCH_CONFIG_VERSION: u8 = 4;
@@ -24,15 +24,24 @@ pub const SUPPORTED_LAUNCH_CONFIG_VERSION: u8 = 4;
 pub struct Econ {
     pub ratio_base: u64,
     pub collection_size: u32,
-    /// Charged on capture and on re-roll (the same value, so re-roll <= capture + release(0)).
-    pub request_fee_lamports: u64,
+    /// Stored fee and ratio; charged on capture and re-roll only via `request_fee` (exact tier).
+    pub stored_fee_lamports: u64,
+    pub ratio_whole_tokens: u64,
     pub fee_recipient: Pubkey,
 }
 
-/// min(stored, current tier for the ratio, MAX). A ratio no longer in the table uses min(stored, MAX).
-pub fn request_fee(stored: u64, ratio_whole_tokens: u64) -> u64 {
-    let tier = fee_for_ratio(ratio_whole_tokens).unwrap_or(u64::MAX);
-    stored.min(tier).min(MAX_FEE_LAMPORTS)
+/// QA-FEE-03: the fee charged on capture and on re-roll (the same value, so re-roll <= capture +
+/// release(0)). The stored fee must be EXACTLY the tier (hybrid_launch::tier_fee_lamports, the one
+/// shared derivation); 0 or anything else reverts.
+pub fn request_fee(stored: u64, ratio_whole_tokens: u64) -> Result<u64> {
+    require!(is_exact_tier_fee(stored, ratio_whole_tokens), VaultError::FeeNotTier);
+    Ok(stored)
+}
+
+impl Econ {
+    pub fn request_fee(&self) -> Result<u64> {
+        request_fee(self.stored_fee_lamports, self.ratio_whole_tokens)
+    }
 }
 
 pub fn econ(cfg: &LaunchConfig) -> Result<Econ> {
@@ -43,7 +52,8 @@ pub fn econ(cfg: &LaunchConfig) -> Result<Econ> {
     Ok(Econ {
         ratio_base: cfg.ratio_base,
         collection_size,
-        request_fee_lamports: request_fee(cfg.fee_lamports, cfg.ratio_whole_tokens),
+        stored_fee_lamports: cfg.fee_lamports,
+        ratio_whole_tokens: cfg.ratio_whole_tokens,
         fee_recipient: PLATFORM_FEE_RECIPIENT,
     })
 }
@@ -76,17 +86,18 @@ pub fn exit_view_in(data: &[u8]) -> Result<ExitView> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hybrid_launch::{ALLOWED_RATIOS, MIN_FEE_LAMPORTS};
+    use hybrid_launch::{ALLOWED_RATIOS, MAX_FEE_LAMPORTS, MIN_FEE_LAMPORTS};
 
     #[test]
-    fn request_fee_is_min_of_stored_tier_cap() {
+    fn request_fee_is_exactly_the_tier_or_reverts() {
         for &r in ALLOWED_RATIOS.iter() {
-            let tier = fee_for_ratio(r).unwrap();
-            assert_eq!(request_fee(tier, r), tier);
-            assert_eq!(request_fee(u64::MAX, r), tier, "forged/huge stored fee capped at tier");
-            assert_eq!(request_fee(MIN_FEE_LAMPORTS - 1, r), MIN_FEE_LAMPORTS - 1, "lower stored wins");
+            let tier = hybrid_launch::tier_fee_lamports(r).unwrap();
+            assert_eq!(request_fee(tier, r).unwrap(), tier);
+            for bad in [0, 1, tier - 1, tier + 1, MIN_FEE_LAMPORTS - 1, MAX_FEE_LAMPORTS + 1, u64::MAX] {
+                assert!(request_fee(bad, r).is_err(), "ratio {r} stored {bad}");
+            }
         }
-        assert_eq!(request_fee(50_000_000, 10_000), MAX_FEE_LAMPORTS, "dropped ratio -> MAX cap");
+        assert!(request_fee(MAX_FEE_LAMPORTS, 10_000).is_err(), "ratio not in the table");
     }
 
     /// Re-roll fee == capture fee and release is free, so re-roll <= capture + release for every tier.
@@ -94,7 +105,7 @@ mod tests {
     fn reroll_le_capture_plus_release_every_tier() {
         let release = 0u64;
         for &r in ALLOWED_RATIOS.iter() {
-            let f = request_fee(fee_for_ratio(r).unwrap(), r);
+            let f = request_fee(hybrid_launch::tier_fee_lamports(r).unwrap(), r).unwrap();
             let (capture, reroll) = (f, f);
             assert!(reroll <= capture + release, "ratio {r}");
             assert!(capture <= MAX_FEE_LAMPORTS);
