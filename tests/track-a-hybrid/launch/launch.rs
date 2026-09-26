@@ -276,8 +276,8 @@ fn attack_decimals_above_9_are_rejected() {
 }
 
 #[test]
-fn fee_tier_is_derived_from_ratio_for_all_8_ratios_and_stored_immutably() {
-    // Barton 2026-09-25 4:52 PM MT: 10k/50k 0.002, 100k/200k 0.005, 500k..5M 0.01 SOL.
+fn fee_tier_is_derived_from_ratio_for_all_7_ratios_and_stored_immutably() {
+    // Barton 2026-09-25 4:52 PM MT: 50k 0.002, 100k/200k 0.005, 500k..5M 0.01 SOL (10k dropped 4:55 PM MT).
     let tiers = [
         (50_000u64, 2_000_000u64),
         (100_000, 5_000_000),

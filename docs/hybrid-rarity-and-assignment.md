@@ -4,10 +4,24 @@
 > record):** capture and re-roll each pay ONE flat SOL tier fee (0.002 / 0.005 / 0.01 SOL by ratio, cap 0.01) at request,
 > to the fixed `PLATFORM_FEE_RECIPIENT`, never refunded (ADR-013). Release is free and returns exactly N tokens.
 > Nothing is burned. No pause exists (ADR-015). Minting is lazy: the requester escrows the worst-case Core mint cost
-> (0.0063381 SOL; actual ≈ 0.00507, the rest refunded at settle), and settle mints a never-minted pick straight to the
-> user from that escrow (ADR-016, [lazy-mint-interface.md](lazy-mint-interface.md)). Expire refunds the principal +
-> the escrow, never the fee. Core cost per asset is 0.0035–0.0067 SOL depending on plugins (ours ≈ 0.00509 all-in
-> with plugins; lean/no plugins ≈ 0.00507 raw at the escrowed 385-byte size). Ratios: {50k … 5M}, 100 ≤ N ≤ 10,000.
+> (0.0063381 SOL), and settle mints a never-minted pick straight to the user from that escrow and refunds the unspent
+> part exactly (ADR-016/ADR-018, [lazy-mint-interface.md](lazy-mint-interface.md)). Expire refunds the principal + the
+> escrow, never the fee. Ratios: {50k … 5M}, 100 ≤ N ≤ 10,000.
+>
+> **First-mint cost per asset (QA-DOC-01).** Each figure is rent at 6,960 lamports per byte for (128 + size), plus the
+> 1,500,000-lamport Core create fee:
+>
+> | Asset shape | Plugins | Size | Rent | Total | Source |
+> |---|---|---|---|---|---|
+> | **Ours**, 18-char test URI | none (collection member, name, URI) | 97 B | 1,566,000 | **3,066,000 = 0.003066 SOL** | measured, test `first_mint_cost_breakdown_is_exact_and_unspent_deposit_is_refunded`; QA measured the same 0.003066 |
+> | **Ours**, typical IPFS CIDv1 URI (~66 chars) | none | ~148 B | ~1,920,960 | ~3,420,960 ≈ 0.00342 SOL | computed from the same formula |
+> | **Ours**, worst case (`#9999`, 200-char URI) | none | ~282 B | ~2,853,600 | ~4,353,600 ≈ 0.00435 SOL | computed |
+> | **Escrow sizing constant** (`CORE_ASSET_SPACE_BYTES`) | 8-trait Attributes plugin + URI | 385 B | 3,570,480 | 5,070,480 ≈ 0.00507 SOL | constant; deposit = 125% = 6,338,100 |
+>
+> We don't add the Attributes plugin (traits are committed in the Merkle leaf), so every real mint costs less than
+> the 385-byte sizing. At least ~1.98M lamports of the 6,338,100 deposit always comes back. The older "≈0.00509
+> all-in" figure is the 385-byte shape plus the pre-mint crank overhead (`MINT_OVERHEAD_LAMPORTS`), which no longer
+> exists under lazy minting.
 
 Status: **ACCEPTED design (engine = `hybrid_vault`, ADR-008 accepted 2026-09-24).** Owner: Solana Program Engineer. Date: 2026-09-24, updated after the SCOPE CHANGE (ADR-009).
 **Basis (decided):** Token-2022 is dropped/deferred (ADR-009, supersedes ADR-004's two-type model). The product is
@@ -286,7 +300,10 @@ Invariants, asserted in tests and fuzzing after every instruction:
   authority is a multisig, then final after audit.
 - *Cost:*
   - VRF per capture/reroll: ORAO ~0.001 SOL; Switchboard pays randomness-account rent (reclaimable) plus the oracle fee.
-  - Lazy-minted Core asset: ~0.0016 SOL rent for ~180 bytes (`solana rent 180`), paid by the first capturer.
+  - Lazy-minted Core asset: **0.003066 SOL measured** for our plugin-free shape (97 B rent 1,566,000 + Core fee
+    1,500,000), and up to ~0.00435 SOL at the maximum URI. It's paid from the first capturer's escrow, with the unspent
+    part refunded (table at top). *The earlier "~0.0016 SOL rent for ~180 bytes" was rent only, excluding the Core fee;
+    superseded.*
   - Pool index array at 100,000 NFTs: 400 KB, ~2.03 SOL rent, paid by the creator. It's created top-level (not via
     CPI) so the 10 KB CPI realloc limit doesn't apply.
 - *UX:* capture and reroll take two transactions and a few seconds ("Drawing your NFT…"). The frontend or our crank
@@ -380,7 +397,7 @@ VRF and rent and nothing else.
 - ~~**Q-H3:** Fee destination~~ **Resolved (ADR-009): BURN**, Barton's decision; supersedes my "no burn"
   recommendation. New follow-up: is the **capture** fee burned too (engineering default: yes, same path)?
 - **Q-H4:** OK to require `capture fee ≥ reroll fee` (i.e. wrapping has a small fee) and keep unwrap token-fee-free?
-- **Q-H5:** Lazy minting (first capturer pays ~0.0016 SOL rent per NFT) vs creator pre-mints everything (≈1.6 SOL per
+- **Q-H5 (resolved: lazy minting, ADR-016):** Lazy minting (first capturer pays ~~~0.0016~~ 0.003066–0.00435 SOL per NFT, measured/computed above) vs creator pre-mints everything (≈1.6 SOL per
   1,000 NFTs; ≈156 SOL at 100,000)?
 - **Q-H6:** Forbid creator/team NFT allocations outside the pool (every NFT starts in the vault and leaves only via VRF)?
   Recommended.

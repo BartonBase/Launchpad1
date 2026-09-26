@@ -1323,3 +1323,15 @@ pub fn setup_dbc_closed(n: u32) -> (Env, DbcIds) {
     env.install_queue(&oracles, 3);
     (env, d)
 }
+
+/// Path of an artifact under the cargo target dir. `CARGO_TARGET_TMPDIR` is `<target>/tmp`, so this
+/// follows `CARGO_TARGET_DIR` (QA-HYG-01) instead of assuming `<repo>/target`.
+pub fn target_artifact(rel: &str) -> String {
+    format!("{}/../{rel}", env!("CARGO_TARGET_TMPDIR"))
+}
+
+/// hybrid_vault IDL from the production build (`scripts/build.sh` writes `<target>/idl`).
+pub fn vault_idl() -> serde_json::Value {
+    let p = target_artifact("idl/hybrid_vault.json");
+    serde_json::from_str(&std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("{p}: {e} (run scripts/build.sh)"))).unwrap()
+}

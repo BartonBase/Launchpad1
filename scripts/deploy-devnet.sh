@@ -28,14 +28,14 @@ genesis=$(solana genesis-hash --url "$URL")
 fi
 
 ./scripts/build.sh   # production allowlist only; refuses non-allowlisted artifacts and markers
-STAGE=target/deploy-devnet
+STAGE="$TARGET/deploy-devnet"
 rm -rf "$STAGE"; mkdir -p "$STAGE"
 for p in "${PROD_PROGRAMS[@]}"; do
-  so="target/deploy/$p.so"; kp="target/deploy/$p-keypair.json"
+  so="$TARGET/deploy/$p.so"; kp="$TARGET/deploy/$p-keypair.json"
   [ -f "$so" ] && [ -f "$kp" ] || fail "$so or its keypair missing"
   r=$(guard_allowlisted "$p") || fail "$r"
   r=$(guard_no_markers "$so") || fail "$r"
-  if [ -f "target/test-sbf/$p.so" ] && cmp -s "$so" "target/test-sbf/$p.so"; then fail "$so is identical to the TEST build"; fi
+  if [ -f "$TARGET/test-sbf/$p.so" ] && cmp -s "$so" "$TARGET/test-sbf/$p.so"; then fail "$so is identical to the TEST build"; fi
   r=$(guard_not_switchboard_id "$(solana address -k "$kp")") || fail "$p: $r"
   cp "$so" "$kp" "$STAGE/"
 done

@@ -117,3 +117,29 @@ pub const DEFAULT_GRADUATION_THRESHOLD_LAMPORTS: u64 = 85_000_000_000_u64;
 pub const MIN_GRADUATION_THRESHOLD_LAMPORTS: u64 = 10_000_000_000_u64;
 #[constant]
 pub const MAX_GRADUATION_THRESHOLD_LAMPORTS: u64 = 100_000_000_000_000_u64;
+
+// ---------------------------------------------------------------------------------------------
+// DBC CONFIG ALLOWLIST (ADR-014). `register_dbc_launch` accepts ONLY these Meteora DBC config
+// accounts, so the platform, not the creator, picks the curve shape, fees, partner/fee claimer
+// and migration settings. It's a compile-time list: changing it takes a program upgrade, i.e. the
+// 3-of-5 multisig + 7-day timelock (admin-multisig-timelock.md). No instruction or key can edit it.
+// Every listed config must ALSO pass the structural checks in register_dbc (buffer receiver, fixed
+// 1B supply, pre == post, Immutable, SPL, wSOL, decimals, threshold bounds).
+// ---------------------------------------------------------------------------------------------
+
+/// Devnet/localnet: the real devnet config used as the test template (fixtures/dbc).
+/// NOTE: on devnet its `leftover_receiver` is NOT our buffer PDA, so a real devnet registration
+/// against it would still be rejected; a platform-owned devnet config naming the buffer is needed.
+#[cfg(not(feature = "mainnet"))]
+pub const APPROVED_DBC_CONFIGS: &[Pubkey] = &[pubkey!("5L1MfYm4yqPySiVddKugruYoGyN6an6viSkHzL7MK1Y")];
+
+/// NEEDS BARTON: the platform's mainnet DBC config key(s). Empty => no mainnet DBC launch can register;
+/// a mainnet build refuses to compile until at least one is set.
+#[cfg(feature = "mainnet")]
+pub const APPROVED_DBC_CONFIGS: &[Pubkey] = &[];
+#[cfg(feature = "mainnet")]
+const _: () = assert!(!APPROVED_DBC_CONFIGS.is_empty(), "hybrid_launch: set APPROVED_DBC_CONFIGS for mainnet");
+
+pub fn is_approved_dbc_config(k: &Pubkey) -> bool {
+    APPROVED_DBC_CONFIGS.contains(k)
+}

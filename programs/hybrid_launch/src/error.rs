@@ -51,6 +51,8 @@ pub enum LaunchError {
     DbcCreatorMismatch,
     #[msg("the DBC pool has already migrated; register before graduation")]
     DbcAlreadyGraduated,
+    #[msg("DBC config is not on the platform allowlist (APPROVED_DBC_CONFIGS)")]
+    DbcConfigNotApproved,
 }
 
 #[cfg(test)]
@@ -83,6 +85,7 @@ mod tests {
             (LaunchError::DbcMintRejected, 6020),
             (LaunchError::DbcCreatorMismatch, 6021),
             (LaunchError::DbcAlreadyGraduated, 6022),
+            (LaunchError::DbcConfigNotApproved, 6023),
         ];
         for (e, code) in pinned {
             assert_eq!(u32::from(*e), *code, "{e:?}");

@@ -6,7 +6,7 @@
 //! - pool: owner DBC, VirtualPool discriminator + length, `base_mint == mint`, `config == dbc_config`,
 //!   SPL pool type, NOT yet migrated (registration happens before graduation, so the supply check below
 //!   isn't fooled by holders burning later);
-//! - config: owner DBC, PoolConfig discriminator + length, quote = wSOL, SPL token type, `token_decimal`
+//! - config: on the platform allowlist `APPROVED_DBC_CONFIGS` (compile-time; upgrade-only), owner DBC, PoolConfig discriminator + length, quote = wSOL, SPL token type, `token_decimal`
 //!   == the mint's decimals == params, fixed supply with pre == post == 1B * 10^dec (DBC burns nothing at
 //!   migration), Immutable token authority, `leftover_receiver` == our buffer PDA, threshold == params;
 //! - mint: classic Token program (typed `Account<Mint>`), mint + freeze authority None, supply exactly 1B;
@@ -90,6 +90,8 @@ pub fn handle_register_dbc_launch(ctx: Context<RegisterDbcLaunch>, params: Regis
         LaunchError::MintCostConstantStale
     );
 
+    // Platform allowlist first: only configs the platform approved (compile-time, upgrade-only).
+    require!(is_approved_dbc_config(&a.dbc_config.key()), LaunchError::DbcConfigNotApproved);
     let mint_key = a.mint.key();
     let pool = dbc::load_pool(&a.dbc_pool.to_account_info()).ok_or(LaunchError::DbcAccountInvalid)?;
     let cfg = dbc::load_config(&a.dbc_config.to_account_info()).ok_or(LaunchError::DbcAccountInvalid)?;

@@ -136,7 +136,8 @@ fn register_rejects_config_without_our_buffer_or_with_burn_or_low_threshold() {
     for (what, patch, e) in cases {
         let mut a = dbc_config_account(buffer_authority(), thr);
         patch(&mut a.data);
-        let key = Pubkey::new_unique();
+        // Install the patched bytes at the APPROVED key so only the structural check can fail.
+        let key = config;
         env.svm.set_account(key, a).unwrap();
         let creator = Keypair::new();
         env.svm.airdrop(&creator.pubkey(), 100_000_000_000).unwrap();
@@ -150,7 +151,25 @@ fn register_rejects_config_without_our_buffer_or_with_burn_or_low_threshold() {
         eprintln!("case: {what}");
         launch_err(r, e);
     }
-    let _ = config;
+    env.svm.set_account(config, dbc_config_account(buffer_authority(), thr)).unwrap();
+}
+
+#[test]
+fn register_rejects_config_not_on_platform_allowlist() {
+    let (mut env, _) = setup_dbc_closed(100);
+    assert_eq!(hybrid_launch::APPROVED_DBC_CONFIGS, &[DBC_DEVNET_CONFIG.parse::<Pubkey>().unwrap()]);
+    // Byte-for-byte the approved (valid) config, but at an address that isn't on the list.
+    let unlisted = Pubkey::new_unique();
+    env.svm
+        .set_account(unlisted, dbc_config_account(buffer_authority(), hybrid_launch::DEFAULT_GRADUATION_THRESHOLD_LAMPORTS))
+        .unwrap();
+    let creator = Keypair::new();
+    env.svm.airdrop(&creator.pubkey(), 100_000_000_000).unwrap();
+    let mint = Keypair::new();
+    let d = env.dbc_create_pool(unlisted, &creator, &mint).expect("DBC accepts any config");
+    let ix = env.register_dbc_ix(creator.pubkey(), mint.pubkey(), &d, RATIO_WHOLE, 100);
+    launch_err(env.send(&[ix], &[&creator]), LaunchError::DbcConfigNotApproved);
+    assert!(env.svm.get_account(&pda(&[b"launch_config", mint.pubkey().as_ref()], &hybrid_launch::ID)).is_none());
 }
 
 #[test]

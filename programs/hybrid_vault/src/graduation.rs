@@ -27,14 +27,21 @@ pub const MOCK_GRADUATION_DISCRIMINATOR: [u8; 8] = *b"MOCKGRAD";
 /// Ok(()) iff `proof` proves the launch described by `cfg` has graduated.
 pub fn verify(cfg: &LaunchConfig, proof: &AccountInfo) -> Result<()> {
     #[cfg(feature = "test-mock-graduation")]
-    if *proof.owner == MOCK_GRADUATION_OWNER {
-        return verify_mock(&cfg.mint, proof);
+    {
+        if *proof.owner == MOCK_GRADUATION_OWNER {
+            return verify_mock(&cfg.mint, proof);
+        }
+        // Test builds DO have a verifier for native launches (the mock), so a bad proof is "not verified".
+        if cfg.dbc_pool == Pubkey::default() {
+            return err!(VaultError::GraduationNotVerified);
+        }
     }
     verify_dbc(cfg, proof)
 }
 
 pub fn verify_dbc(cfg: &LaunchConfig, proof: &AccountInfo) -> Result<()> {
-    require!(cfg.dbc_pool != Pubkey::default(), VaultError::GraduationNotVerified);
+    // No DBC pool recorded (native `launch`): production has no graduation check for this launch at all.
+    require!(cfg.dbc_pool != Pubkey::default(), VaultError::GraduationCheckUnavailable);
     require_keys_eq!(proof.key(), cfg.dbc_pool, VaultError::GraduationNotVerified);
     let pool = dbc::load_pool(proof).ok_or(error!(VaultError::GraduationNotVerified))?;
     require_keys_eq!(pool.base_mint, cfg.mint, VaultError::GraduationNotVerified);

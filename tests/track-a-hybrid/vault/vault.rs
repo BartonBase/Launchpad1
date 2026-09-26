@@ -8,8 +8,7 @@ use anchor_lang::error::ErrorCode as AErr;
 use harness::*;
 
 fn idl_instruction_names() -> Vec<String> {
-    let idl: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/idl/hybrid_vault.json")).unwrap()).unwrap();
+    let idl = vault_idl();
     idl["instructions"].as_array().unwrap().iter().map(|i| i["name"].as_str().unwrap().to_string()).collect()
 }
 
@@ -472,8 +471,7 @@ fn attack_second_reveal_of_same_commit_rejected() {
 
 #[test]
 fn idl_has_no_cancel_refund_update_close_withdraw_or_burn_instruction() {
-    let idl: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/idl/hybrid_vault.json")).unwrap()).unwrap();
+    let idl = vault_idl();
     let mut names: Vec<String> = idl["instructions"].as_array().unwrap().iter().map(|i| i["name"].as_str().unwrap().to_string()).collect();
     names.sort();
     let mut expected = vec![
@@ -864,8 +862,7 @@ fn attack_token_2022_or_aliased_user_token_account_rejected() {
 
 #[test]
 fn no_pause_path_exists_no_key_can_halt_any_instruction() {
-    let idl: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/idl/hybrid_vault.json")).unwrap()).unwrap();
+    let idl = vault_idl();
     // Instructions, accounts and types only: `errors` keeps Reserved*Pause* names so codes never renumber.
     // Doc strings are excluded too (e.g. LaunchConfig's "mint + freeze authority are None").
     fn strip(v: &mut serde_json::Value) {
@@ -1107,8 +1104,7 @@ fn regress_poc10_escrow_drain_must_fail() {
 fn regress_poc11_cherrypick_must_fail() {
     // PoC 11: a bot captured a chosen (rare) NFT. Here: request_capture takes no asset argument, settle
     // only accepts the VRF pick, and pooled assets are owned by the vault PDA.
-    let idl: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/idl/hybrid_vault.json")).unwrap()).unwrap();
+    let idl = vault_idl();
     let cap = idl["instructions"].as_array().unwrap().iter().find(|i| i["name"] == "request_capture").unwrap();
     assert!(cap["args"].as_array().unwrap().is_empty(), "no asset/index argument on capture");
     let mut env = setup(N);

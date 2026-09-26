@@ -79,7 +79,7 @@ pub enum VaultError {
     ReservedCollectionNotFullyMinted,
     #[msg("Graduation could not be verified on-chain")]
     GraduationNotVerified,
-    #[msg("No graduation verifier is compiled into this build (curve program not chosen yet)")]
+    #[msg("No graduation check exists for this launch (no DBC pool recorded: native `launch`); the vault can never open")]
     GraduationCheckUnavailable,
     #[msg("Randomness authority is not this vault's randomness PDA")]
     RandomnessAuthorityMismatch,

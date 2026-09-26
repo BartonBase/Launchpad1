@@ -33,13 +33,10 @@ path = "vault/dbc_graduation.rs"
 name = "qa_launch"
 path = "launch/qa_launch.rs"
 
-# QA's regression suite targets the f4761af harness API (env.vault, Vault.ratio_base, fee_escrow, ...),
-# so it doesn't compile against the current harness until QA ports it. Registered (not dropped),
-# opt-in so it can't break the default run:  cargo test -p track-a-hybrid-tests --features qa-regression --test qa_regression
+# QA's regression suite (ported to the current harness by QA); runs by default.
 [[test]]
 name = "qa_regression"
 path = "qa-roots/qa_regression.rs"
-required-features = ["qa-regression"]
 
 [features]
 qa-regression = []

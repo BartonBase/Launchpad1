@@ -115,6 +115,14 @@ shelved/deferred. Kept for the record.
 **Status: ACCEPTED (2026-09-24). Engine = `hybrid_vault`; MPL-Hybrid is reference only.** Full design:
 [hybrid-rarity-and-assignment.md](hybrid-rarity-and-assignment.md).
 
+> **Partially superseded (QA-DOC-01).** The engine choice and the two-step VRF (§1–3) stand. Superseded parts:
+> - **§4, the fee model** (token bps fee, SOL cost fee, `capture_fee ≥ reroll_fee`, burn): replaced by
+>   **ADR-013**, one flat tiered SOL fee with no token fee and no burn, and release is free.
+> - **The 10k ratio and its sizes** (Context and §1): dropped in **ADR-016**; N ≤ 10,000, 7 ratios.
+> - **Metadata bound at first exit and pre-mint**: replaced by lazy mint at settle (**ADR-016**).
+>
+> The original text below is kept as the historical record.
+
 - **Who decided and why.** The Solana Program Engineer made this call on 2026-09-24. Barton did not answer Q-H1
   directly, but his stated requirements (blind assignment, VRF re-roll, burned fees, no mutable economics, multisig
   plus timelock) cannot be met by any MPL-Hybrid configuration (see Context). **Reversible if Barton objects**: the
@@ -148,9 +156,10 @@ shelved/deferred. Kept for the record.
      strict FIFO order over a sequenced pool (only deposits with `seq < request.seq` are candidates). There's no cancel
      after fulfilment, and `expire` applies only to unfulfilled requests past the deadline. `release` is instant and
      exact.
-  4. **Re-roll:** VRF-random *different* NFT (the hand-in is excluded from its own draw). The fee is a token bps of the
+  4. **Re-roll:** VRF-random *different* NFT (the hand-in is excluded from its own draw). ~~The fee is a token bps of the
      ratio plus a SOL cost fee, and `capture_fee ≥ reroll_fee` is enforced. **Updated by ADR-009:** fees are capped and
-     fixed at init (no `propose_fees`), and the token fee is **burned**.
+     fixed at init (no `propose_fees`), and the token fee is **burned**.~~ **SUPERSEDED by ADR-013:** the same flat
+     tiered SOL fee as capture, no token fee, no burn (M-06 per ADR-018).
 - **Rejected.**
   - (i) Thin wrapper holding MPL-Hybrid's authority as a PDA (feasible via an atomic `BlockCapture` toggle): it keeps
     unaudited, externally upgradeable code under our backing and relies on fragile upstream behaviour.
@@ -223,6 +232,20 @@ shelved/deferred. Kept for the record.
 **Status: Proposed (implemented and tested on localnet, not audited).** Program ID (localnet throwaway key):
 `9Loc4hQZJh4SuBCGPiPs1wAfwywUAM7av5upyGHfc6Q8`.
 
+> **Partially superseded (QA-DOC-01).** Steps 1–5 (fresh mint, authorities revoked, 1B into the launch-vault PDA)
+> stand. Superseded parts:
+> - **§6, the LaunchConfig fee fields and validation**: capture/re-roll fee bps, exact fee amounts,
+>   `fee_destination = BURN`, the ≤ 1,000 bps cap and `capture ≥ reroll`. **ADR-013** replaced these with
+>   `fee_lamports` (from the ratio tier table, cap 0.01 SOL) and `fee_recipient` = `PLATFORM_FEE_RECIPIENT`.
+> - **LaunchConfig layout**: now v4, with the frozen prefix from **ADR-017** and `dbc_config`/`dbc_pool`
+>   appended by **ADR-014**.
+> - **The 10k ratio / 100,000 column** of the supply table: dropped in **ADR-016**; N ≤ 10,000 for every
+>   ratio.
+> - **"One instruction"**: `register_dbc_launch` (ADR-014) was added for the DBC curve. It only creates
+>   configs.
+>
+> The original text below is kept as the historical record.
+
 - **Context.** Whatever the engine (ADR-008), every hybrid launch needs the same first step: a classic mint with
   exactly 1B supply and no authorities, plus an on-chain record of economics nobody can change (ADR-009 C3).
 - **Decision.** One instruction, `launch(params)`, in one transaction:
@@ -239,13 +262,15 @@ shelved/deferred. Kept for the record.
   5. Re-read the mint and the destination and fail unless owner, supply, decimals, both authorities, the destination
      owner (launch vault), its balance, and the absence of a delegate or close authority are all right.
   6. `init` an immutable `LaunchConfig` PDA `["launch_config", mint]`: creator, mint, launch destination, decimals,
-     total supply, ratio (whole and base units), collection size, `max_tokens_in_nft_form`, capture/re-roll fee bps
-     and exact amounts, `fee_destination = BURN`, `launched_at`, `launch_vault` and bumps.
-  - Validation: `decimals ≤ 9`; ratio ∈ {10k, 50k, 100k, 200k, 500k, 1M, 2.5M, 5M}; `collection_size ≥ 100` and
+     total supply, ratio (whole and base units), collection size, `max_tokens_in_nft_form`, ~~capture/re-roll fee bps
+     and exact amounts, `fee_destination = BURN`~~ (**superseded by ADR-013**: `fee_lamports`, `fee_recipient`),
+     `launched_at`, `launch_vault` and bumps.
+  - Validation (**superseded in part**: the 10k ratio was dropped by ADR-016; the fee rules were replaced by ADR-013): `decimals ≤ 9`; ratio ∈ {~~10k,~~ 50k, 100k, 200k, 500k, 1M, 2.5M, 5M}; `collection_size ≥ 100` and
     `collection_size × ratio_base ≤ supply_base` via `checked_mul` (overflow rejects); each fee ≤ 1,000 bps of the
     ratio; `capture_fee_bps ≥ reroll_fee_bps`; `fee_destination == BURN`. Fee amounts are exact because every ratio is
     a multiple of 10,000.
-  - **Supply table** (whole tokens per NFT → max collection size = 1B / ratio; min 100 for all):
+  - **Supply table** (whole tokens per NFT → max collection size = 1B / ratio; min 100 for all). **Superseded by
+    ADR-016:** the 10k ratio is gone and every ratio is capped at N ≤ 10,000:
 
     | Ratio | 10k | 50k | 100k | 200k | 500k | 1M | 2.5M | 5M |
     |---|---|---|---|---|---|---|---|---|
@@ -336,6 +361,19 @@ the mint authority in the same instruction. It never sets a freeze authority. Th
 **Decision: register and verify, don't wrap.** Wrapping DBC's create in our CPI would couple us to DBC's full
 account list and CU budget, and it buys nothing: whatever DBC creates, we verify on-chain. So the creator creates
 the pool with DBC's SDK (keypair mint), then calls `hybrid_launch::register_dbc_launch(ratio, collection_size)`.
+- **Platform allowlist (checked first):** `dbc_config` must be in `hybrid_launch::APPROVED_DBC_CONFIGS`, a
+  compile-time constant list in `needs_barton.rs`. The platform, not the creator, picks the curve shape, fees,
+  partner/fee claimer and migration settings. No instruction, key or account can edit the list; changing it
+  takes a program upgrade (3-of-5 multisig + 7-day timelock, admin-multisig-timelock.md). Rejection is
+  `DbcConfigNotApproved` (6023). Listed configs must still pass every structural check below.
+  - Devnet/localnet list = `5L1MfYm4yqPySiVddKugruYoGyN6an6viSkHzL7MK1Y`, the real devnet config used as the test
+    template. On devnet itself its `leftover_receiver` isn't our buffer PDA, so a real devnet registration against
+    it would still fail `DbcConfigRejected`. A platform-created devnet config naming `["dbc_buffer"]` is needed
+    before a devnet end-to-end run.
+  - **Mainnet list: NEEDS BARTON.** It's empty, and a `mainnet` build refuses to compile until at least one config
+    key is set (a const assert).
+  - Test: `register_rejects_config_not_on_platform_allowlist` (a byte-identical valid config at an unlisted address
+    is rejected, and no LaunchConfig is created).
 - **Pool checks:** owner DBC, VirtualPool discriminator and length 424, `base_mint == mint`, `config == dbc_config`,
   SPL pool type, **signer == pool.creator** (nobody can register someone else's token with other parameters), not
   yet migrated.
@@ -390,8 +428,8 @@ Tests (`vault/dbc_graduation.rs`, 9 tests, real DBC program plus the real devnet
 3. The DBC offsets are pinned to 0.2.1. A DBC upgrade that changed its layout would make `load_pool` fail closed
    (discriminator and length).
 4. `hybrid_launch` now has two instructions, so three QA IDL guards in `qa_launch` need QA's review (audit-fixes).
-5. We don't restrict which DBC config or partner is used. Any config that meets the checks is accepted, including
-   its fee settings. Barton may want a platform-config allowlist.
+5. ~~We don't restrict which DBC config is used.~~ **Resolved:** there's a platform allowlist,
+   `APPROVED_DBC_CONFIGS` (see above).
 
 ## ADR-015: No pause
 
@@ -444,14 +482,39 @@ LaunchConfig upgrade can never lock users out of exits. Capture still fails clos
 - **Consequence for M-06 ("re-roll ≤ release + capture").** The *fee* comparison holds per draw (re-roll fee ==
   capture fee, release free). The *all-in* cost differs per draw by the first-mint delta: a draw that mints costs
   ~0.0031–0.0044 SOL more than one that transfers an already-minted asset, whether it's a capture or a re-roll. The
-  expected first-mint delta is the same for a re-roll and for release + capture (both draw uniformly from the same pool),
-  so M-06 holds **on average**. The per-draw check therefore **excludes the first-mint delta**. Tests assert the fee
+  expected first-mint delta is *almost* the same for a re-roll and for release + capture, because both draw uniformly
+  from nearly the same pool. So M-06 holds **on average when many NFTs are left to draw**; see the QA-FEE-05 bound
+  below. The per-draw check therefore **excludes the first-mint delta**. Tests assert the fee
   equality (`reroll_charges_same_flat_sol_fee_…`) and the exact deposit refund
   (`first_mint_cost_breakdown_is_exact_and_unspent_deposit_is_refunded`, `returned_asset_is_transferred_again_never_reminted`).
 - **Why accepted.** A flat surcharge would overcharge the draws that hit minted assets. Charging the actual cost keeps
   fees flat and honest, and nobody can pick whether their draw mints (VRF picks uniformly over minted + unminted).
 - **Disclosure copy (suggestion):** "If your NFT is being minted for the first time, about 0.003–0.004 SOL of your
   deposit covers its on-chain rent and the Metaplex fee; the rest of the deposit comes back automatically."
+- **QA-FEE-05 (disclosure; QA finding, engineering-verified): the average holds only with about 613 or more NFTs
+  left to draw.**
+  - **Setup:** let P = NFTs left in the pool, u = how many of them are still unminted, c = first-mint cost (3,066,000
+    lamports for our shape; up to ~4.35M at the maximum URI).
+  - **Re-roll** draws from the P NFTs; the handed-in NFT is excluded from its own draw. Its expected mint cost is
+    c·u/P.
+  - **Release, then capture** draws from P + 1: the released NFT goes back in, and it's already minted. The expected
+    mint cost is c·u/(P+1), but it pays one extra transaction fee (5,000 lamports base).
+  - **Difference:** re-roll − (release + capture) = c·u/(P(P+1)) − 5,000. It's worst when nearly everything is
+    unminted (u ≈ P), where it becomes c/(P+1) − 5,000.
+  - **Break-even:** P + 1 = c / 5,000 ≈ 613 (for c = 3,066,000).
+  - **Examples:** at P = 100 a re-roll averages about **25,000 lamports (0.000025 SOL) more** (3,066,000/101 −
+    5,000 ≈ 25,356). At P = 1,000 it averages ~1,940 lamports *less*. At the pool floor (the minimum P is
+    max(5, 2% N) + 1) the gap is largest: ~433,000 lamports (≈0.00043 SOL) at P = 6 (3,066,000/7 − 5,000).
+  - **Per-draw fees are unaffected:** re-roll fee == capture fee and release is free. The gap is only the
+    expected first-mint cost, which the requester's own escrow pays (ADR-018). It shrinks as more of the collection
+    is minted (u/P → 0) and disappears once everything is minted.
+  - **Not fixed on purpose:** a subsidy or a surcharge would bring back the flat-overcharge problem ADR-018
+    rejected.
+  - **Disclosure wording for the frontend / Creative Director (exact):**
+    > "Re-rolling costs the same flat fee as capturing, and releasing is free. When fewer than about 600 NFTs are left
+    > in the pool, a re-roll can cost slightly more on average than releasing and capturing again (for example, about
+    > 0.000025 SOL more with 100 left), because a re-roll can't draw the NFT you hand in, and that NFT is already
+    > minted. Any first-mint cost comes out of your refundable deposit; the rest is returned automatically."
 
 ## Creative Director questions (answered 2026-09-25; figures measured on LiteSVM unless marked ESTIMATE)
 

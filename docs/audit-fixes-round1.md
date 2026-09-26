@@ -11,11 +11,11 @@ documented trust assumption · **open** / **blocked** = not done (reason given) 
 |---|---|---|---|
 | M-01 | moot | No admin/update ix in hybrid_vault; economics immutable | V `idl_has_no_cancel_refund_update_close_withdraw_or_burn_instruction`, `regress_poc10_escrow_drain_must_fail` |
 | M-02 | closed | VRF selection at settle; the caller never names the asset (`selection.rs`, `settle.rs`) | V `attack_capturer_cannot_choose_asset_settle_with_other_asset_rejected`, `regress_poc11_cherrypick_must_fail`, `attack_user_cannot_abort_after_reveal_recommit_refused_once_revealed` |
-| M-03 | closed on localnet (real DBC program; graduation simulated) | DBC creates the mint. `hybrid_launch::register_dbc_launch` verifies DBC's pool, config and mint (owner, discriminator, length, `base_mint`, config link, pool creator = signer, SPL, not yet migrated, wSOL quote, fixed 1B with pre == post, decimals, Immutable, `leftover_receiver` = our buffer PDA, threshold in range; mint on classic Token with mint and freeze authority None and supply exactly 1B). It records `dbc_config` and `dbc_pool` (LaunchConfig v4, ADR-014) | V `vault_dbc_graduation`: `register_records_dbc_pool_and_mint`, `register_rejects_wrong_signer_wrong_config_fake_pool_and_repeat`, `register_rejects_config_without_our_buffer_or_with_burn_or_low_threshold`, `register_rejects_already_migrated_pool`, `research_dbc_mint_is_created_by_dbc_with_authorities_revoked` |
+| M-03 | closed on localnet (real DBC program; graduation simulated) | DBC creates the mint. `hybrid_launch::register_dbc_launch` checks the config is on the compile-time platform allowlist `APPROVED_DBC_CONFIGS`, then verifies DBC's pool, config and mint (owner, discriminator, length, `base_mint`, config link, pool creator = signer, SPL, not yet migrated, wSOL quote, fixed 1B with pre == post, decimals, Immutable, `leftover_receiver` = our buffer PDA, threshold in range; mint on classic Token with mint and freeze authority None and supply exactly 1B). It records `dbc_config` and `dbc_pool` (LaunchConfig v4, ADR-014) | V `vault_dbc_graduation`: `register_records_dbc_pool_and_mint`, `register_rejects_wrong_signer_wrong_config_fake_pool_and_repeat`, `register_rejects_config_without_our_buffer_or_with_burn_or_low_threshold`, `register_rejects_already_migrated_pool`, `register_rejects_config_not_on_platform_allowlist`, `research_dbc_mint_is_created_by_dbc_with_authorities_revoked` |
 | M-04 | closed, with two parts open | Program-chosen oracle + heartbeat filter (skip only with proof), `OracleStale`; recommit ≤ 3; expire refunds principal + escrow, not the fee (`randomness.rs`, `randomness_ix.rs`, `expire.rs`). Batch expire `expire_requests(count ≤ 7)` added after the baseline. **Open:** real devnet reveal (init/commit/recommit are proven against the real program in LiteSVM, `vault/real_switchboard.rs`) | V `m04_stale_oracle_is_skipped_only_with_proof_and_live_oracle_cannot_be_skipped`, `attack_caller_chosen_oracle_is_rejected_program_selects_it`, `recommits_are_capped_then_expire_returns_principal_only_fee_kept`, `expire_several_stuck_requests_in_one_transaction`, `m04_batch_expire_*` (5 tests) |
 | M-05 | closed | Fee only to the `PLATFORM_FEE_RECIPIENT` constant (account constraint in request.rs); launch-time recipient check | V `attack_fee_to_own_wallet_or_other_recipient_is_rejected_fail_closed`; L `attack_fee_recipient_not_system_owned_or_executable_is_rejected` |
 | M-06 | closed (copy: Barton) | One tier fee for capture and re-roll; release free (ADR-013) | V `reroll_charges_same_flat_sol_fee_moves_no_tokens_and_never_returns_handed_in_asset`, `capture_then_release_returns_exactly_ratio_tokens_and_release_is_free` |
-| M-07 | closed | `hybrid_launch` derives the fee from the ratio tier; no token fee (`needs_barton.rs`, `validation.rs`) | L `fee_tier_is_derived_from_ratio_for_all_8_ratios_and_stored_immutably`, `attack_fee_cap_cannot_be_exceeded_and_params_carry_no_fee_or_recipient` |
+| M-07 | closed | `hybrid_launch` derives the fee from the ratio tier; no token fee (`needs_barton.rs`, `validation.rs`) | L `fee_tier_is_derived_from_ratio_for_all_7_ratios_and_stored_immutably`, `attack_fee_cap_cannot_be_exceeded_and_params_carry_no_fee_or_recipient` |
 | M-08 | closed in code (disclosure: Barton) | Charge `min(stored, tier or u64::MAX, MAX_FEE)`; never reverts on mismatch; version == 4 fail-closed (`config.rs::econ`) | V `m08_request_fee_is_min_of_stored_tier_and_cap_never_an_exact_match_revert` |
 | M-09 | open (Barton) | Squads multisig + timelock plan in `admin-multisig-timelock.md`; one upgrade key per program today | none |
 | M-10 | closed on localnet (graduation simulated) | `graduation::verify` is the real DBC check in every build: the proof must be the recorded `dbc_pool`, owned by DBC with the right discriminator and length, naming this mint and config, with `is_migrated == 1` and progress CreatedPool. The mock is additionally accepted only under `test-mock-graduation`. The 25% buffer goes to ATA(`["dbc_buffer"]` PDA, mint) through DBC's own `withdraw_leftover`, and no instruction signs for the PDA. **Limit:** the migration itself is simulated by flipping the two pool bytes, because a real DAMM v2 migration isn't loaded; a real migrated devnet pool is parsed to confirm the fields | V `open_vault_needs_the_recorded_dbc_pool_to_have_migrated`, `buffer_receives_leftover_from_real_dbc_and_can_never_be_withdrawn`, `buffer_seed_is_never_used_for_signing`, `real_devnet_migrated_pool_parses_as_graduated`, `attack_open_without_verified_graduation_rejected` |
@@ -60,14 +60,16 @@ nothing; expire refunds principal + escrow. Tests: V `request_escrows_worst_case
 `many_captures_keep_minted_count_le_n_and_bitmap_consistent`, `attack_prefund_asset_pda_does_not_block_lazy_mint_lamports_go_to_the_user`.
 Interface: [lazy-mint-interface.md](lazy-mint-interface.md).
 
-## Known QA-suite incompatibilities (QA-owned files, not edited)
+## Known QA-suite review triggers (QA-owned files, not edited)
 
-- `qa_launch`: `qa_two_launches_are_isolated_and_same_mint_twice_fails` uses the dropped 10k ratio;
-  `qa_property_random_params_match_oracle_for_built_version` still models the dropped affordability rule.
-- `qa_launch` (since `register_dbc_launch`, ADR-014): `qa_hl02_no_withdraw_path_from_launch_vault`,
-  `qa_FEE13_M08_fee_immutable_after_launch_each_tier` and `qa_FEE05_M05_fee_wallet_fixed_at_launch_and_immutable`
-  assert the IDL is exactly `["launch"]`. The new instruction only `init`s a new LaunchConfig, never takes
-  `launch_vault` or `launch_destination`, and has no fee input. It needs QA review, then the allowlist becomes
-  `["launch", "register_dbc_launch"]`.
-- `tests/regression` targets the f4761af harness API; it builds only with `--features qa-regression` and doesn't compile
-  against the current harness.
+- `qa_regression` (QA's ported suite) now runs by default, with the `required-features` line removed: 52/1/0 at HEAD.
+  - `qa_M01_A01_no_instruction_can_change_ratio_fees_or_mint` flags the new vault instruction `expire_requests`
+    (batch expire, M-04). It only runs the existing expire core per request (principal + escrow back, fee kept), with
+    no economics or escrow mutation. It needs QA review, then QA's allowlist gets `expire_requests`.
+  - QA's 53/0/0 predates `2be21da` and `786a1c9`. `qa_M10_GRAD02b` (production build → 6037) and `qa_M10_GRAD02`
+    (test build → 6036) both pass again: a launch with no DBC pool yields `GraduationCheckUnavailable` in
+    production and `GraduationNotVerified` in mock builds.
+- `qa_launch`: `qa_hl02_no_withdraw_path_from_launch_vault`, `qa_FEE13_M08_fee_immutable_after_launch_each_tier` and
+  `qa_FEE05_M05_fee_wallet_fixed_at_launch_and_immutable` assert the IDL is exactly `["launch"]`. The new
+  `register_dbc_launch` (ADR-014) only `init`s a new LaunchConfig, never takes `launch_vault` or
+  `launch_destination`, and has no fee input. QA will add it to their allowlist.

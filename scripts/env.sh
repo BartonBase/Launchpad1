@@ -15,3 +15,8 @@ SBF_TOOLS_ARGS=(--tools-version "$SBF_TOOLS_VERSION")
 if [ -d "$HOME/.cache/solana/$SBF_TOOLS_VERSION/platform-tools" ]; then SBF_TOOLS_ARGS+=(--skip-tools-install); fi
 # Production program allowlist: the ONLY programs built into target/deploy and deployable.
 PROD_PROGRAMS=(hybrid_launch hybrid_vault)
+# Cargo target dir (QA-HYG-01): honour CARGO_TARGET_DIR so QA and engineering can build side by side.
+# Tests find artifacts via CARGO_TARGET_TMPDIR (= $TARGET/tmp), so every script writes under $TARGET.
+TARGET="${CARGO_TARGET_DIR:-$PWD/target}"
+case "$TARGET" in /*) ;; *) TARGET="$PWD/$TARGET" ;; esac
+export TARGET

@@ -41,10 +41,10 @@ WALLET=".keys/devnet-only-deployer.json"
 # `upgradeable = false` validator; the 4.x loader refuses to *deploy* SBPF v2 ELFs).
 if [[ " $* " != *" --skip-build "* ]]; then ./scripts/build.sh && ./scripts/build-test-sbf.sh; fi
 mapfile -t BPF_ARGS < <(python3 - <<'PY'
-import tomllib
+import os, tomllib
 progs = tomllib.load(open("Anchor.toml", "rb"))["programs"]["localnet"]
 for name, pid in progs.items():
-    print("--bpf-program"); print(pid); print(f"target/deploy/{name}.so")
+    print("--bpf-program"); print(pid); print(f"{os.environ['TARGET']}/deploy/{name}.so")
 PY
 )
 [ -f "$WALLET" ] || solana-keygen new --no-bip39-passphrase --silent -o "$WALLET"
