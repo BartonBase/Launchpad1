@@ -170,7 +170,7 @@ function merkle(leaves) {
   const req = pda([Buffer.from("request"), vault.toBuffer(), u64le(seq)], VAULT);
   const esc = pda([Buffer.from("mint_escrow"), vault.toBuffer(), u64le(seq)], VAULT);
   const lock = pda([Buffer.from("rand_lock"), R.publicKey.toBuffer()], VAULT);
-  if (!(await exists(req))) {
+  if (!out.txs.request_capture && !(await exists(req))) {
     const q = await new sb.Queue(sbp, QUEUE).loadData();
     const oracles = q.oracleKeys.slice(0, q.oracleKeysLen);
     const base = { user: U.publicKey, vault, launchConfig: lc, pool: POOLKP.publicKey, mint, userToken: ata(U.publicKey, mint), vaultTokens: vt, feeRecipient: FEE, request: req, mintEscrow: esc,
@@ -186,8 +186,6 @@ function merkle(leaves) {
     await send("request_capture", [chosen], U, [U], [U.publicKey]);
   }
   // 10. Gateway-signed reveal through the vault's permissionless reveal_randomness (third party pays).
-  let r = await V.account.request.fetch(req);
-  const reqDone = () => JSON.stringify(r.status || r.state || {}).match(/Revealed|revealed|Settled|settled/);
   if (!out.txs.reveal_randomness) {
     await sleep(4000);
     const rd = await new sb.Randomness(sbp, R.publicKey).loadData();
@@ -214,6 +212,69 @@ function merkle(leaves) {
       if ((await simOk(ixs, S, [S])).ok) { out.settledIndex = i; out.asset = asset.toBase58(); out.minted = !!mintArgs; await send("settle_capture", ixs, S, [S], [S.publicKey, U.publicKey, esc]); done = true; }
     }
     if (!done) throw new Error("settle_capture: no index simulates");
+  }
+  // 12-13 (EXTRAS=1): re-roll the captured NFT (same randomness account), then release (unwrap) the result.
+  if (process.env.EXTRAS === "1") {
+    const q = await new sb.Queue(sbp, QUEUE).loadData();
+    const oracles = q.oracleKeys.slice(0, q.oracleKeysLen);
+    const assetOf = (i) => pda([Buffer.from("asset"), vault.toBuffer(), u32le(i)], VAULT);
+    const revealAndSettle = async (sq, rq, es, label, kind) => {
+      if (!out.txs["reveal_" + label]) {
+        await sleep(4000);
+        const rd = await new sb.Randomness(sbp, R.publicKey).loadData();
+        const od = await new sb.Oracle(sbp, rd.oracle).loadData();
+        const gw = new sb.Gateway(String.fromCharCode(...od.gatewayUri).replace(/\0+$/, ""));
+        let rev = null;
+        for (let i = 0; i < 20 && !rev; i++) { try { rev = await gw.fetchRandomnessReveal({ randomnessAccount: R.publicKey, slothash: anchor.utils.bytes.bs58.encode(Buffer.from(rd.seedSlothash)), slot: rd.seedSlot.toNumber(), rpc: URL }); } catch (e) { await sleep(3000); } }
+        if (!rev) throw new Error("gateway reveal not available");
+        const ix = await V.methods.revealRandomness({ signature: [...Buffer.from(rev.signature, "base64")], recoveryId: rev.recovery_id, value: [...Buffer.from(rev.value)] }).accountsStrict({
+          payer: S.publicKey, vault, request: rq, randLock: lock, randomness: R.publicKey, randomnessAuthority: ra, sbOracle: rd.oracle, sbQueue: QUEUE,
+          sbStats: pda([Buffer.from("OracleRandomnessStats"), rd.oracle.toBuffer()], SB), slotHashes: SYSVAR_SLOT_HASHES_PUBKEY, systemProgram: SystemProgram.programId,
+          sbRewardEscrow: ata(R.publicKey, WSOL), tokenProgram: TOKEN, wrappedSolMint: WSOL, sbProgramState: SB_STATE, switchboardProgram: SB }).instruction();
+        await send("reveal_" + label, [ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }), ix], S, [S], [S.publicKey]);
+      }
+      if (!out.txs["settle_" + label]) {
+        for (let i = 0; i < N; i++) {
+          const asset = assetOf(i);
+          const mintArgs = (await exists(asset)) ? null : { leaf: pre[i], proof: proofs[i].map((p) => [...p]) };
+          const accts = { settler: S.publicKey, vault, launchConfig: lc, pool: POOLKP.publicKey, request: rq, randLock: lock, randomness: R.publicKey,
+            vaultAuthority: va, mintEscrow: es, vaultTokens: vt, asset, collection: coll, user: U.publicKey, mplCoreProgram: CORE, systemProgram: SystemProgram.programId };
+          const ix = await (kind === "reroll" ? V.methods.settleReroll(mintArgs) : V.methods.settleCapture(mintArgs)).accountsStrict(accts).instruction();
+          const ixs = [ComputeBudgetProgram.setComputeUnitLimit({ units: 600_000 }), ix];
+          if ((await simOk(ixs, S, [S])).ok) { out[label + "Index"] = i; out[label + "Asset"] = asset.toBase58(); out[label + "Minted"] = !!mintArgs; await send("settle_" + label, ixs, S, [S], [S.publicKey, U.publicKey, es, FEE]); return i; }
+        }
+        throw new Error("settle_" + label + ": no index simulates");
+      }
+      return out[label + "Index"];
+    };
+    // Re-roll the NFT captured above.
+    if (out.rerollSeq === undefined) out.rerollSeq = (await V.account.vault.fetch(vault)).nextSeq.toNumber();
+    const rs = out.rerollSeq;
+    const rreq = pda([Buffer.from("request"), vault.toBuffer(), u64le(rs)], VAULT), resc = pda([Buffer.from("mint_escrow"), vault.toBuffer(), u64le(rs)], VAULT);
+    if (!(await exists(rreq)) && !out.txs.request_reroll) {
+      let chosen = null, lastErr = null;
+      for (const o of oracles) for (const stale of [[], ...oracles.filter((x) => !x.equals(o)).map((x) => [x])]) {
+        if (chosen) break;
+        const ix = await V.methods.requestReroll(out.settledIndex).accountsStrict({ user: U.publicKey, vault, launchConfig: lc, pool: POOLKP.publicKey, vaultTokens: vt, feeRecipient: FEE, vaultAuthority: va,
+          asset: assetOf(out.settledIndex), collection: coll, mplCoreProgram: CORE, request: rreq, mintEscrow: resc, randLock: lock, randomness: R.publicKey, randomnessAuthority: ra, sbQueue: QUEUE,
+          sbOracle: o, slotHashes: SYSVAR_SLOT_HASHES_PUBKEY, switchboardProgram: SB, systemProgram: SystemProgram.programId }).remainingAccounts(stale.map((k) => ({ pubkey: k, isSigner: false, isWritable: false }))).instruction();
+        const sm = await simOk([ix], U, [U]); if (sm.ok) chosen = ix; else lastErr = (sm.logs || []).slice(-3).join(" | ");
+      }
+      if (!chosen) throw new Error("request_reroll: nothing simulates: " + lastErr);
+      out.userBeforeReroll = await conn.getBalance(U.publicKey); save();
+      await send("request_reroll", [chosen], U, [U], [U.publicKey, FEE]);
+    }
+    const ri = await revealAndSettle(rs, rreq, resc, "reroll", "reroll");
+    out.userAfterReroll = await conn.getBalance(U.publicKey); save();
+    // Release (unwrap) the re-rolled NFT: returns exactly RATIO tokens, no SOL fee.
+    if (!out.txs.unwrap) {
+      const bal = async () => BigInt((await conn.getTokenAccountBalance(ata(U.publicKey, mint))).value.amount);
+      const t0 = await bal();
+      const ix = await V.methods.unwrap(ri).accountsStrict({ user: U.publicKey, vault, launchConfig: lc, pool: POOLKP.publicKey, mint, vaultAuthority: va, vaultTokens: vt, userToken: ata(U.publicKey, mint),
+        asset: assetOf(ri), collection: coll, mplCoreProgram: CORE, tokenProgram: TOKEN, systemProgram: SystemProgram.programId }).instruction();
+      await send("unwrap", [ix], U, [U], [U.publicKey, FEE]);
+      out.unwrapTokensReturned = (await bal() - t0).toString(); save();
+    }
   }
   out.userAfterSettle = await conn.getBalance(U.publicKey);
   out.userNetSolForCapture = out.userBeforeCapture - out.userAfterSettle;

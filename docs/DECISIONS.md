@@ -421,9 +421,10 @@ Tests (`vault/dbc_graduation.rs`, 9 tests, real DBC program plus the real devnet
   without CreatedPool, then opens and serves a capture.
 
 **Limits:**
-1. **Migration is simulated.** The two pool bytes are flipped, because a real DAMM v2 migration (swaps to the
-   threshold plus the DAMM v2 program and accounts) isn't loaded. A real migrated devnet pool
-   (`DGtaRQ9E…`) is parsed as graduated to confirm the fields.
+1. **Migration is simulated in LiteSVM** (the two pool bytes are flipped). **On devnet it's real (2026-09-26):**
+   pool `6VbgZdmK…` on the platform config, one buy to the 0.1 SOL threshold, DBC → DAMM v2 migration
+   `2Ak7VGyV…`, `open_vault` `3noycLcB…` accepted the migrated pool, then capture, reveal and settle-with-mint ran
+   (CD Q1).
 2. In the leftover test, nothing was sold, so the whole 1B lands in the buffer. That shows the path, not a
    realistic amount.
 3. The DBC offsets are pinned to 0.2.1. A DBC upgrade that changed its layout would make `load_pool` fail closed
@@ -564,6 +565,21 @@ lamports (0.0063381 SOL)** in its own escrow account, `["mint_escrow", vault, se
 - Separately, the request account's rent (**3,006,720**) and the randomness-lock rent (**1,231,920**) are also returned to
   the requester at settle (or expire). The flat tier fee is the only thing never refunded.
 - If the request expires instead (randomness never arrives), the **whole deposit** is refunded along with the principal.
+
+**Measured on devnet 2026-09-26** (full run, real DBC graduation + real Switchboard + real Core; `scripts/devnet-e2e.sh`):
+- **Capture fee:** `request_capture` `KnaN7xaP…` paid **10,000,000** lamports (tier fee for ratio 1M) to the fee
+  wallet `7J3Aajxf…`, and escrowed 6,338,100.
+- **Settle-with-mint:** `settle_capture` `2L6BuHwm…` (third-party settler) minted Core asset
+  `GNcaSTuzf6SCRcnWd1pSPyh4YRSHo61P48kpWkGQ5kEo` (#11, 100 bytes).
+  - **Mint spend: 2,658,240** = Core fee 1,500,000 + asset rent 1,158,240 (devnet's lower rent rate; the
+    mainnet rate would be 1,586,880).
+  - **Escrow refund: 3,679,860.** The request rent 2,194,560 and lock rent 899,160 came back too, so the
+    requester received 6,773,580 in the settle tx.
+  - Requester's net SOL for the capture: **12,663,240** = fee + mint spend + 5,000 tx fee.
+- **Re-roll:** `request_reroll` `s95ZtsnE…` paid 10,000,000 to the fee wallet. `settle_reroll` `oaUEXVfV…` returned
+  #11 to the vault and minted #25 `5CBiFGvF…`, with the same spend and refund as above.
+- **Release:** `unwrap` `4nr54TFC…` returned exactly **1,000,000 tokens** (1e12 base units) for #25. The fee wallet
+  received 0; the only cost was the 5,000-lamport tx fee.
 
 ### CD Q2: What does randomness actually cost per request?
 

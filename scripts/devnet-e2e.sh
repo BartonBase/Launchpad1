@@ -36,7 +36,8 @@ if [ "${SKIP_UPGRADE:-0}" != 1 ]; then
   echo "upgrade: program $CUR B -> $NEW B (extend $EXTRA B); buffer rent $BUF lamports (refunded); need ~$NEED, have $HAVE"
   [ "$HAVE" -ge "$NEED" ] || fail "short by $((NEED - HAVE)) lamports ($(awk "BEGIN{print ($NEED-$HAVE)/1e9}") SOL)"
   if [ "${DRY_RUN:-0}" = 1 ]; then echo "DRY_RUN: guards and budget OK; no transactions sent"; exit 0; fi
-  [ "$EXTRA" -eq 0 ] || solana program extend --url "$URL" --keypair "$DEPLOYER_KEYPAIR" "$PROGRAM_ID" "$EXTRA"
+  # ExtendProgram needs >= 10,240 extra bytes (loader rule); extend by that when any growth is needed.
+  [ "$EXTRA" -eq 0 ] || solana program extend --url "$URL" --keypair "$DEPLOYER_KEYPAIR" "$PROGRAM_ID" $(( EXTRA > 10240 ? EXTRA : 10240 ))
   # Upgrade in place (write buffer + upgrade; the CLI closes the buffer and refunds its rent).
   solana program deploy --url "$URL" --keypair "$DEPLOYER_KEYPAIR" --upgrade-authority "$DEPLOYER_KEYPAIR" \
     --program-id "$PROGRAM_ID" "$SO"

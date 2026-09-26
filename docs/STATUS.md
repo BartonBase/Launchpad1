@@ -34,32 +34,20 @@ Updated 2026-09-25 (MT). Branch `wip/hybrid-vault`, mirrored to `onchain/hybrid-
     on a native launch fails closed (6037). Figures and tx sigs: DECISIONS CD Q2.
   - Deployer balance after the run: ≈ 0.296 SOL. Program rent (~4.64 SOL) can be reclaimed with `solana program close`
     if the deployment isn't needed. The e2e scripts and throwaway keys are in `/workspace/scratch/sbe2e` (not in git).
-  - **Full vault e2e: prepared, waiting for SOL.**
-    - **Done:** platform devnet DBC config `DuQYHUCT…` (threshold 0.1 SOL, leftover receiver = the buffer PDA),
-      now on the devnet allowlist. The DBC-only rehearsal on devnet passed: pool, buy to the threshold, real
-      DAMM v2 migration, leftover into the buffer. See DECISIONS ADR-014.
-    - **Next:** `DEPLOYER_KEYPAIR=.keys/devnet-only-deployer.json scripts/devnet-e2e.sh`.
-      - It upgrades only `hybrid_launch`, to the `devnet-e2e` build (0.1 SOL floor, extended by 120 B), then runs
-        `scripts/devnet-e2e/e2e.cjs`. The run is resumable; its state is in `.keys/devnet-e2e/run.json`.
-      - `DRY_RUN=1` checks the build, guards and budget without sending anything.
-    - **Budget (devnet rent; measured unless marked):**
-
-      | Step | SOL |
-      |---|---|
-      | Upgrade buffer (refunded when the upgrade closes it) | 1.124 |
-      | Upgrade: extend + write fees | ~0.002 |
-      | DBC pool | 0.021 |
-      | register (est.) | ~0.004 |
-      | init_vault | 0.014 |
-      | Graduation buys | 0.1025 |
-      | DAMM v2 migration | 0.0165 |
-      | open_vault | ~0 |
-      | init_randomness | 0.006 |
-      | Capture (fee 0.01 + escrow 0.0063 + rents 0.0031, est.; rents and the unused escrow refunded at settle) | ~0.02 |
-      | Reveal and settle fees | ~0.00002 |
-
-      Peak ≈ 1.35 SOL; net ≈ 0.2 SOL. The deployer holds 0.177 SOL, so the run is **1.197 SOL short** until
-      the next faucet grant. 5 SOL is enough.
+  - **Full vault e2e on devnet: done (2026-09-26, ~7:30 AM MT).**
+    - The run used `scripts/devnet-e2e.sh`, with the re-roll and release steps under `EXTRAS=1`: DBC pool →
+      register → vault → buy to 0.1 SOL → DAMM v2 migration → leftover to the buffer → open_vault → randomness
+      → capture → third-party reveal → settle-with-mint (#11) → re-roll (#25 minted) → release (exactly 1M tokens
+      back). Figures and signatures are in DECISIONS CD Q1.
+    - **Fixes, all script-only, no program bugs:**
+      - ExtendProgram needs at least 10,240 bytes, so the script extends by that;
+      - resuming now skips steps that are already settled.
+    - **`hybrid_launch` on devnet now runs the `devnet-e2e` build** (0.1 SOL graduation floor; program data
+      231,216 B; no leftover buffers). **Keep it for devnet:** it's the only build the platform devnet config
+      registers with. Before any audit/mainnet comparison, redeploy the default build or verify against
+      `target/devnet-e2e`. The mainnet build can't include the feature.
+    - Deployer after the run: 4.9347 SOL (net ≈ 0.24 SOL, including 0.052 SOL of extend rent).
+      The throwaway keys under `.keys/devnet-e2e` are swept.
 - **Graduation (ADR-014 Limits):** the DAMM v2 migration is simulated in tests. Fields were confirmed on a real
   migrated devnet pool.
 - **Needs Barton:**
