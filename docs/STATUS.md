@@ -9,7 +9,8 @@ Updated 2026-09-25 (MT). Branch `wip/hybrid-vault`, mirrored to `onchain/hybrid-
   answers use measured lamport figures (`docs/DECISIONS.md`).
 - **Batch expire:** `expire_requests(count ≤ 7)`, M-04 (`2be21da`).
 - **Build and deploy hygiene:** production build and devnet deploy use an allowlist (no mock `.so` can ship); marker
-  guards plus a self-test; platform-tools pinned to v1.54; scripts honour `CARGO_TARGET_DIR` (QA-HYG-01).
+  guards plus a self-test; platform-tools pinned to v1.54; scripts honour `CARGO_TARGET_DIR` (QA-HYG-01). Shown with `CARGO_TARGET_DIR=/workspace/scratch/tgt-hyg01`: a cold
+  build, then launch 27, vault 76, dbc 10 and real_switchboard 4, all green.
 - **Real Switchboard On-Demand:** compiles with Anchor 1.2. The real devnet program runs our init/commit/recommit
   calls in LiteSVM and rejects a forged reveal (`vault/real_switchboard.rs`).
 - **Meteora DBC (ADR-014):**
@@ -38,8 +39,6 @@ Updated 2026-09-25 (MT). Branch `wip/hybrid-vault`, mirrored to `onchain/hybrid-
   - fee-wallet custody (M-17).
 - **QA review triggers (QA-owned tests):** `register_dbc_launch` affects 3 tests in `qa_launch`, and
   `expire_requests` affects 1 in `qa_regression`. See `audit-fixes-round1.md`, last section.
-- **Not yet shown:** the full suite passing from a separate `CARGO_TARGET_DIR`. The scripts support it, but that
-  run was interrupted.
 - The audit itself: round-1 status is in `docs/audit-fixes-round1.md`.
 
 ## Build and test
