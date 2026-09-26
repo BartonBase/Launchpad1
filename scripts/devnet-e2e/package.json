@@ -1,0 +1,11 @@
+{
+  "name": "hybrid-devnet-e2e",
+  "private": true,
+  "description": "DEVNET ONLY: full DBC -> graduation -> vault capture -> Switchboard reveal -> settle-with-mint run. Throwaway keys only.",
+  "dependencies": {
+    "@coral-xyz/anchor": "0.32.1",
+    "@meteora-ag/dynamic-bonding-curve-sdk": "1.5.13",
+    "@solana/web3.js": "1.99.0",
+    "@switchboard-xyz/on-demand": "3.10.6"
+  }
+}

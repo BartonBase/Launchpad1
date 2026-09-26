@@ -157,7 +157,10 @@ fn register_rejects_config_without_our_buffer_or_with_burn_or_low_threshold() {
 #[test]
 fn register_rejects_config_not_on_platform_allowlist() {
     let (mut env, _) = setup_dbc_closed(100);
-    assert_eq!(hybrid_launch::APPROVED_DBC_CONFIGS, &[DBC_DEVNET_CONFIG.parse::<Pubkey>().unwrap()]);
+    assert_eq!(
+        hybrid_launch::APPROVED_DBC_CONFIGS,
+        &[DBC_DEVNET_CONFIG.parse::<Pubkey>().unwrap(), DBC_PLATFORM_DEVNET_CONFIG.parse::<Pubkey>().unwrap()]
+    );
     // Byte-for-byte the approved (valid) config, but at an address that isn't on the list.
     let unlisted = Pubkey::new_unique();
     env.svm
@@ -316,4 +319,52 @@ fn real_devnet_migrated_pool_parses_as_graduated() {
     assert_eq!((c.token_decimal, c.token_type, c.token_update_authority), (6, 0, 1));
     let unmigrated = dbc::parse_pool(&dbc_fixture_account("9beobQVqGsYNCa66XWfP25yXw5BsW7tTUaPoQm1cfy35").data).unwrap();
     assert!(!unmigrated.graduated());
+}
+
+/// The live platform devnet config (created with Meteora's DBC SDK), byte-for-byte from devnet, at its
+/// real address, with the real DBC program creating the pool.
+fn platform_config_pool(env: &mut Env, threshold: Option<u64>) -> (Keypair, Keypair, DbcIds) {
+    let key: Pubkey = DBC_PLATFORM_DEVNET_CONFIG.parse().unwrap();
+    let mut a = dbc_fixture_account(DBC_PLATFORM_DEVNET_CONFIG);
+    if let Some(t) = threshold {
+        a.data[dbc::CFG_OFF_MIGRATION_QUOTE_THRESHOLD..dbc::CFG_OFF_MIGRATION_QUOTE_THRESHOLD + 8].copy_from_slice(&t.to_le_bytes());
+    }
+    env.svm.set_account(key, a).unwrap();
+    let creator = Keypair::new();
+    env.svm.airdrop(&creator.pubkey(), 100_000_000_000).unwrap();
+    let mint = Keypair::new();
+    let d = env.dbc_create_pool(key, &creator, &mint).expect("real DBC creates a pool on the platform config");
+    (creator, mint, d)
+}
+
+#[test]
+fn platform_devnet_config_fields_match_every_register_check() {
+    let c = dbc::parse_config(&dbc_fixture_account(DBC_PLATFORM_DEVNET_CONFIG).data).expect("PoolConfig");
+    assert_eq!(c.leftover_receiver, buffer_authority());
+    assert_eq!(c.quote_mint, dbc::WRAPPED_SOL_MINT);
+    assert_eq!((c.token_type, c.token_decimal, c.token_update_authority), (dbc::DBC_TOKEN_TYPE_SPL, 6, dbc::DBC_TOKEN_AUTHORITY_IMMUTABLE));
+    assert!(c.fixed_token_supply);
+    assert_eq!((c.pre_migration_token_supply, c.post_migration_token_supply), (1_000_000_000_000_000, 1_000_000_000_000_000));
+    assert_eq!(c.migration_quote_threshold, 100_000_000, "0.1 SOL: graduates on faucet SOL");
+}
+
+#[test]
+fn platform_devnet_config_is_below_the_default_10_sol_floor() {
+    // Default (non devnet-e2e) build: the 0.1 SOL threshold is refused, so only the devnet-e2e build
+    // can register against it.
+    let (mut env, _) = setup_dbc_closed(100);
+    let (creator, mint, d) = platform_config_pool(&mut env, None);
+    let ix = env.register_dbc_ix(creator.pubkey(), mint.pubkey(), &d, RATIO_WHOLE, 100);
+    launch_err(env.send(&[ix], &[&creator]), LaunchError::GraduationThresholdOutOfRange);
+}
+
+#[test]
+fn platform_devnet_config_registers_when_the_threshold_meets_the_floor() {
+    // Same live bytes with only the threshold raised to the default floor: every other check passes.
+    let (mut env, _) = setup_dbc_closed(100);
+    let (creator, mint, d) = platform_config_pool(&mut env, Some(hybrid_launch::MIN_GRADUATION_THRESHOLD_LAMPORTS));
+    let ix = env.register_dbc_ix(creator.pubkey(), mint.pubkey(), &d, RATIO_WHOLE, 100);
+    env.send(&[ix], &[&creator]).expect("platform devnet config registers");
+    let lc = env.svm.get_account(&pda(&[b"launch_config", mint.pubkey().as_ref()], &hybrid_launch::ID)).expect("LaunchConfig");
+    assert_eq!(lc.owner, hybrid_launch::ID);
 }

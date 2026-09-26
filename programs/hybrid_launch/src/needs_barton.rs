@@ -113,8 +113,17 @@ pub const MAX_GRADUATION_SLICE_PCT: u8 = 10;
 #[constant]
 pub const DEFAULT_GRADUATION_THRESHOLD_LAMPORTS: u64 = 85_000_000_000_u64;
 /// Bounds: >= 10 SOL (Meteora keeper auto-migration floor); <= 100,000 SOL (sanity cap).
+#[cfg(not(feature = "devnet-e2e"))]
 #[constant]
 pub const MIN_GRADUATION_THRESHOLD_LAMPORTS: u64 = 10_000_000_000_u64;
+/// DEVNET E2E BUILD ONLY (`--features devnet-e2e`, built by scripts/build-devnet-e2e.sh into its own
+/// target dir, never into target/deploy): 0.1 SOL, so a real devnet DBC curve can graduate on
+/// faucet SOL. It matches the platform devnet config below (migration_quote_threshold 0.1 SOL).
+/// The mainnet build refuses to compile with this feature.
+#[cfg(feature = "devnet-e2e")]
+pub const MIN_GRADUATION_THRESHOLD_LAMPORTS: u64 = 100_000_000_u64;
+#[cfg(all(feature = "devnet-e2e", feature = "mainnet"))]
+compile_error!("hybrid_launch: the devnet-e2e feature (0.1 SOL graduation floor) must never be built for mainnet");
 #[constant]
 pub const MAX_GRADUATION_THRESHOLD_LAMPORTS: u64 = 100_000_000_000_000_u64;
 
@@ -127,11 +136,18 @@ pub const MAX_GRADUATION_THRESHOLD_LAMPORTS: u64 = 100_000_000_000_000_u64;
 // 1B supply, pre == post, Immutable, SPL, wSOL, decimals, threshold bounds).
 // ---------------------------------------------------------------------------------------------
 
-/// Devnet/localnet: the real devnet config used as the test template (fixtures/dbc).
-/// NOTE: on devnet its `leftover_receiver` is NOT our buffer PDA, so a real devnet registration
-/// against it would still be rejected; a platform-owned devnet config naming the buffer is needed.
+/// Devnet/localnet:
+/// - `5L1MfYm4…`: a third-party devnet config used as the test template (fixtures/dbc). Its
+///   `leftover_receiver` is NOT our buffer PDA, so a real registration against it is always rejected.
+/// - `DuQYHUCT…`: the PLATFORM devnet config (created 2026-09-25 with Meteora's DBC SDK; fee claimer =
+///   a throwaway platform key). SOL quote, SPL, 6 decimals, fixed 1B supply (pre == post, no burn),
+///   Immutable, leftover_receiver = our buffer PDA (dbc.rs), migration_quote_threshold 0.1 SOL
+///   (registers only on the `devnet-e2e` build; the default floor is 10 SOL), DAMM v2 migration.
 #[cfg(not(feature = "mainnet"))]
-pub const APPROVED_DBC_CONFIGS: &[Pubkey] = &[pubkey!("5L1MfYm4yqPySiVddKugruYoGyN6an6viSkHzL7MK1Y")];
+pub const APPROVED_DBC_CONFIGS: &[Pubkey] = &[
+    pubkey!("5L1MfYm4yqPySiVddKugruYoGyN6an6viSkHzL7MK1Y"),
+    pubkey!("DuQYHUCToW6uHkWngXFiU4uGVSjcVKKCTJwViEb87Em9"),
+];
 
 /// NEEDS BARTON: the platform's mainnet DBC config key(s). Empty => no mainnet DBC launch can register;
 /// a mainnet build refuses to compile until at least one is set.

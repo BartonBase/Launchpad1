@@ -34,10 +34,32 @@ Updated 2026-09-25 (MT). Branch `wip/hybrid-vault`, mirrored to `onchain/hybrid-
     on a native launch fails closed (6037). Figures and tx sigs: DECISIONS CD Q2.
   - Deployer balance after the run: ≈ 0.296 SOL. Program rent (~4.64 SOL) can be reclaimed with `solana program close`
     if the deployment isn't needed. The e2e scripts and throwaway keys are in `/workspace/scratch/sbe2e` (not in git).
-  - **Open:** the vault's own request → reveal → settle-with-mint has not run on devnet. `request_capture` needs an
-    open vault, and `open_vault` needs a migrated DBC pool from a platform-created devnet DBC config whose
-    `leftover_receiver` is the `["dbc_buffer"]` PDA (and ≥ 10 SOL of real buys to graduate). The settle-with-mint
-    cost is the LiteSVM figure: 3,066,000 lamports spent from the 6,338,100 escrow.
+  - **Full vault e2e: prepared, waiting for SOL.**
+    - **Done:** platform devnet DBC config `DuQYHUCT…` (threshold 0.1 SOL, leftover receiver = the buffer PDA),
+      now on the devnet allowlist. The DBC-only rehearsal on devnet passed: pool, buy to the threshold, real
+      DAMM v2 migration, leftover into the buffer. See DECISIONS ADR-014.
+    - **Next:** `DEPLOYER_KEYPAIR=.keys/devnet-only-deployer.json scripts/devnet-e2e.sh`.
+      - It upgrades only `hybrid_launch`, to the `devnet-e2e` build (0.1 SOL floor, extended by 120 B), then runs
+        `scripts/devnet-e2e/e2e.cjs`. The run is resumable; its state is in `.keys/devnet-e2e/run.json`.
+      - `DRY_RUN=1` checks the build, guards and budget without sending anything.
+    - **Budget (devnet rent; measured unless marked):**
+
+      | Step | SOL |
+      |---|---|
+      | Upgrade buffer (refunded when the upgrade closes it) | 1.124 |
+      | Upgrade: extend + write fees | ~0.002 |
+      | DBC pool | 0.021 |
+      | register (est.) | ~0.004 |
+      | init_vault | 0.014 |
+      | Graduation buys | 0.1025 |
+      | DAMM v2 migration | 0.0165 |
+      | open_vault | ~0 |
+      | init_randomness | 0.006 |
+      | Capture (fee 0.01 + escrow 0.0063 + rents 0.0031, est.; rents and the unused escrow refunded at settle) | ~0.02 |
+      | Reveal and settle fees | ~0.00002 |
+
+      Peak ≈ 1.35 SOL; net ≈ 0.2 SOL. The deployer holds 0.177 SOL, so the run is **1.197 SOL short** until
+      the next faucet grant. 5 SOL is enough.
 - **Graduation (ADR-014 Limits):** the DAMM v2 migration is simulated in tests. Fields were confirmed on a real
   migrated devnet pool.
 - **Needs Barton:**

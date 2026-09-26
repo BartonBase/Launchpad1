@@ -432,6 +432,31 @@ Tests (`vault/dbc_graduation.rs`, 9 tests, real DBC program plus the real devnet
 5. ~~We don't restrict which DBC config is used.~~ **Resolved:** there's a platform allowlist,
    `APPROVED_DBC_CONFIGS` (see above).
 
+**Devnet platform config (2026-09-25):** `DuQYHUCToW6uHkWngXFiU4uGVSjcVKKCTJwViEb87Em9`, created with Meteora's
+DBC SDK 1.5.13 (`partner.createConfig`, create tx `rDct6UVK…`, rent 0.00597 SOL). The fee claimer and owner is a
+throwaway platform key.
+- **Fields:** SOL quote; SPL; 6 decimals; fixed supply 1B with pre == post (no burn at migration); Immutable;
+  250M leftover; 20% of supply at migration; 1% flat fee; DAMM v2 migration (FixedBps25); 100% of partner LP
+  permanently locked.
+- **Leftover receiver:** our `["dbc_buffer"]` PDA `3GjqFEgv…`. That PDA is global (seeds don't include the
+  mint), so a single config can name it before any mint exists. DBC's `withdraw_leftover` pays
+  ATA(PDA, mint) per pool.
+- **Threshold:** `migration_quote_threshold` is 0.1 SOL. DBC accepted every value tested down to 0.001 SOL; I
+  kept 0.1 SOL so the migrated liquidity stays well away from edge cases. Our own floor is 10 SOL, so the
+  config registers only on the `devnet-e2e` build of `hybrid_launch`. That build is a feature that lowers
+  `MIN_GRADUATION_THRESHOLD_LAMPORTS` to 0.1 SOL and fails to compile together with `mainnet`. It's built by
+  `scripts/build-devnet-e2e.sh` into `target/devnet-e2e` and never into `target/deploy`. The default and
+  mainnet builds, the IDL and QA's IDL constant checks are unchanged.
+- **Allowlist:** added to the devnet `APPROVED_DBC_CONFIGS`; the mainnet list stays empty.
+- **Tests (vault/dbc_graduation.rs, 13):** the live config fields match every register check; the default
+  build refuses its 0.1 SOL threshold; with the threshold raised to the floor, it registers.
+- **Rehearsal on devnet, DBC only, separate throwaway mint:** pool created (`461ubUs2…`, 0.0206 SOL); one buy
+  to the threshold (`5U8Csy6k…`, 0.1025 SOL including the 1% fee and ATA rent, 550M tokens received); real
+  migration to DAMM v2 (`3spwogf8…`, 0.0165 SOL); `withdraw_leftover` put 250,000,181 tokens into ATA(buffer
+  PDA). Pool `8LX1MCGR…` parses with our offsets as `is_migrated` 1, progress 3 (CreatedPool). Limit 1 above
+  is therefore now shown on devnet for the DBC side. The vault half runs after the program upgrade
+  (`scripts/devnet-e2e.sh`).
+
 ## ADR-015: No pause
 
 **Status: Accepted (Barton, 2026-09-25). Implemented.** No instruction, key or multisig action can pause or halt any

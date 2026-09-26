@@ -1118,6 +1118,8 @@ pub const DBC_ID: Pubkey = hybrid_launch::dbc::DBC_PROGRAM_ID;
 pub const TOKEN_METADATA_ID: Pubkey = anchor_lang::prelude::pubkey!("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 /// Real devnet DBC config (SOL quote, SPL, 6 decimals, fixed 1B supply with pre == post, Immutable).
 pub const DBC_DEVNET_CONFIG: &str = "5L1MfYm4yqPySiVddKugruYoGyN6an6viSkHzL7MK1Y";
+/// The platform devnet config (leftover receiver = our buffer PDA, threshold 0.1 SOL), live on devnet.
+pub const DBC_PLATFORM_DEVNET_CONFIG: &str = "DuQYHUCToW6uHkWngXFiU4uGVSjcVKKCTJwViEb87Em9";
 /// Real devnet DBC pool that has migrated (is_migrated 1, progress CreatedPool).
 pub const DBC_DEVNET_MIGRATED_POOL: &str = "DGtaRQ9EbxPT9mFYDikyWcsVVNJKoFTA4rzDk9gB4at3";
 
