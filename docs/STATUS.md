@@ -1,7 +1,7 @@
 # STATUS: Track A hybrid launch + vault (engineering handoff)
 
 Updated 2026-09-25 (MT). Branch `wip/hybrid-vault`, mirrored to `onchain/hybrid-launch`. The baseline tag
-`audit-baseline-r1` = `a1cfa8f`. Localnet/LiteSVM only; **not audited, not deployed anywhere**.
+`audit-baseline-r1` = `a1cfa8f`. **Not audited.** Deployed to **devnet only** (2026-09-25); not on mainnet.
 
 ## Done (on top of the baseline)
 - **Economics docs:** ADR-018 records QA-FEE-04 (first-mint cost comes from the escrow; M-06 holds on average). It
@@ -23,19 +23,21 @@ Updated 2026-09-25 (MT). Branch `wip/hybrid-vault`, mirrored to `onchain/hybrid-
   `hybrid-rarity-and-assignment.md`.
 
 ## Open
-- **Devnet run (M-37/M-38):**
-  - The throwaway deployer `An3ZmiB4SaA7FCJ4bpad2qDRmqhu4F9d5UqUAKHiAB5Z` has 0 SOL. Every faucet or RPC refused.
-    Barton's 2 SOL faucet request (6:36 PM MT) had not arrived by 6:42 PM MT: 0 SOL and 0 transactions on the
-    address.
-  - **Funding needed: ≈ 4.8 SOL, not 2.** Program rent is `hybrid_launch` 220,976 B = 1.1234 SOL and
-    `hybrid_vault` 691,744 B = 3.5149 SOL, plus about 0.005 SOL of write-transaction fees. The e2e run (vault
-    pool, randomness setup 0.0082, escrow, a few transactions) needs about 0.1 SOL more.
-  - **Risk:** the programs are built as SBPF v2. If devnet refuses v2 deploys, rebuild for devnet with
-    `ANCHOR_BUILD_SBF_ARCH=v1` (same program IDs).
-  - Then: `./scripts/deploy-devnet.sh`, a third-party reveal, and measuring the oracle fee and reveal cost per draw.
-    Record the results in DECISIONS CD Q2 and M-37.
-  - A devnet DBC end-to-end run also needs a platform-created devnet DBC config whose `leftover_receiver` is the
-    buffer PDA.
+- **Devnet deployment (2026-09-25, ~6:45 PM MT; M-37/M-38):**
+  - Deployed with `scripts/deploy-devnet.sh` (production allowlist, no mock `.so`). Devnet accepted SBPF v2, so no v1
+    rebuild was needed. Upgrade authority = the throwaway deployer `An3ZmiB4…` (placeholder for the Squads vault).
+    - `hybrid_launch` `9Loc4hQZJh4SuBCGPiPs1wAfwywUAM7av5upyGHfc6Q8`, deploy tx `4KzJVCFF…`
+    - `hybrid_vault` `BEfL9dccCUtgBVfLmJieeSr3ju29fpVqLM3NgttxqXqG`, deploy tx `5KEs59s5…`
+  - Real Switchboard e2e: a gateway-signed reveal was settled by a third party. Measured per draw: commit 5,000, reveal
+    10,000, oracle fee 0 (≈ 20,000 lamports with settle). A forged reveal is rejected (6033) and a replay is rejected
+    (2001). Our vault's `init_randomness` CPI into live Switchboard works, with the authority set to our PDA. `open_vault`
+    on a native launch fails closed (6037). Figures and tx sigs: DECISIONS CD Q2.
+  - Deployer balance after the run: ≈ 0.296 SOL. Program rent (~4.64 SOL) can be reclaimed with `solana program close`
+    if the deployment isn't needed. The e2e scripts and throwaway keys are in `/workspace/scratch/sbe2e` (not in git).
+  - **Open:** the vault's own request → reveal → settle-with-mint has not run on devnet. `request_capture` needs an
+    open vault, and `open_vault` needs a migrated DBC pool from a platform-created devnet DBC config whose
+    `leftover_receiver` is the `["dbc_buffer"]` PDA (and ≥ 10 SOL of real buys to graduate). The settle-with-mint
+    cost is the LiteSVM figure: 3,066,000 lamports spent from the 6,338,100 escrow.
 - **Graduation (ADR-014 Limits):** the DAMM v2 migration is simulated in tests. Fields were confirmed on a real
   migrated devnet pool.
 - **Needs Barton:**

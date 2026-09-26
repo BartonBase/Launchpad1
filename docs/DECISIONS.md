@@ -293,7 +293,7 @@ shelved/deferred. Kept for the record.
 
 ## ADR-012: VRF: Switchboard On-Demand, program-chosen oracle, heartbeat filter, bounded recommits, principal + escrow expire
 
-**Status: Accepted (engineering; Auditor A v2 M-04). Implemented on localnet (mock Switchboard). CPIs proven against the REAL Switchboard program in LiteSVM. A signed devnet reveal is blocked on devnet SOL.**
+**Status: Accepted (engineering; Auditor A v2 M-04). Implemented on localnet (mock Switchboard). CPIs proven against the REAL Switchboard program in LiteSVM. On devnet (2026-09-25): our deployed vault's `init_randomness` CPI into real Switchboard succeeded, and a gateway-signed reveal was settled by a third party (direct flow). The vault's own request/settle path isn't exercised on devnet, because it needs a graduated DBC pool.**
 
 - **Real-program proof (2026-09-25).** `switchboard-on-demand` 0.13.0 (`default-features = false, features =
   ["solana-v3"]`) compiles for SBF with Anchor 1.2. `getrandom` 0.2 is satisfied by a `custom` backend that always
@@ -317,11 +317,12 @@ shelved/deferred. Kept for the record.
   anyone can `expire_request`: it refunds the principal (tokens or the handed-in NFT) + the full mint escrow (ADR-016),
   **never the tier fee**. Batch expire: `expire_requests(count)` expires up to `MAX_EXPIRE_PER_CALL` = 7 consecutive heads in one
   instruction, all-or-nothing (bounded by the 64-account lock limit; K > 3 needs v0 + ALT).
-- **VRF cost (M-37): the requester pays at cost, separately (Auditor A decision).** Measured via RPC 2026-09-25:
-  mainnet queue reward = 5 lamports, 7 oracles; devnet reward 0, 2 oracles. The randomness account is 480 bytes
-  (rent 4,231,680 lamports, reusable; measured against the real devnet program, see CD Q2). Estimated per request: reveal ~10k lamports + settle 5k + priority ≈ 0.00002 SOL,
-  far below the 0.002 minimum tier. **A real devnet measurement is still blocked** by the Switchboard crate's SBF build
-  issue (getrandom); these are not faked measurements.
+- **VRF cost (M-37): the requester pays at cost, separately (Auditor A decision).** **Measured on devnet 2026-09-25
+  (real Switchboard On-Demand `Aio4gaXj…`, default devnet queue `EYiAmGSd…`, gateway-signed reveal settled by a third
+  party; details in CD Q2):** commit 5,000 lamports (1 signature), reveal 10,000 lamports (2 signatures: the third-party
+  fee payer plus the randomness authority), **oracle fee 0 lamports** (no SOL or wSOL moved in the reveal). Mainnet queue
+  reward read via RPC = 5 lamports (not exercised). Per draw ≈ 15,000 lamports + settle 5,000 ≈ 0.00002 SOL before
+  priority fees, far below the 0.002 minimum tier. The randomness account (480 bytes) is a one-off, reusable setup.
 
 ## ADR-013: Flat tiered SOL fee on capture/re-roll; release free (supersedes the burn and the 2% token fee)
 
@@ -543,22 +544,38 @@ lamports (0.0063381 SOL)** in its own escrow account, `["mint_escrow", vault, se
 
 | Item | Amount | Who pays | Refunded? | Status |
 |---|---|---|---|---|
-| Switchboard oracle fee | ≈ 5 lamports (the mainnet queue reward read from queue data; devnet 0) | the requester, at cost, separately from the tier fee (Auditor A decision, ADR-012) | no | **ESTIMATE, unmeasured** |
-| Reveal tx (submits the oracle's signed value) | 5,000 lamports base + priority fee | whoever cranks it: the requester's client, or any third party | no | base fee exact; priority varies |
+| Switchboard oracle fee | **0 lamports on devnet** (measured: the gateway-signed reveal moved no SOL and no wSOL; the reward escrow stayed at 0). Mainnet queue reward read via RPC: 5 lamports | the requester, at cost, separately from the tier fee (Auditor A decision, ADR-012) | no | **measured on devnet** (mainnet 5 lamports read, not exercised) |
+| Commit tx (arms the randomness for this draw) | **5,000** lamports (1 signature, 15,081 CU) | requester | no | **measured on devnet** |
+| Reveal tx (submits the oracle's signed value) | **10,000** lamports when a third party pays (2 signatures: fee payer + randomness authority, 49,675 CU); 5,000 if the payer is the authority. Plus any priority fee | whoever cranks it: the requester's client, or any third party | no | **measured on devnet** |
 | Settle tx | 5,000 lamports base + priority | the settler (anyone) | no | exact base; priority varies |
 | Request tx signature | 5,000 lamports base + priority (paid by the requester anyway) | requester | no | exact base |
-| One-off `init_randomness` setup (measured against the **real** Switchboard devnet program in LiteSVM, test `real_switchboard_init_cost_breakdown`) | **8,229,760 lamports total** = randomness account 480 bytes, rent 4,231,680 + wSOL reward-escrow ATA 2,039,280 + address lookup table rent and tx fees 1,958,800 | whoever runs `init_randomness` | **not refunded, but reusable**: one account serves any number of sequential requests (each commit re-arms it; `rand_lock` stops concurrent use). The vault has no close instruction today, so these lamports stay locked | measured |
+| One-off `init_randomness` setup | **8,229,760 lamports at mainnet rent** (LiteSVM against the real program, test `real_switchboard_init_cost_breakdown`) = randomness account 480 bytes, rent 4,231,680 + wSOL reward-escrow ATA 2,039,280 + address lookup table 1,948,800 + tx fees 10,000. **On devnet: 6,009,480** = 3,088,640 + 1,488,440 + 1,422,400 + 10,000 fee, the same three accounts at devnet's lower rent rate (×0.7299; for example a 165-byte token account costs 1,488,440 there). Measured twice on devnet: directly, and through our vault's permissionless `init_randomness` CPI | whoever runs `init_randomness` | **not refunded, but reusable**: one account serves any number of sequential requests (each commit re-arms it; `rand_lock` stops concurrent use). The vault has no close instruction today, so these lamports stay locked | measured (LiteSVM and devnet) |
 | Randomness lock + request rent | 1,231,920 + 3,006,720 | requester | **yes**, at settle/expire | measured |
 
-**Per-request marginal randomness cost ≈ 5 (oracle, ESTIMATE) + 5,000 (reveal) + 5,000 (settle) ≈ 10,005 lamports ≈
-0.00001 SOL, or ~0.00002 SOL with modest priority fees (ESTIMATE).** That's about **1% of the lowest 0.002 SOL tier**, so
-it fits comfortably; the tier fee isn't used to fund it (the requester pays randomness at cost, separately). The
-one-off ≈0.0082 SOL randomness setup is amortised over every request that reuses the account. (An earlier draft said
-408 bytes / 3,730,560: that was the mock's size. The real program's account is 480 bytes, and init also creates a wSOL
-escrow and a lookup table.) The real Switchboard program accepts our hand-written init/commit/recommit CPIs and rejects
-a forged reveal with `InvalidSecpSignature` (LiteSVM, dumped devnet program, `vault/real_switchboard.rs`). **The real
-oracle fee and the reveal cost still need a devnet run** with a gateway-signed reveal. That run is blocked on devnet SOL:
-the faucet rate-limited the throwaway deployer.
+**Per-request marginal randomness cost, measured on devnet 2026-09-25: oracle 0 + commit 5,000 + third-party reveal
+10,000 = 15,000 lamports**, plus settle 5,000 (base fee) = **≈ 20,000 lamports ≈ 0.00002 SOL** before priority fees.
+With mainnet's 5-lamport queue reward it's 20,005. That's about **1% of the lowest 0.002 SOL tier**, so it fits
+comfortably; the tier fee isn't used to fund it (the requester pays randomness at cost, separately). The one-off
+randomness setup (≈ 0.0082 SOL at mainnet rent, 0.0060 on devnet) is amortised over every request that reuses the
+account. (An earlier draft said 408 bytes / 3,730,560: that was the mock's size.)
+
+Devnet evidence (throwaway keys; the requester and the third-party settler are different keypairs):
+
+- Direct Switchboard flow: `randomness_init` `5yvm5QeS…`, commit `2uwwVLZk…` (requester `5JkYLKC5…`), gateway-signed
+  reveal `2DWhZjXY…` paid and submitted by the third party `8Eo6ioy5…`. Randomness account `5DZo4yC9…`, revealed at slot
+  504225284.
+- A forged reveal (oracle signature bytes tampered) was rejected in simulation with `SecpRecoverFailure` (6033). Replaying
+  the already-used reveal was rejected with `ConstraintHasOne` (2001).
+- Our deployed programs (`hybrid_launch` `9Loc4hQZ…`, `hybrid_vault` `BEfL9dcc…`): native `launch` `2fgof3f7…`,
+  `init_vault` (N = 100, Core collection) `s5gotumM…`, and the vault's permissionless `init_randomness` CPI into real
+  Switchboard, paid by the third party, `4HTiwsxB…`. The created randomness account `bPfZTsW1…` is owned by Switchboard
+  with authority = our `randomness_authority` PDA. `open_vault` on that native launch fails closed with
+  `GraduationCheckUnavailable` (6037, simulated).
+- **Not measured on devnet: the vault's own request → reveal → settle-with-mint.** `request_capture` needs an open vault.
+  `open_vault` needs a migrated DBC pool registered under an allowlisted config whose leftover receiver is our
+  `["dbc_buffer"]` PDA (threshold ≥ 10 SOL of real buys). The settle-with-mint figure is therefore still the LiteSVM
+  measurement against the real mpl_core program (CD Q1): **3,066,000 lamports** for a 97-byte asset (rent 1,566,000 +
+  Core fee 1,500,000), with 3,272,100 of the 6,338,100 escrow refunded. Settle tx base fee 5,000.
 
 ---
 
