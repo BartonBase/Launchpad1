@@ -48,6 +48,8 @@ mod tests {
             graduation_threshold_lamports: 15,
             graduation_slice_pct: 16,
             launched_at: 17,
+            dbc_config: Pubkey::new_from_array([8; 32]),
+            dbc_pool: Pubkey::new_from_array([9; 32]),
         }
     }
 

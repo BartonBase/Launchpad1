@@ -18,6 +18,7 @@
 //! program-derived `launch_vault` PDA that no instruction can sign for.
 
 pub mod constants;
+pub mod dbc;
 pub mod error;
 pub mod instructions;
 pub mod needs_barton;
@@ -43,5 +44,11 @@ pub mod hybrid_launch {
     /// the immutable LaunchConfig (see `instructions::launch`).
     pub fn launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
         instructions::launch::handle_launch(ctx, params)
+    }
+
+    /// Register a Meteora DBC-created token as a hybrid launch (ADR-014). Verifies DBC's pool, config
+    /// and mint, and creates the locked buffer ATA. Signed by the DBC pool creator, before graduation.
+    pub fn register_dbc_launch(ctx: Context<RegisterDbcLaunch>, params: RegisterDbcParams) -> Result<()> {
+        instructions::register_dbc::handle_register_dbc_launch(ctx, params)
     }
 }

@@ -24,6 +24,10 @@ path = "vault/vault.rs"
 name = "vault_real_switchboard"
 path = "vault/real_switchboard.rs"
 
+[[test]]
+name = "vault_dbc_graduation"
+path = "vault/dbc_graduation.rs"
+
 # QA-owned test files (contents not edited by the engineer).
 [[test]]
 name = "qa_launch"

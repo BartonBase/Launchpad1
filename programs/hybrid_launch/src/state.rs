@@ -43,4 +43,10 @@ pub struct LaunchConfig {
     pub graduation_threshold_lamports: u64,
     pub graduation_slice_pct: u8,
     pub launched_at: i64,
+    // ---- v4 (appended; ADR-014) ----
+    /// DBC config of the curve (`register_dbc_launch`); default for native `launch` (never opens).
+    pub dbc_config: Pubkey,
+    /// DBC virtual pool of the curve. `hybrid_vault::graduation::verify` only accepts this pool, and
+    /// only once DBC reports it migrated. Default for native `launch` => the vault can never open.
+    pub dbc_pool: Pubkey,
 }

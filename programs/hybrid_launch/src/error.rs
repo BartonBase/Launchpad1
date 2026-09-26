@@ -41,6 +41,16 @@ pub enum LaunchError {
     MintCostConstantStale,
     #[msg("fee recipient must be PLATFORM_FEE_RECIPIENT, system-owned, data-less and not executable")]
     FeeRecipientInvalid,
+    #[msg("not a DBC pool/config account (owner, length or discriminator), or pool/config/mint don't match")]
+    DbcAccountInvalid,
+    #[msg("DBC config rejected: needs SOL quote, SPL token type, fixed 1B supply with no burn, immutable authority, our buffer as leftover receiver, and the launch's decimals and threshold")]
+    DbcConfigRejected,
+    #[msg("DBC mint rejected: needs classic Token, mint + freeze authority None, supply exactly 1B, the launch's decimals")]
+    DbcMintRejected,
+    #[msg("the signer must be the DBC pool's creator")]
+    DbcCreatorMismatch,
+    #[msg("the DBC pool has already migrated; register before graduation")]
+    DbcAlreadyGraduated,
 }
 
 #[cfg(test)]
@@ -68,6 +78,11 @@ mod tests {
             (LaunchError::ReservedGraduationUnfundable, 6015),
             (LaunchError::MintCostConstantStale, 6016),
             (LaunchError::FeeRecipientInvalid, 6017),
+            (LaunchError::DbcAccountInvalid, 6018),
+            (LaunchError::DbcConfigRejected, 6019),
+            (LaunchError::DbcMintRejected, 6020),
+            (LaunchError::DbcCreatorMismatch, 6021),
+            (LaunchError::DbcAlreadyGraduated, 6022),
         ];
         for (e, code) in pinned {
             assert_eq!(u32::from(*e), *code, "{e:?}");

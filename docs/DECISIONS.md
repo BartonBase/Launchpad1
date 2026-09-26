@@ -318,13 +318,80 @@ shelved/deferred. Kept for the record.
 
 ## ADR-014: Graduation via Meteora DBC; 25% buffer in a locked PDA
 
-**Status: Accepted (Barton, 2026-09-25). NOT BUILT.** The curve is Meteora DBC (graduation-design §3). The release vault
-opens only after on-chain verification of graduation. On localnet it's behind the `test-mock-graduation` feature, and
-the production build carries no mock (checked). **The DBC verifier and the 25% buffer PDA are not implemented;** a test
-that the buffer can't be withdrawn is blocked on that.
-- **DBC mint (M-03/M-10/M-13), open:** either `hybrid_launch` verifies the mint DBC created, or DBC is given a
-  PDA-signed mint via CPI. Research item: whether `initialize_virtual_pool_with_spl_token` requires `base_mint` as a
-  keypair signer (it appears so in DBC 0.2.1), which forces the first option.
+**Status: Accepted (Barton, 2026-09-25). IMPLEMENTED on localnet against the REAL DBC program (mainnet dump) on
+LiteSVM. The DAMM v2 migration step is simulated (see Limits).** The curve is Meteora DBC (graduation-design §3).
+
+**Research: who creates the base mint?** In DBC 0.2.1, `initialize_virtual_pool_with_spl_token` declares `base_mint`
+as `#[account(init, signer, mint::authority = pool_authority, …)]`. So the mint address **must sign** that
+transaction.
+- A plain keypair works; that's the SDK flow.
+- A **PDA also works**, but only if our own program CPIs into DBC and signs for the PDA with `invoke_signed`. The
+  signer privilege carries into DBC's nested `create_account`.
+- A non-signing address can never be the base mint.
+
+DBC then mints `pre_migration_token_supply` into its base vault (owner = DBC `pool_authority`, a PDA) and revokes
+the mint authority in the same instruction. It never sets a freeze authority. The test
+`research_dbc_mint_is_created_by_dbc_with_authorities_revoked` confirms this against the real program.
+
+**Decision: register and verify, don't wrap.** Wrapping DBC's create in our CPI would couple us to DBC's full
+account list and CU budget, and it buys nothing: whatever DBC creates, we verify on-chain. So the creator creates
+the pool with DBC's SDK (keypair mint), then calls `hybrid_launch::register_dbc_launch(ratio, collection_size)`.
+- **Pool checks:** owner DBC, VirtualPool discriminator and length 424, `base_mint == mint`, `config == dbc_config`,
+  SPL pool type, **signer == pool.creator** (nobody can register someone else's token with other parameters), not
+  yet migrated.
+- **Config checks:** owner DBC, PoolConfig discriminator and length 1048, quote = wSOL, SPL token type,
+  `token_decimal` == the mint's decimals, **fixed supply with pre == post == 1B × 10^dec** (DBC burns nothing at
+  migration, so supply stays exactly 1B), `token_update_authority == Immutable`, **`leftover_receiver` == the
+  `["dbc_buffer"]` PDA**, and `migration_quote_threshold` inside our 10–100,000 SOL bounds (it's recorded as the
+  graduation threshold).
+- **Mint checks:** classic Token program (typed `Account<Mint>`; Token-2022 is rejected), mint authority None,
+  freeze authority None, supply exactly 1B × 10^dec. Ratio and collection size are validated as for `launch`.
+- **Records:** LaunchConfig **v4**, which appends `dbc_config` and `dbc_pool`. The frozen exit-path prefix (ADR-017)
+  is unchanged. `launch_destination` = DBC's base vault and `launch_vault` = DBC's pool authority. `init` means
+  one registration per mint.
+- **Buffer ATA:** created idempotently as ATA(buffer PDA, mint).
+- Offsets come from DBC 0.2.1 source (`hybrid_launch/src/dbc.rs`), were checked against real devnet accounts, and
+  are pinned by the unit test `layout_is_consistent_with_dbc_0_2_1`.
+
+**Graduation check** (`hybrid_vault::graduation::verify`, compiled into every build):
+- The proof must be the recorded `dbc_pool`, owned by DBC with the right discriminator and length.
+- It must name this mint and config.
+- It must have `is_migrated == 1` **and** `migration_progress == CreatedPool`. DBC sets both in the instruction that
+  creates the DAMM pool.
+
+A native `launch` records no pool, so its vault can never open in production. The TEST-ONLY mock is additionally
+accepted only under `test-mock-graduation`, which is still barred from mainnet builds by a compile_error and from
+devnet deploys by the marker and allowlist guards.
+
+**25% buffer (T-GRAD-03).** DBC requires `pre_supply ≥ swap_base × 1.25 + migration_base`. After migration, DBC's
+**permissionless** `withdraw_leftover` (fixed-supply configs only; it requires CreatedPool and pays once) moves the
+unsold remainder to ATA(`leftover_receiver`, mint). Because every accepted config names our `["dbc_buffer"]` PDA and
+hybrid_launch has **no instruction that signs with that seed**, those tokens are locked forever. They're still
+counted in the 1B, since nothing burns.
+
+Tests (`vault/dbc_graduation.rs`, 9 tests, real DBC program plus the real devnet config as a template):
+- the real DBC `withdraw_leftover` fills the buffer;
+- DBC refuses a different receiver;
+- transfer, approve, burn, set_authority and close by a thief or by the creator all fail;
+- DBC won't pay the leftover twice;
+- supply stays at 1B;
+- a source scan pins the seed to 3 files, none of them signing;
+- registration rejects a wrong signer, a fake-owner pool, another mint's pool, a bad ratio, a repeat registration,
+  and patched configs (another leftover receiver, post < pre, creator-held metadata authority, threshold < 10 SOL);
+- `open_vault` rejects the pool before migration, another migrated pool, a fake-owner copy, and `is_migrated`
+  without CreatedPool, then opens and serves a capture.
+
+**Limits:**
+1. **Migration is simulated.** The two pool bytes are flipped, because a real DAMM v2 migration (swaps to the
+   threshold plus the DAMM v2 program and accounts) isn't loaded. A real migrated devnet pool
+   (`DGtaRQ9E…`) is parsed as graduated to confirm the fields.
+2. In the leftover test, nothing was sold, so the whole 1B lands in the buffer. That shows the path, not a
+   realistic amount.
+3. The DBC offsets are pinned to 0.2.1. A DBC upgrade that changed its layout would make `load_pool` fail closed
+   (discriminator and length).
+4. `hybrid_launch` now has two instructions, so three QA IDL guards in `qa_launch` need QA's review (audit-fixes).
+5. We don't restrict which DBC config or partner is used. Any config that meets the checks is accepted, including
+   its fee settings. Barton may want a platform-config allowlist.
 
 ## ADR-015: No pause
 

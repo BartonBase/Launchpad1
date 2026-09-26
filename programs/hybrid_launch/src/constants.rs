@@ -46,7 +46,13 @@ pub use crate::needs_barton::*;
 
 /// LaunchConfig layout version.
 /// v3 = flat SOL fee model (Barton 2026-09-25 4:49 PM MT); v2 (2% token fee) never shipped.
-pub const LAUNCH_CONFIG_VERSION: u8 = 3;
+/// v4 appends `dbc_config` + `dbc_pool` (ADR-014). The frozen exit-path prefix is unchanged.
+pub const LAUNCH_CONFIG_VERSION: u8 = 4;
+
+/// Seeds of the single buffer-authority PDA named as every DBC config's `leftover_receiver`.
+/// NO instruction signs with it (T-GRAD-03).
+#[constant]
+pub const DBC_BUFFER_SEED: &[u8] = b"dbc_buffer";
 
 const _: () = {
     // FEE_TIERS covers exactly ALLOWED_RATIOS, in order.

@@ -905,7 +905,7 @@ impl Env {
     /// hybrid_launch::launch + init_vault for a fresh mint, in this SVM. Returns its ids.
     pub fn launch_and_init(&mut self, n: u32) -> Result<Ids, String> {
         let mint = Keypair::new();
-        let mut ids = Ids::for_mint(mint.pubkey());
+        let ids = Ids::for_mint(mint.pubkey());
         let launch_ix = Instruction::new_with_bytes(
             hybrid_launch::ID,
             &hybrid_launch::instruction::Launch { params: launch_params(n as u64) }.data(),
@@ -925,7 +925,12 @@ impl Env {
         );
         let creator = self.creator.insecure_clone();
         self.send(&[launch_ix], &[&creator, &mint])?;
+        self.init_vault_for(ids, n)
+    }
 
+    /// Pool account + init_vault for an existing LaunchConfig (native `launch` or `register_dbc_launch`).
+    pub fn init_vault_for(&mut self, mut ids: Ids, n: u32) -> Result<Ids, String> {
+        let creator = self.creator.insecure_clone();
         let pool_kp = Keypair::new();
         ids.pool = pool_kp.pubkey();
         // The committed leaves bind the LaunchConfig key, so they are built per launch.
@@ -1100,4 +1105,221 @@ pub fn bincode_len(tx: &VersionedTransaction) -> usize {
     let n = tx.signatures.len();
     let short_vec = if n < 0x80 { 1 } else { 2 };
     short_vec + 64 * n + tx.message.serialize().len()
+}
+
+
+// ---------------------------------------------------------------------------------------------------
+// Meteora DBC (ADR-014): the REAL DBC program (mainnet dump) + Token Metadata on LiteSVM, with a real
+// devnet PoolConfig as the template (fixtures/dbc). DBC itself creates the pool, the mint and the
+// base vault; hybrid_launch::register_dbc_launch verifies them.
+// ---------------------------------------------------------------------------------------------------
+
+pub const DBC_ID: Pubkey = hybrid_launch::dbc::DBC_PROGRAM_ID;
+pub const TOKEN_METADATA_ID: Pubkey = anchor_lang::prelude::pubkey!("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
+/// Real devnet DBC config (SOL quote, SPL, 6 decimals, fixed 1B supply with pre == post, Immutable).
+pub const DBC_DEVNET_CONFIG: &str = "5L1MfYm4yqPySiVddKugruYoGyN6an6viSkHzL7MK1Y";
+/// Real devnet DBC pool that has migrated (is_migrated 1, progress CreatedPool).
+pub const DBC_DEVNET_MIGRATED_POOL: &str = "DGtaRQ9EbxPT9mFYDikyWcsVVNJKoFTA4rzDk9gB4at3";
+
+#[derive(Clone, Copy, Debug)]
+pub struct DbcIds {
+    pub config: Pubkey,
+    pub pool: Pubkey,
+    pub base_vault: Pubkey,
+    pub quote_vault: Pubkey,
+    pub metadata: Pubkey,
+    pub buffer_authority: Pubkey,
+    pub buffer_tokens: Pubkey,
+}
+
+pub fn dbc_fixture_account(key: &str) -> Account {
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/dbc");
+    let j: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(format!("{dir}/devnet_samples.json")).unwrap()).unwrap();
+    let a = &j[key];
+    Account {
+        lamports: a["lamports"].as_u64().unwrap(),
+        data: b64decode(a["data"].as_str().unwrap()),
+        owner: a["owner"].as_str().unwrap().parse().unwrap(),
+        executable: false,
+        rent_epoch: 0,
+    }
+}
+
+/// The devnet config with `leftover_receiver` and the migration threshold patched. Everything else
+/// (fees, curve, fixed supply, decimals, token type, authority option) is the real devnet config.
+pub fn dbc_config_account(leftover_receiver: Pubkey, threshold: u64) -> Account {
+    use hybrid_launch::dbc::*;
+    let mut a = dbc_fixture_account(DBC_DEVNET_CONFIG);
+    a.data[CFG_OFF_LEFTOVER_RECEIVER..CFG_OFF_LEFTOVER_RECEIVER + 32].copy_from_slice(leftover_receiver.as_ref());
+    a.data[CFG_OFF_MIGRATION_QUOTE_THRESHOLD..CFG_OFF_MIGRATION_QUOTE_THRESHOLD + 8].copy_from_slice(&threshold.to_le_bytes());
+    a
+}
+
+pub fn buffer_authority() -> Pubkey {
+    hybrid_launch::dbc::buffer_authority().0
+}
+
+/// LiteSVM (as `new_svm`) plus the real DBC + Token Metadata programs and a wSOL mint.
+pub fn new_svm_dbc() -> LiteSVM {
+    use anchor_lang::solana_program::program_pack::Pack;
+    let mut svm = new_svm();
+    svm.add_program(DBC_ID, include_bytes!("../fixtures/dbc/dbc_mainnet.so")).unwrap();
+    svm.add_program(TOKEN_METADATA_ID, include_bytes!("../fixtures/dbc/token_metadata_mainnet.so")).unwrap();
+    let mut data = vec![0u8; spl_token::state::Mint::LEN];
+    spl_token::state::Mint { mint_authority: None.into(), supply: 0, decimals: 9, is_initialized: true, freeze_authority: None.into() }
+        .pack_into_slice(&mut data);
+    let lamports = svm.minimum_balance_for_rent_exemption(data.len());
+    svm.set_account(WRAPPED_SOL_MINT, Account { lamports, data, owner: SPL_TOKEN_ID, executable: false, rent_epoch: 0 }).unwrap();
+    svm
+}
+
+impl Env {
+    /// Install a DBC config (at `config`) and have the REAL DBC program create a pool + mint for `creator`.
+    pub fn dbc_create_pool(&mut self, config: Pubkey, creator: &Keypair, mint: &Keypair) -> Result<DbcIds, String> {
+        let base = mint.pubkey();
+        let (hi, lo) = if base > WRAPPED_SOL_MINT { (base, WRAPPED_SOL_MINT) } else { (WRAPPED_SOL_MINT, base) };
+        let pool = pda(&[b"pool", config.as_ref(), hi.as_ref(), lo.as_ref()], &DBC_ID);
+        let base_vault = pda(&[b"token_vault", base.as_ref(), pool.as_ref()], &DBC_ID);
+        let quote_vault = pda(&[b"token_vault", WRAPPED_SOL_MINT.as_ref(), pool.as_ref()], &DBC_ID);
+        let metadata = pda(&[b"metadata", TOKEN_METADATA_ID.as_ref(), base.as_ref()], &TOKEN_METADATA_ID);
+        let event_authority = pda(&[b"__event_authority"], &DBC_ID);
+        let mut data = vec![140, 85, 215, 176, 102, 54, 104, 79];
+        for s in ["Hybrid Test", "HYB", "ipfs://bafytoken"] {
+            data.extend_from_slice(&(s.len() as u32).to_le_bytes());
+            data.extend_from_slice(s.as_bytes());
+        }
+        let m = |k: Pubkey, w: bool, sig: bool| if w { AccountMeta::new(k, sig) } else { AccountMeta::new_readonly(k, sig) };
+        let ix = Instruction {
+            program_id: DBC_ID,
+            accounts: vec![
+                m(config, false, false),
+                m(hybrid_launch::dbc::DBC_POOL_AUTHORITY, false, false),
+                m(creator.pubkey(), false, true),
+                m(base, true, true),
+                m(WRAPPED_SOL_MINT, false, false),
+                m(pool, true, false),
+                m(base_vault, true, false),
+                m(quote_vault, true, false),
+                m(metadata, true, false),
+                m(TOKEN_METADATA_ID, false, false),
+                m(creator.pubkey(), true, true),
+                m(SPL_TOKEN_ID, false, false),
+                m(SPL_TOKEN_ID, false, false),
+                m(system_program::ID, false, false),
+                m(event_authority, false, false),
+                m(DBC_ID, false, false),
+            ],
+            data,
+        };
+        self.send_max_cu(&[ix], &[creator, mint])?;
+        let buffer_authority = buffer_authority();
+        Ok(DbcIds {
+            config,
+            pool,
+            base_vault,
+            quote_vault,
+            metadata,
+            buffer_authority,
+            buffer_tokens: get_associated_token_address(&buffer_authority, &base),
+        })
+    }
+
+    pub fn register_dbc_ix(&self, signer: Pubkey, mint: Pubkey, d: &DbcIds, ratio_whole_tokens: u64, collection_size: u64) -> Instruction {
+        Instruction::new_with_bytes(
+            hybrid_launch::ID,
+            &hybrid_launch::instruction::RegisterDbcLaunch {
+                params: hybrid_launch::RegisterDbcParams { ratio_whole_tokens, collection_size },
+            }
+            .data(),
+            hybrid_launch::accounts::RegisterDbcLaunch {
+                creator: signer,
+                mint,
+                dbc_config: d.config,
+                dbc_pool: d.pool,
+                launch_config: pda(&[b"launch_config", mint.as_ref()], &hybrid_launch::ID),
+                buffer_authority: d.buffer_authority,
+                buffer_tokens: d.buffer_tokens,
+                fee_recipient: PLATFORM_FEE_RECIPIENT,
+                token_program: SPL_TOKEN_ID,
+                associated_token_program: ATA_PROGRAM_ID,
+                system_program: system_program::ID,
+            }
+            .to_account_metas(None),
+        )
+    }
+
+    /// SIMULATED graduation: flip the pool to the state DBC's DAMM v2 migration leaves it in
+    /// (`is_migrated = 1`, `migration_progress = CreatedPool`). A real migration needs swaps up to the
+    /// threshold plus the DAMM v2 program and its accounts, which these tests don't load.
+    pub fn dbc_mark_migrated(&mut self, pool: Pubkey) {
+        use hybrid_launch::dbc::*;
+        let mut a = self.svm.get_account(&pool).unwrap();
+        a.data[POOL_OFF_IS_MIGRATED] = 1;
+        a.data[POOL_OFF_MIGRATION_PROGRESS] = DBC_MIGRATION_CREATED_POOL;
+        self.svm.set_account(pool, a).unwrap();
+    }
+
+    /// DBC's permissionless `withdraw_leftover`: sends the pool's leftover base tokens to
+    /// ATA(config.leftover_receiver, mint).
+    pub fn dbc_withdraw_leftover_ix(&self, d: &DbcIds, mint: Pubkey, receiver: Pubkey, receiver_ata: Pubkey) -> Instruction {
+        let event_authority = pda(&[b"__event_authority"], &DBC_ID);
+        Instruction {
+            program_id: DBC_ID,
+            accounts: vec![
+                AccountMeta::new_readonly(hybrid_launch::dbc::DBC_POOL_AUTHORITY, false),
+                AccountMeta::new_readonly(d.config, false),
+                AccountMeta::new(d.pool, false),
+                AccountMeta::new(receiver_ata, false),
+                AccountMeta::new(d.base_vault, false),
+                AccountMeta::new_readonly(mint, false),
+                AccountMeta::new_readonly(receiver, false),
+                AccountMeta::new_readonly(SPL_TOKEN_ID, false),
+                AccountMeta::new_readonly(event_authority, false),
+                AccountMeta::new_readonly(DBC_ID, false),
+            ],
+            data: vec![20, 198, 202, 237, 235, 243, 183, 66],
+        }
+    }
+}
+
+/// DBC path end to end up to a CLOSED vault: the real DBC program creates the pool + mint from a real
+/// devnet config (leftover receiver = our buffer PDA), `register_dbc_launch` verifies and records it,
+/// and `init_vault` binds the vault. `graduation_proof` = the DBC pool.
+pub fn setup_dbc_closed(n: u32) -> (Env, DbcIds) {
+    let creator = Keypair::new();
+    let mut env = Env {
+        svm: new_svm_dbc(),
+        ids: Ids::for_mint(Pubkey::default()),
+        n,
+        ratio_base: RATIO_WHOLE * 10u64.pow(DECIMALS as u32),
+        fee: FEE,
+        schema_hash: [0x5c; 32],
+        leaves: vec![],
+        proofs: vec![],
+        root: [0; 32],
+        sb_queue: Pubkey::new_unique(),
+        sb_oracles: vec![],
+        graduation_proof: Pubkey::default(),
+        users: vec![],
+        prefund_collection: 0,
+        creator: creator.insecure_clone(),
+        real_sb: None,
+    };
+    env.svm.airdrop(&creator.pubkey(), 1_000_000_000_000).unwrap();
+    let config: Pubkey = DBC_DEVNET_CONFIG.parse().unwrap();
+    env.svm
+        .set_account(config, dbc_config_account(buffer_authority(), hybrid_launch::DEFAULT_GRADUATION_THRESHOLD_LAMPORTS))
+        .unwrap();
+    let mint = Keypair::new();
+    let d = env.dbc_create_pool(config, &creator, &mint).expect("real DBC initialize_virtual_pool_with_spl_token");
+    let reg = env.register_dbc_ix(creator.pubkey(), mint.pubkey(), &d, RATIO_WHOLE, n as u64);
+    env.send(&[reg], &[&creator]).expect("register_dbc_launch");
+    let mut ids = Ids::for_mint(mint.pubkey());
+    // Tokens for test users are moved out of DBC's base vault (stands in for buying on the curve).
+    ids.launch_destination = d.base_vault;
+    env.ids = env.init_vault_for(ids, n).expect("init_vault on a DBC launch");
+    env.graduation_proof = d.pool;
+    let oracles: Vec<Pubkey> = (0..6).map(|_| Pubkey::new_unique()).collect();
+    env.install_queue(&oracles, 3);
+    (env, d)
 }

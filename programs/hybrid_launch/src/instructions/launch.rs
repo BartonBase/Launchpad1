@@ -204,6 +204,8 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
         graduation_threshold_lamports: params.graduation_threshold_lamports,
         graduation_slice_pct: amounts.graduation_slice_pct,
         launched_at: Clock::get()?.unix_timestamp,
+        dbc_config: Pubkey::default(),
+        dbc_pool: Pubkey::default(),
     });
 
     msg!(

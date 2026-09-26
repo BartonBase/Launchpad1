@@ -19,7 +19,7 @@ use hybrid_launch::{
     MAX_COLLECTION_SIZE, MAX_FEE_LAMPORTS, PLATFORM_FEE_RECIPIENT,
 };
 
-pub const SUPPORTED_LAUNCH_CONFIG_VERSION: u8 = 3;
+pub const SUPPORTED_LAUNCH_CONFIG_VERSION: u8 = 4;
 
 pub struct Econ {
     pub ratio_base: u64,

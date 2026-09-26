@@ -2,7 +2,7 @@
 //! collection exists as a Core collection whose update authority is the vault_authority PDA and whose
 //! Core counter agrees with the vault's minted_count (0 before any settle), (b) the pool is sized for
 //! exactly N indices (the collection's max size, enforced by the pool + minted bitmap), and (c)
-//! graduation is verified by `graduation::verify` (fail-closed in release builds until DBC is wired).
+//! graduation is verified by `graduation::verify` (the DBC pool recorded at registration has migrated).
 //! No pre-mint, no minted == N requirement. There is no close/un-open instruction.
 
 use crate::{config, constants::*, error::VaultError, graduation, invariants, pool::PoolView, state::Vault};
@@ -49,7 +49,7 @@ pub fn handle_open_vault(ctx: Context<OpenVault>) -> Result<()> {
         require!(col.update_authority.to_bytes() == va.to_bytes(), VaultError::AssetStateMismatch);
         require!(col.num_minted == v.minted_count && col.current_size == v.minted_count, VaultError::AssetAccountingBroken);
     }
-    graduation::verify(&v.mint, &ctx.accounts.graduation_proof.to_account_info())?;
+    graduation::verify(&ctx.accounts.launch_config, &ctx.accounts.graduation_proof.to_account_info())?;
 
     let vault_key = v.key();
     let v = &mut ctx.accounts.vault;

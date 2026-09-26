@@ -180,11 +180,16 @@ fn launch_at_max_collection_size_cap_succeeds_and_above_is_rejected() {
 
 #[test]
 fn config_has_no_mutation_or_close_instruction_in_idl() {
-    // LaunchConfig is immutable by construction: the program exposes exactly one instruction.
+    // LaunchConfig is immutable by construction: the program exposes only two CREATE instructions
+    // (`launch`, and `register_dbc_launch` for the DBC curve, ADR-014), both `init` on the config PDA.
     let idl: serde_json::Value =
         serde_json::from_str(include_str!(concat!(env!("CARGO_TARGET_TMPDIR"), "/../idl/hybrid_launch.json"))).unwrap();
     let names: Vec<&str> = idl["instructions"].as_array().unwrap().iter().map(|i| i["name"].as_str().unwrap()).collect();
-    assert_eq!(names, vec!["launch"], "no update/close/admin instruction may exist");
+    assert_eq!(names, vec!["launch", "register_dbc_launch"], "no update/close/admin instruction may exist");
+    for ix in idl["instructions"].as_array().unwrap() {
+        let lc = ix["accounts"].as_array().unwrap().iter().find(|a| a["name"] == "launch_config").expect("launch_config");
+        assert!(lc["pda"].is_object() && lc["writable"] == true, "{}: launch_config must be the init'd PDA", ix["name"]);
+    }
 }
 
 // ---------------------------------------------------------------- attacks / rejections
@@ -430,12 +435,16 @@ fn supply_sits_in_launch_vault_pda_with_no_withdraw_instruction() {
     let dest = TokenAccount::try_deserialize(&mut env.svm.get_account(&a.dest).unwrap().data.as_slice()).unwrap();
     assert_eq!(dest.owner, a.launch_vault);
     assert_eq!(dest.amount, 1_000_000_000 * 10u64.pow(6));
-    // The PDA has no account data and hybrid_launch has exactly one instruction (`launch`), which
-    // never signs with the launch-vault seeds: no instruction exists that can move these tokens.
+    // The PDA has no account data. hybrid_launch has two instructions (`launch`, `register_dbc_launch`),
+    // and neither ever signs with the launch-vault seeds (register_dbc doesn't even take the account):
+    // no instruction exists that can move these tokens.
     assert!(env.svm.get_account(&a.launch_vault).is_none());
     let idl: serde_json::Value =
         serde_json::from_str(include_str!(concat!(env!("CARGO_TARGET_TMPDIR"), "/../idl/hybrid_launch.json"))).unwrap();
-    assert_eq!(idl["instructions"].as_array().unwrap().len(), 1);
+    let names: Vec<&str> = idl["instructions"].as_array().unwrap().iter().map(|i| i["name"].as_str().unwrap()).collect();
+    assert_eq!(names, vec!["launch", "register_dbc_launch"]);
+    let reg = &idl["instructions"][1]["accounts"];
+    assert!(reg.as_array().unwrap().iter().all(|a| a["name"] != "launch_vault" && a["name"] != "launch_destination"));
     // Creator can't move it with a plain SPL transfer either (not the owner, no delegate).
     let creator_ata = Pubkey::new_unique();
     let t = anchor_spl::token::spl_token::instruction::transfer(&SPL_TOKEN_ID, &a.dest, &creator_ata, &env.creator.pubkey(), &[], 1).unwrap();
