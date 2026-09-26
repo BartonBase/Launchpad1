@@ -62,8 +62,9 @@ Updated 2026-09-25 (MT). Branch `wip/hybrid-vault`, mirrored to `onchain/hybrid-
     are set;
   - the multisig/timelock setup (M-09);
   - fee-wallet custody (M-17).
-- **QA review triggers (QA-owned tests):** `register_dbc_launch` affects 3 tests in `qa_launch`; `expire_requests`
-  affects 1 in `qa_regression`; QA-FEE-03 affects `qa_sol_fee::qa_FEE03_M08_…` (it expects the old min-charge behaviour). See `audit-fixes-round1.md`, last section.
+- **QA suites (QA-owned tests):** fully green at HEAD after QA updated their files (2026-09-26): `qa_launch` 37/37,
+  `qa_regression` 56/56, including `qa_FEE04_M19_zero_fee_behaviour` and
+  `qa_sol_fee::qa_FEE03_M08_vault_rejects_forged_config_off_tier_or_above_cap`. The earlier review triggers are gone.
 - The audit itself: round-1 status is in `docs/audit-fixes-round1.md`.
 
 ## Build and test
@@ -76,5 +77,5 @@ cargo test --workspace --locked --no-fail-fast
 ```
 - Don't run a bare `anchor build`: it defaults to platform-tools v1.57, which is QA's.
 - Use your own `CARGO_TARGET_DIR` when QA is building at the same time.
-- Expected at HEAD: all engineer suites green; the only failures are the 5 QA review triggers above.
+- Expected at HEAD: all engineer suites and QA's `qa_launch` / `qa_regression` green.
 - Fixtures: `tests/track-a-hybrid/fixtures/{switchboard-devnet,dbc}`, read-only public dumps; see their READMEs.

@@ -160,7 +160,8 @@ fn register_rejects_config_not_on_platform_allowlist() {
     let (mut env, _) = setup_dbc_closed(100);
     assert_eq!(
         hybrid_launch::APPROVED_DBC_CONFIGS,
-        &[DBC_DEVNET_CONFIG.parse::<Pubkey>().unwrap(), DBC_PLATFORM_DEVNET_CONFIG.parse::<Pubkey>().unwrap()]
+        &[DBC_PLATFORM_DEVNET_CONFIG.parse::<Pubkey>().unwrap()],
+        "devnet allowlist is the platform config only (third-party template 5L1Mf removed, QA rerun 2026-09-26 (c))"
     );
     // Byte-for-byte the approved (valid) config, but at an address that isn't on the list.
     let unlisted = Pubkey::new_unique();
@@ -314,8 +315,8 @@ fn real_devnet_migrated_pool_parses_as_graduated() {
     assert_eq!(a.owner, DBC_ID);
     let p = dbc::parse_pool(&a.data).expect("real devnet VirtualPool");
     assert!(p.graduated(), "{p:?}");
-    let c = dbc::parse_config(&dbc_fixture_account(DBC_DEVNET_CONFIG).data).expect("real devnet PoolConfig");
-    assert_eq!(p.config, DBC_DEVNET_CONFIG.parse::<Pubkey>().unwrap());
+    let c = dbc::parse_config(&dbc_fixture_account(DBC_TEMPLATE_CONFIG).data).expect("real devnet PoolConfig");
+    assert_eq!(p.config, DBC_TEMPLATE_CONFIG.parse::<Pubkey>().unwrap());
     assert!(c.fixed_token_supply && c.pre_migration_token_supply == c.post_migration_token_supply);
     assert_eq!((c.token_decimal, c.token_type, c.token_update_authority), (6, 0, 1));
     let unmigrated = dbc::parse_pool(&dbc_fixture_account("9beobQVqGsYNCa66XWfP25yXw5BsW7tTUaPoQm1cfy35").data).unwrap();

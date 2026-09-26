@@ -51,10 +51,12 @@ Decision record: [DECISIONS.md](DECISIONS.md) ADR-008. Threats: [THREAT_MODEL.md
 Hard rule (BRIEF): total supply is exactly 1,000,000,000 tokens, and every NFT redeems for exactly `ratio` tokens, so at most
 `floor(1B / ratio)` NFTs can exist in NFT form at once. The allowed ratios all divide 1B.
 
+Max collection size = min(1B / ratio, `MAX_COLLECTION_SIZE` = 10,000).
+
 | Ratio (tokens per NFT) | Max collection size | Tokens in NFT form at max size |
 |---:|---:|---:|
-| 10,000 | **100,000** | 1,000,000,000 (100%) |
-| 50,000 | **20,000** | 1,000,000,000 (100%) |
+| ~~10,000~~ (no longer an allowed ratio) | ~~100,000~~ | n/a |
+| 50,000 | **10,000** (cap; 1B / ratio would be 20,000) | 500,000,000 (50%) |
 | 100,000 | **10,000** | 1,000,000,000 (100%) |
 | 200,000 | **5,000** | 1,000,000,000 (100%) |
 | 1,000,000 | **1,000** | 1,000,000,000 (100%) |
@@ -304,7 +306,7 @@ Invariants, asserted in tests and fuzzing after every instruction:
     1,500,000), and up to ~0.00435 SOL at the maximum URI. It's paid from the first capturer's escrow, with the unspent
     part refunded (table at top). *The earlier "~0.0016 SOL rent for ~180 bytes" was rent only, excluding the Core fee;
     superseded.*
-  - Pool index array at 100,000 NFTs: 400 KB, ~2.03 SOL rent, paid by the creator. It's created top-level (not via
+  - Pool index array at the 10,000-NFT cap: 161,314 B (64 + 16·N + N/8), ~1.12 SOL rent, paid by the creator. It's created top-level (not via
     CPI) so the 10 KB CPI realloc limit doesn't apply.
 - *UX:* capture and reroll take two transactions and a few seconds ("Drawing your NFT…"). The frontend or our crank
   submits the settle. Release is one transaction.

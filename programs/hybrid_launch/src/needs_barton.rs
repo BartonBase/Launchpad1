@@ -137,15 +137,14 @@ pub const MAX_GRADUATION_THRESHOLD_LAMPORTS: u64 = 100_000_000_000_000_u64;
 // ---------------------------------------------------------------------------------------------
 
 /// Devnet/localnet:
-/// - `5L1MfYm4…`: a third-party devnet config used as the test template (fixtures/dbc). Its
-///   `leftover_receiver` is NOT our buffer PDA, so a real registration against it is always rejected.
+/// (The third-party template `5L1MfYm4…` was removed 2026-09-26: its `leftover_receiver` is not our
+/// buffer PDA, so it could never register. Tests use its bytes, patched, at the platform address.)
 /// - `DuQYHUCT…`: the PLATFORM devnet config (created 2026-09-25 with Meteora's DBC SDK; fee claimer =
 ///   a throwaway platform key). SOL quote, SPL, 6 decimals, fixed 1B supply (pre == post, no burn),
 ///   Immutable, leftover_receiver = our buffer PDA (dbc.rs), migration_quote_threshold 0.1 SOL
 ///   (registers only on the `devnet-e2e` build; the default floor is 10 SOL), DAMM v2 migration.
 #[cfg(not(feature = "mainnet"))]
 pub const APPROVED_DBC_CONFIGS: &[Pubkey] = &[
-    pubkey!("5L1MfYm4yqPySiVddKugruYoGyN6an6viSkHzL7MK1Y"),
     pubkey!("DuQYHUCToW6uHkWngXFiU4uGVSjcVKKCTJwViEb87Em9"),
 ];
 

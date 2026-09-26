@@ -367,10 +367,11 @@ the pool with DBC's SDK (keypair mint), then calls `hybrid_launch::register_dbc_
   partner/fee claimer and migration settings. No instruction, key or account can edit the list; changing it
   takes a program upgrade (3-of-5 multisig + 7-day timelock, admin-multisig-timelock.md). Rejection is
   `DbcConfigNotApproved` (6023). Listed configs must still pass every structural check below.
-  - Devnet/localnet list = `5L1MfYm4yqPySiVddKugruYoGyN6an6viSkHzL7MK1Y`, the real devnet config used as the test
-    template. On devnet itself its `leftover_receiver` isn't our buffer PDA, so a real devnet registration against
-    it would still fail `DbcConfigRejected`. A platform-created devnet config naming `["dbc_buffer"]` is needed
-    before a devnet end-to-end run.
+  - Devnet/localnet list = `DuQYHUCToW6uHkWngXFiU4uGVSjcVKKCTJwViEb87Em9` only: the platform devnet config
+    (leftover receiver = our buffer PDA, threshold 0.1 SOL, devnet-e2e build). *Amended 2026-09-26 (QA rerun (c)):*
+    the third-party template `5L1MfYm4…` was removed from the list because its `leftover_receiver` isn't our buffer
+    PDA, so it could never register. Tests still use its bytes as a template (`DBC_TEMPLATE_CONFIG`), patched and
+    placed at the DuQY address. Not live on devnet until the next upgrade.
   - **Mainnet list: NEEDS BARTON.** It's empty, and a `mainnet` build refuses to compile until at least one config
     key is set (a const assert).
   - Test: `register_rejects_config_not_on_platform_allowlist` (a byte-identical valid config at an unlisted address

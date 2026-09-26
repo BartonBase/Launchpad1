@@ -1116,8 +1116,12 @@ pub fn bincode_len(tx: &VersionedTransaction) -> usize {
 
 pub const DBC_ID: Pubkey = hybrid_launch::dbc::DBC_PROGRAM_ID;
 pub const TOKEN_METADATA_ID: Pubkey = anchor_lang::prelude::pubkey!("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
-/// Real devnet DBC config (SOL quote, SPL, 6 decimals, fixed 1B supply with pre == post, Immutable).
-pub const DBC_DEVNET_CONFIG: &str = "5L1MfYm4yqPySiVddKugruYoGyN6an6viSkHzL7MK1Y";
+/// Real third-party devnet DBC config (SOL quote, SPL, 6 decimals, fixed 1B supply with pre == post,
+/// Immutable). Used only as the byte TEMPLATE for `dbc_config_account`; it is NOT on the allowlist.
+pub const DBC_TEMPLATE_CONFIG: &str = "5L1MfYm4yqPySiVddKugruYoGyN6an6viSkHzL7MK1Y";
+/// The config address the DBC harness (`setup_dbc_closed`) creates pools on: the platform devnet config
+/// address (the only devnet allowlist entry), holding the patched template bytes from `dbc_config_account`.
+pub const DBC_DEVNET_CONFIG: &str = "DuQYHUCToW6uHkWngXFiU4uGVSjcVKKCTJwViEb87Em9";
 /// The platform devnet config (leftover receiver = our buffer PDA, threshold 0.1 SOL), live on devnet.
 pub const DBC_PLATFORM_DEVNET_CONFIG: &str = "DuQYHUCToW6uHkWngXFiU4uGVSjcVKKCTJwViEb87Em9";
 /// Real devnet DBC pool that has migrated (is_migrated 1, progress CreatedPool).
@@ -1147,11 +1151,11 @@ pub fn dbc_fixture_account(key: &str) -> Account {
     }
 }
 
-/// The devnet config with `leftover_receiver` and the migration threshold patched. Everything else
+/// The template devnet config (`DBC_TEMPLATE_CONFIG`) with `leftover_receiver` and the migration threshold patched. Everything else
 /// (fees, curve, fixed supply, decimals, token type, authority option) is the real devnet config.
 pub fn dbc_config_account(leftover_receiver: Pubkey, threshold: u64) -> Account {
     use hybrid_launch::dbc::*;
-    let mut a = dbc_fixture_account(DBC_DEVNET_CONFIG);
+    let mut a = dbc_fixture_account(DBC_TEMPLATE_CONFIG);
     a.data[CFG_OFF_LEFTOVER_RECEIVER..CFG_OFF_LEFTOVER_RECEIVER + 32].copy_from_slice(leftover_receiver.as_ref());
     a.data[CFG_OFF_MIGRATION_QUOTE_THRESHOLD..CFG_OFF_MIGRATION_QUOTE_THRESHOLD + 8].copy_from_slice(&threshold.to_le_bytes());
     a

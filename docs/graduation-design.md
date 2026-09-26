@@ -258,6 +258,7 @@ no graduation fund, no affordability rule and no crank risk.
    - Store `dbc_config` and `dbc_pool` in `LaunchConfig`.
 
 **Effects on the existing design:**
+- **As implemented (`register_dbc_launch`):** the `LaunchConfig` fields are kept, with new meanings for DBC launches. `launch_vault` holds DBC's `pool_authority` PDA (`FhVo3mqL…`, owner of the base vault), `launch_vault_bump` = 0, and `launch_destination` holds the DBC pool's `base_vault` (where DBC minted the 1B supply). Native `launch` still stores our own `launch_vault` PDA and its ATA. Consumers must not assume `launch_vault` is a hybrid_launch PDA; check `dbc_pool != default` first.
 - `launch_vault` is retired. DBC's `base_vault` (a program PDA with no human signer) takes its place. This satisfies Auditor A's B-07 / T-CURVE-09 and merged M-13, because the supply never touches a person.
 - **ADR-010 needs amending.** That's for the engineer; not done here.
 
