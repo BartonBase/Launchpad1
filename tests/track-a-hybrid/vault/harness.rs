@@ -2,7 +2,7 @@
 //! of hybrid_vault (target/test-sbf, feature `test-mock-graduation`), the real Metaplex Core binary
 //! (fixtures/mpl_core.so) and the TEST-ONLY mock Switchboard at the Switchboard program id.
 //! Build the test binaries with `scripts/build-test-sbf.sh` (./scripts/test.sh does it).
-#![allow(dead_code)]
+#![allow(dead_code, unused_imports)]
 
 pub use {
     anchor_lang::{
@@ -102,6 +102,16 @@ pub struct Env {
     pub users: Vec<Pubkey>,
     /// Test hook: pre-fund the collection PDA (T-GRAD-01 griefing) before init_vault.
     pub prefund_collection: u64,
+    /// REAL Switchboard On-Demand devnet program + dumped devnet accounts instead of the mock.
+    pub real_sb: Option<RealSb>,
+}
+
+/// Dumped devnet Switchboard state (tests/track-a-hybrid/fixtures/switchboard-devnet).
+#[derive(Clone)]
+pub struct RealSb {
+    pub state: Pubkey,
+    pub fetched_slot: u64,
+    pub unix_time: i64,
 }
 
 pub struct User {
@@ -131,6 +141,9 @@ impl Env {
     pub fn warp(&mut self, slots: u64) {
         let now = self.slot();
         self.svm.warp_to_slot(now + slots);
+        if self.real_sb.is_some() {
+            refresh_slot_hashes(&mut self.svm);
+        }
     }
     pub fn slot(&self) -> u64 {
         self.svm.get_sysvar::<anchor_lang::prelude::Clock>().slot
@@ -231,6 +244,35 @@ impl Env {
     }
 
     pub fn init_randomness_ix(&self, randomness: &Pubkey, queue: Pubkey) -> Instruction {
+        if let Some(r) = &self.real_sb {
+            // Real Switchboard derivations (switchboard-on-demand 0.13.0): reward escrow = wSOL ATA of the
+            // randomness account; LUT signer = PDA ["LutSigner", randomness]; LUT = ALT address(lut_signer, recent_slot).
+            let recent_slot = self.slot() - 1;
+            let lut_signer = pda(&[b"LutSigner", randomness.as_ref()], &SWITCHBOARD_PROGRAM_ID);
+            let lut = pda(&[lut_signer.as_ref(), &recent_slot.to_le_bytes()], &ALT_PROGRAM);
+            return Instruction::new_with_bytes(
+                hybrid_vault::ID,
+                &hybrid_vault::instruction::InitRandomness { recent_slot }.data(),
+                hybrid_vault::accounts::InitRandomness {
+                    payer: self.creator.pubkey(),
+                    vault: self.ids.vault,
+                    randomness: *randomness,
+                    randomness_authority: self.ids.randomness_authority,
+                    sb_reward_escrow: get_associated_token_address(randomness, &WRAPPED_SOL_MINT),
+                    sb_queue: queue,
+                    system_program: system_program::ID,
+                    token_program: SPL_TOKEN_ID,
+                    associated_token_program: ATA_PROGRAM_ID,
+                    wrapped_sol_mint: WRAPPED_SOL_MINT,
+                    sb_program_state: r.state,
+                    sb_lut_signer: lut_signer,
+                    sb_lut: lut,
+                    address_lookup_table_program: ALT_PROGRAM,
+                    switchboard_program: SWITCHBOARD_PROGRAM_ID,
+                }
+                .to_account_metas(None),
+            );
+        }
         Instruction::new_with_bytes(
             hybrid_vault::ID,
             &hybrid_vault::instruction::InitRandomness { recent_slot: self.slot() }.data(),
@@ -281,13 +323,19 @@ impl Env {
                 // The oracle of the CURRENT commit (a recommit picks a new one).
                 sb_oracle: req.oracles[(req.commits as usize).saturating_sub(1)],
                 sb_queue: self.sb_queue,
-                sb_stats: Pubkey::new_unique(),
+                sb_stats: match &self.real_sb {
+                    Some(_) => pda(&[b"OracleRandomnessStats", req.oracles[(req.commits as usize).saturating_sub(1)].as_ref()], &SWITCHBOARD_PROGRAM_ID),
+                    None => Pubkey::new_unique(),
+                },
                 slot_hashes: SLOT_HASHES_SYSVAR_ID,
                 system_program: system_program::ID,
-                sb_reward_escrow: Pubkey::new_unique(),
+                sb_reward_escrow: match &self.real_sb {
+                    Some(_) => get_associated_token_address(&req.randomness, &WRAPPED_SOL_MINT),
+                    None => Pubkey::new_unique(),
+                },
                 token_program: SPL_TOKEN_ID,
                 wrapped_sol_mint: WRAPPED_SOL_MINT,
-                sb_program_state: Pubkey::new_unique(),
+                sb_program_state: self.real_sb.as_ref().map(|r| r.state).unwrap_or_else(Pubkey::new_unique),
                 switchboard_program: SWITCHBOARD_PROGRAM_ID,
             }
             .to_account_metas(None),
@@ -767,6 +815,82 @@ pub fn launch_params(n: u64) -> LaunchParams {
     }
 }
 
+/// LiteSVM with the REAL Switchboard devnet program and its dumped accounts.
+fn new_svm_real_sb() -> (LiteSVM, RealSb, Pubkey, Vec<Pubkey>) {
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/switchboard-devnet");
+    let j: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(format!("{dir}/accounts.json")).unwrap()).unwrap();
+    let mut svm = LiteSVM::new();
+    svm.add_program(hybrid_launch::id(), include_bytes!(concat!(env!("CARGO_TARGET_TMPDIR"), "/../deploy/hybrid_launch.so"))).unwrap();
+    svm.add_program(hybrid_vault::id(), include_bytes!(concat!(env!("CARGO_TARGET_TMPDIR"), "/../test-sbf/hybrid_vault.so"))).unwrap();
+    svm.add_program(MPL_CORE_ID, include_bytes!("../fixtures/mpl_core.so")).unwrap();
+    svm.add_program(SWITCHBOARD_PROGRAM_ID, &std::fs::read(format!("{dir}/sb_devnet.so")).unwrap()).unwrap();
+    for (k, a) in j["accounts"].as_object().unwrap() {
+        let acct = Account {
+            lamports: a["lamports"].as_u64().unwrap(),
+            data: b64decode(a["data"].as_str().unwrap()),
+            owner: a["owner"].as_str().unwrap().parse().unwrap(),
+            executable: a["executable"].as_bool().unwrap(),
+            rent_epoch: 0,
+        };
+        svm.set_account(k.parse().unwrap(), acct).unwrap();
+    }
+    let fetched_slot = j["fetched_slot"].as_u64().unwrap();
+    let unix_time = j["unix_time"].as_i64().unwrap();
+    svm.warp_to_slot(fetched_slot);
+    refresh_slot_hashes(&mut svm);
+    let mut clock = svm.get_sysvar::<anchor_lang::prelude::Clock>();
+    clock.unix_timestamp = unix_time;
+    svm.set_sysvar(&clock);
+    let queue: Pubkey = j["queue"].as_str().unwrap().parse().unwrap();
+    let oracles = j["oracles"].as_array().unwrap().iter().map(|o| o.as_str().unwrap().parse().unwrap()).collect();
+    (svm, RealSb { state: j["state"].as_str().unwrap().parse().unwrap(), fetched_slot, unix_time }, queue, oracles)
+}
+
+/// LiteSVM doesn't maintain SlotHashes across warps; the real Switchboard (and the ALT program it
+/// CPIs) need the recent slots there. Fill the last 512 slots with deterministic hashes.
+pub fn refresh_slot_hashes(svm: &mut LiteSVM) {
+    let slot = svm.get_sysvar::<anchor_lang::prelude::Clock>().slot;
+    let n = 512u64.min(slot);
+    // SlotHashes account layout: u64 count, then (u64 slot, [u8; 32] hash), newest first.
+    let mut data = Vec::with_capacity(8 + 40 * 512);
+    data.extend_from_slice(&n.to_le_bytes());
+    for d in 1..=n {
+        let s = slot - d;
+        data.extend_from_slice(&s.to_le_bytes());
+        let mut h = [0u8; 32];
+        h[..8].copy_from_slice(&s.to_le_bytes());
+        h[8] = 0xAB;
+        data.extend_from_slice(&h);
+    }
+    data.resize(8 + 40 * 512, 0);
+    let sysvar_owner: Pubkey = "Sysvar1111111111111111111111111111111111111".parse().unwrap();
+    let lamports = svm.minimum_balance_for_rent_exemption(data.len());
+    svm.set_account(SLOT_HASHES_SYSVAR_ID, Account { lamports, data, owner: sysvar_owner, executable: false, rent_epoch: 0 }).unwrap();
+}
+
+/// Minimal standard base64 decoder (fixtures only).
+pub fn b64decode(s: &str) -> Vec<u8> {
+    let val = |c: u8| -> u32 {
+        match c {
+            b'A'..=b'Z' => (c - b'A') as u32,
+            b'a'..=b'z' => (c - b'a' + 26) as u32,
+            b'0'..=b'9' => (c - b'0' + 52) as u32,
+            b'+' => 62,
+            b'/' => 63,
+            _ => 0,
+        }
+    };
+    let b: Vec<u8> = s.bytes().filter(|c| !c.is_ascii_whitespace()).collect();
+    let mut out = Vec::with_capacity(b.len() * 3 / 4);
+    for chunk in b.chunks(4) {
+        let n = chunk.iter().enumerate().fold(0u32, |acc, (i, c)| acc | (if *c == b'=' { 0 } else { val(*c) }) << (18 - 6 * i));
+        let pad = chunk.iter().filter(|c| **c == b'=').count();
+        let bytes = [(n >> 16) as u8, (n >> 8) as u8, n as u8];
+        out.extend_from_slice(&bytes[..3 - pad]);
+    }
+    out
+}
+
 fn new_svm() -> LiteSVM {
     let mut svm = LiteSVM::new();
     svm.add_program(hybrid_launch::id(), include_bytes!(concat!(env!("CARGO_TARGET_TMPDIR"), "/../deploy/hybrid_launch.so"))).unwrap();
@@ -861,7 +985,27 @@ pub fn setup_closed(n: u32) -> Env {
 }
 
 pub fn setup_closed_with(n: u32, prefund_collection: u64) -> Env {
-    let svm = new_svm();
+    setup_closed_inner(n, prefund_collection, false)
+}
+
+/// Like `setup` but with the REAL Switchboard On-Demand devnet program and dumped devnet queue,
+/// state, oracles and oracle stats (fixtures/switchboard-devnet); the clock is set to the dump time.
+pub fn setup_real_sb(n: u32) -> Env {
+    let mut env = setup_closed_inner(n, 0, true);
+    let mint = env.ids.mint;
+    env.graduation_proof = env.set_graduation(MOCK_GRADUATION_OWNER, mint, 1);
+    let p = env.graduation_proof;
+    env.open(p).expect("open_vault");
+    env
+}
+
+fn setup_closed_inner(n: u32, prefund_collection: u64, real: bool) -> Env {
+    let (svm, real_sb, queue, oracles) = if real {
+        let (svm, r, q, o) = new_svm_real_sb();
+        (svm, Some(r), q, o)
+    } else {
+        (new_svm(), None, Pubkey::new_unique(), vec![])
+    };
     let creator = Keypair::new();
     let mut env = Env {
         svm,
@@ -873,19 +1017,22 @@ pub fn setup_closed_with(n: u32, prefund_collection: u64) -> Env {
         leaves: vec![],
         proofs: vec![],
         root: [0; 32],
-        sb_queue: Pubkey::new_unique(),
-        sb_oracles: vec![],
+        sb_queue: queue,
+        sb_oracles: oracles,
         graduation_proof: Pubkey::default(),
         users: vec![],
         prefund_collection: 0,
         creator: creator.insecure_clone(),
+        real_sb,
     };
     env.svm.airdrop(&creator.pubkey(), 1_000_000_000_000).unwrap();
     env.prefund_collection = prefund_collection;
     env.ids = env.launch_and_init(n).expect("launch + init_vault");
     env.prefund_collection = 0;
-    let oracles: Vec<Pubkey> = (0..6).map(|_| Pubkey::new_unique()).collect();
-    env.install_queue(&oracles, 3);
+    if env.real_sb.is_none() {
+        let oracles: Vec<Pubkey> = (0..6).map(|_| Pubkey::new_unique()).collect();
+        env.install_queue(&oracles, 3);
+    }
     env
 }
 

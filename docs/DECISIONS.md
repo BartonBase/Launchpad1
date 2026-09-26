@@ -268,7 +268,22 @@ shelved/deferred. Kept for the record.
 
 ## ADR-012: VRF: Switchboard On-Demand, program-chosen oracle, heartbeat filter, bounded recommits, principal + escrow expire
 
-**Status: Accepted (engineering; Auditor A v2 M-04). Implemented on localnet (mock Switchboard). Devnet proof blocked.**
+**Status: Accepted (engineering; Auditor A v2 M-04). Implemented on localnet (mock Switchboard). CPIs proven against the REAL Switchboard program in LiteSVM. A signed devnet reveal is blocked on devnet SOL.**
+
+- **Real-program proof (2026-09-25).** `switchboard-on-demand` 0.13.0 (`default-features = false, features =
+  ["solana-v3"]`) compiles for SBF with Anchor 1.2. `getrandom` 0.2 is satisfied by a `custom` backend that always
+  fails, and nothing on-chain calls it. Our CPIs are hand-built: discriminators in `constants.rs`, with the account
+  order taken from the SDK. The test suite `vault/real_switchboard.rs` loads the devnet program binary (`Aio4gaXj…`,
+  dumped read-only), plus the devnet queue `EYiAmGSd…`, state, and oracles along with their `OracleRandomnessStats`
+  PDAs, into LiteSVM. It then proves:
+  - `init_randomness`, `request_capture` (commit) and `recommit` run through the real program. Switchboard records the
+    new oracle after a recommit.
+  - A forged reveal is rejected by Switchboard itself (`InvalidSecpSignature`, 6016). We delegate signature
+    verification to Switchboard.
+  - The reveal stats account is `["OracleRandomnessStats", oracle]`. It is not `["OracleStats", …]`: the harness had
+    this wrong and the real program caught it. The vault passes the account through unchecked and Switchboard
+    validates it.
+  - LiteSVM doesn't maintain SlotHashes, so the harness fills the sysvar by hand (`refresh_slot_hashes`).
 
 - The program picks the oracle from `vault.sb_queue` deterministically (vault, seq). A candidate is skipped only when
   the caller supplies that oracle's account as proof its heartbeat is older than `MAX_ORACLE_HEARTBEAT_AGE_SECS`
@@ -278,8 +293,8 @@ shelved/deferred. Kept for the record.
   **never the tier fee**. Batch expire: `expire_requests(count)` expires up to `MAX_EXPIRE_PER_CALL` = 7 consecutive heads in one
   instruction, all-or-nothing (bounded by the 64-account lock limit; K > 3 needs v0 + ALT).
 - **VRF cost (M-37): the requester pays at cost, separately (Auditor A decision).** Measured via RPC 2026-09-25:
-  mainnet queue reward = 5 lamports, 7 oracles; devnet reward 0, 2 oracles. The randomness account is 408 bytes
-  (rent 3,730,560 lamports, reusable). Estimated per request: reveal ~10k lamports + settle 5k + priority ≈ 0.00002 SOL,
+  mainnet queue reward = 5 lamports, 7 oracles; devnet reward 0, 2 oracles. The randomness account is 480 bytes
+  (rent 4,231,680 lamports, reusable; measured against the real devnet program, see CD Q2). Estimated per request: reveal ~10k lamports + settle 5k + priority ≈ 0.00002 SOL,
   far below the 0.002 minimum tier. **A real devnet measurement is still blocked** by the Switchboard crate's SBF build
   issue (getrandom); these are not faked measurements.
 
@@ -402,14 +417,18 @@ lamports (0.0063381 SOL)** in its own escrow account, `["mint_escrow", vault, se
 | Reveal tx (submits the oracle's signed value) | 5,000 lamports base + priority fee | whoever cranks it: the requester's client, or any third party | no | base fee exact; priority varies |
 | Settle tx | 5,000 lamports base + priority | the settler (anyone) | no | exact base; priority varies |
 | Request tx signature | 5,000 lamports base + priority (paid by the requester anyway) | requester | no | exact base |
-| Randomness account rent (408 bytes) | 3,730,560 lamports, once | whoever runs `init_randomness` | **not refunded, but reusable**: one account serves any number of sequential requests (each commit re-arms it; `rand_lock` stops concurrent use). There's no close instruction today, so the rent is locked | measured size/rent |
+| One-off `init_randomness` setup (measured against the **real** Switchboard devnet program in LiteSVM, test `real_switchboard_init_cost_breakdown`) | **8,229,760 lamports total** = randomness account 480 bytes, rent 4,231,680 + wSOL reward-escrow ATA 2,039,280 + address lookup table rent and tx fees 1,958,800 | whoever runs `init_randomness` | **not refunded, but reusable**: one account serves any number of sequential requests (each commit re-arms it; `rand_lock` stops concurrent use). The vault has no close instruction today, so these lamports stay locked | measured |
 | Randomness lock + request rent | 1,231,920 + 3,006,720 | requester | **yes**, at settle/expire | measured |
 
 **Per-request marginal randomness cost ≈ 5 (oracle, ESTIMATE) + 5,000 (reveal) + 5,000 (settle) ≈ 10,005 lamports ≈
 0.00001 SOL, or ~0.00002 SOL with modest priority fees (ESTIMATE).** That's about **1% of the lowest 0.002 SOL tier**, so
 it fits comfortably; the tier fee isn't used to fund it (the requester pays randomness at cost, separately). The
-one-off 0.00373 SOL randomness-account rent is amortised over every request that reuses the account. **A real devnet
-measurement is still pending** (see ADR-012 status; the on-chain CPI is hand-written and needs a devnet reveal run).
+one-off ≈0.0082 SOL randomness setup is amortised over every request that reuses the account. (An earlier draft said
+408 bytes / 3,730,560: that was the mock's size. The real program's account is 480 bytes, and init also creates a wSOL
+escrow and a lookup table.) The real Switchboard program accepts our hand-written init/commit/recommit CPIs and rejects
+a forged reveal with `InvalidSecpSignature` (LiteSVM, dumped devnet program, `vault/real_switchboard.rs`). **The real
+oracle fee and the reveal cost still need a devnet run** with a gateway-signed reveal. That run is blocked on devnet SOL:
+the faucet rate-limited the throwaway deployer.
 
 ---
 
