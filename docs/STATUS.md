@@ -25,7 +25,13 @@ Updated 2026-09-25 (MT). Branch `wip/hybrid-vault`, mirrored to `onchain/hybrid-
 ## Open
 - **Devnet run (M-37/M-38):**
   - The throwaway deployer `An3ZmiB4SaA7FCJ4bpad2qDRmqhu4F9d5UqUAKHiAB5Z` has 0 SOL. Every faucet or RPC refused.
-    Barton could use the web faucet (https://faucet.solana.com) for 1–2 SOL.
+    Barton's 2 SOL faucet request (6:36 PM MT) had not arrived by 6:42 PM MT: 0 SOL and 0 transactions on the
+    address.
+  - **Funding needed: ≈ 4.8 SOL, not 2.** Program rent is `hybrid_launch` 220,976 B = 1.1234 SOL and
+    `hybrid_vault` 691,744 B = 3.5149 SOL, plus about 0.005 SOL of write-transaction fees. The e2e run (vault
+    pool, randomness setup 0.0082, escrow, a few transactions) needs about 0.1 SOL more.
+  - **Risk:** the programs are built as SBPF v2. If devnet refuses v2 deploys, rebuild for devnet with
+    `ANCHOR_BUILD_SBF_ARCH=v1` (same program IDs).
   - Then: `./scripts/deploy-devnet.sh`, a third-party reveal, and measuring the oracle fee and reveal cost per draw.
     Record the results in DECISIONS CD Q2 and M-37.
   - A devnet DBC end-to-end run also needs a platform-created devnet DBC config whose `leftover_receiver` is the
