@@ -618,6 +618,11 @@ local branch `fix/modes-1-5`. Not pushed, not deployed, not audited.
 - Also fixed: missing `/// CHECK:` docs on 5 `mint` fields in `raffle.rs` and `token22.rs`. Without them
   Anchor's safety lint failed and `build.sh` produced no IDL.
 
+**Barton's decision (2026-10-01, ~5:15 PM MT; relayed by Grok Bot): ACCEPTED.** A raffle round may be
+cancelled with the pot rolled over to the next round (pot → `pending_base`; no payout, nothing lost) in both
+cases where the round can't complete: every NFT in the round was burned, or 4 oracles (1 commit + 3 retries)
+never revealed.
+
 **Open items (not must-fix now, recorded for later):**
 - SOL sent to the Mode 4/5 tax PDA is spent by `buyback` into the launch inventory PDA, which has no instruction
   that moves lamports out. It is locked forever.
