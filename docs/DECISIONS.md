@@ -574,6 +574,59 @@ This supersedes the M-08 "min(stored, tier, MAX)" rule.
 - **QA review trigger:** `qa_sol_fee::qa_FEE03_M08_vault_rejects_forged_config_off_tier_or_above_cap` still
   expects the old M-08 "charge min" behaviour. It now gets 6061, as this decision requires.
 
+## ADR-020: Modes 1–5 review fixes; tax and raffle modes SHELVED (Barton, 2026-10-01; relayed by Grok Bot)
+
+Source: `review/2026-10-01-barton-week-review.md` §7 (review of `onchain/modes-1-5` @ `0a12471`). Fixed on the
+local branch `fix/modes-1-5`. Not pushed, not deployed, not audited.
+
+**Product decisions (Barton):**
+- **Tax (Mode 4) and raffle (Mode 5) are SHELVED** until there is a real public way to buy the tokens. Today there
+  is none: `launch_token22` / `launch_raffle` mint all 1B into the launch inventory, and the only way out is
+  `buy_inventory` → tax treasury. The tests give users tokens by editing balances directly. No further work on
+  these modes beyond the two stuck-funds fixes below.
+- **Keep:** the plain-coin launch (Mode 1) and the core of the burn launch (Mode 3).
+
+**Fixes made (hybrid_vault):**
+1. **A burned NFT no longer freezes payouts (review finding 1).** New permissionless `skip_dead_nft`: it moves
+   `payout_cursor` past the NFT at the cursor only if that asset (PDA derived by the program, not chosen by the
+   caller) is dead: Core-owned with 1-byte `Key::Uninitialized` data (what an owner burn leaves), or
+   absent. A live NFT is rejected (6066 `AssetNotDead`); any other index is rejected (`OutOfOrder`).
+   - Mode 4: the dead NFT's share is un-credited and returned to `pending_base`, so a later round pays it to live
+     holders. Nothing is paid for it, so nothing can be paid twice (`paid_base ≤ credited_base` re-checked).
+   - Mode 5: no seat is written. Seats are now dense (`RaffleSeat` PDA keyed by seat number `live_seats`), and the
+     draw is `uniform_below(value, live_seats)`, so it can only land on a live seat. If every NFT in the round is
+     dead, the round is rolled back (pot → `pending_base`).
+   - We chose skipping over blocking burns: no Core plugin or extra CPI is needed, and the rest of the checked
+     math is unchanged.
+2. **The raffle pot can't get stuck if the oracle never answers (review finding 2).** `commit_raffle` now records
+   each commit's oracle (`raffle_oracles[4]`, `raffle_commits`) and sets a deadline (`REVEAL_TIMEOUT_SLOTS`). New
+   permissionless `retry_raffle`, after the deadline with no reveal:
+   - fewer than `1 + MAX_RECOMMITS` (4) commits: back to READY. The next commit needs a fresh randomness account,
+     and the program must pick an oracle not yet used in this round. Seats and pot are unchanged.
+   - otherwise: the round is rolled back. The pot goes to `pending_base`, and a later harvest or buyback opens a
+     new round (new snapshot, new round id) that includes it. No path moves tokens out of the treasury other than
+     paying a winner, so nothing becomes unrecoverable. 6067 `RaffleDeadlineNotReached` before the deadline.
+3. **Only approved randomness providers (review finding 5; Mode 2 had the same gap).** The Switchboard program
+   was already hard-pinned (`SWITCHBOARD_PROGRAM_ID`, devnet/mainnet by feature). The queue is now pinned to the
+   compile-time list `APPROVED_SB_QUEUES` (same pattern as `APPROVED_DBC_CONFIGS`; non-empty const assert):
+   - devnet: `EYiAmGSdsQTuCw413V5BzaruWuCCSDgTPtBGvLkXHbe7`;
+   - mainnet: `A43DyUGA7s8eXPxqEjJY6EBu1KKbNgfxF8h17VAHn13w`.
+   Both are Switchboard's published default queues; re-verify on-chain before a mainnet build. Checked at
+   `init_vault` (Mode 2), `init_raffle_vault` (Mode 5) and on every commit (`commit_for_request`). The error is
+   6065 `QueueNotApproved`. `hybrid_launch` takes no queue, so it has no such gap.
+4. **QA suites re-enabled** in `tests/track-a-hybrid/Cargo.toml`; see STATUS for their results.
+- Also fixed: missing `/// CHECK:` docs on 5 `mint` fields in `raffle.rs` and `token22.rs`. Without them
+  Anchor's safety lint failed and `build.sh` produced no IDL.
+
+**Open items (not must-fix now, recorded for later):**
+- SOL sent to the Mode 4/5 tax PDA is spent by `buyback` into the launch inventory PDA, which has no instruction
+  that moves lamports out. It is locked forever.
+- Burn, tax and raffle launches hand out NFTs in a known sequential order (Merkle leaf `minted_count`), so rare
+  pieces can be sniped. Mode 2 uses VRF; these don't.
+- The Mode 4/5 tax cap is 10% (1000 bps). The review recommends about 3%.
+- Mode 4/5 pot tier is fixed per launch (locked buyback price); crank costs (holder ATAs, raffle seats, rand
+  locks) are unpaid volunteer rent. Raffle seats and rand locks are never closed.
+
 ## Creative Director questions (answered 2026-09-25; figures measured on LiteSVM unless marked ESTIMATE)
 
 ### CD Q1: Is the ~0.005 SOL mint cost refunded when the draw lands on an already-minted NFT?

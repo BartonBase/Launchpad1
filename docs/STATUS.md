@@ -1,6 +1,23 @@
 # STATUS: Track A hybrid launch + vault (engineering handoff)
 
-Updated 2026-10-01. Branch `onchain/hybrid-launch`. **Not audited.** Devnet only. Not mainnet.
+Updated 2026-10-01. Branch `fix/modes-1-5` (local, on top of `onchain/modes-1-5` @ `0a12471`; NOT pushed).
+The default branch `onchain/hybrid-launch` stays at `df0d1d9`. **Not audited.** Devnet only. Not mainnet.
+
+## Modes 1–5 review fixes (ADR-020) — 2026-10-01
+- **Shelved: Mode 4 (tax) and Mode 5 (raffle)**, until there is a real public way to buy the tokens (today
+  none; tests mint directly). The only work done on them is the two stuck-funds fixes below. **Keep:** Mode 1
+  (plain coin) and the core of Mode 3 (burn launch).
+- **Fix 1, burned NFT:** a burned NFT no longer freezes Mode 4 payouts or the Mode 5 snapshot. The permissionless
+  `skip_dead_nft` skips it: Mode 4 forfeits its share back to the pending pot; Mode 5 writes no seat, and the
+  draw covers live seats only.
+- **Fix 2, silent oracle:** the permissionless `retry_raffle` works after the reveal deadline. It allows up to 3
+  re-commits, each on a different oracle; after that it rolls the round back with the pot kept in pending.
+- **Fix 3, queue pin:** the Switchboard queue must be on the compile-time `APPROVED_SB_QUEUES` (Mode 2
+  `init_vault`, Mode 5 `init_raffle_vault`, and every commit). The program id was already pinned.
+- **New error codes:** 6065 `QueueNotApproved`, 6066 `AssetNotDead`, 6067 `RaffleDeadlineNotReached`.
+- **Fix 4:** `qa_launch` / `qa_regression` re-enabled. See "QA suites" below.
+- **Open (not must-fix):** SOL sent to the tax PDA is locked forever; burn/tax/raffle hand out NFTs in a known
+  order (snipeable); the tax cap is 10%.
 
 ## Mode 1 (plain SPL) — 2026-10-01
 
@@ -33,9 +50,8 @@ One of those NFTs wins the whole pot. Ten NFTs is ten chances, not ten payouts. 
 winning NFT after the number is public does not move the prize. The program picks the oracle,
 accepts only that randomness account, and will not draw again because someone dislikes the
 result. Mode 4 still splits the pot across every minted NFT. Upgrade authority is still the throwaway deployer,
-not the Squads timelock. Not deployed. Local LiteSVM on this tree: launch 30, vault 83, dbc
-graduation 16, real Switchboard 4. Host units: hybrid_launch 19, hybrid_vault 15.
-`qa_launch` and `qa_regression` stay commented out; those files are not on this branch.
+not the Squads timelock. Not deployed. Local LiteSVM on `fix/modes-1-5` (default and devnet-e2e builds): launch
+30, vault 88, dbc graduation 16, real Switchboard 4. Host units: hybrid_launch 19, hybrid_vault 15.
 
 ## Done (on top of the baseline)
 - **Economics docs:** ADR-018 records QA-FEE-04 (first-mint cost comes from the escrow; M-06 holds on average). It
@@ -96,9 +112,16 @@ graduation 16, real Switchboard 4. Host units: hybrid_launch 19, hybrid_vault 15
     are set;
   - the multisig/timelock setup (M-09);
   - fee-wallet custody (M-17).
-- **QA suites (QA-owned tests):** fully green at HEAD after QA updated their files (2026-09-26): `qa_launch` 37/37,
-  `qa_regression` 56/56, including `qa_FEE04_M19_zero_fee_behaviour` and
-  `qa_sol_fee::qa_FEE03_M08_vault_rejects_forged_config_off_tier_or_above_cap`. The earlier review triggers are gone.
+- **QA suites (QA-owned tests; re-enabled on `fix/modes-1-5`, QA files untracked and not edited):** on
+  `df0d1d9` they were 37/37 and 56/56. On this branch: `qa_launch` 0/37 and `qa_regression` 55/56. Every failure
+  comes from the Modes 1–5 instructions themselves, not from the fixes; the counts were the same before
+  fixes 1–3 (`0a12471` plus the lint fix needed to build the IDL). **Needs QA review:**
+  - `qa_launch`'s IDL helper reads `instructions[0]` and expects `launch`. Anchor sorts the IDL by name, so
+    `buy_inventory` now comes first, and 36 tests fail before running. A scratch copy that looks `launch` up by
+    name passes 34/37. The 3 left are new-instruction tripwires: `qa_FEE13` and `qa_FEE05` (only `launch` +
+    `register_dbc_launch` may exist) and `qa_hl02` (`buy_inventory` must be reviewed as a launch-vault
+    withdraw path).
+  - `qa_regression`: `qa_M01_A01` flags the new vault instructions (`buyback` etc.) for an A-01/A-02 review.
 - The audit itself: round-1 status is in `docs/audit-fixes-round1.md`.
 
 ## Build and test
@@ -111,5 +134,6 @@ cargo test --workspace --locked --no-fail-fast
 ```
 - Don't run a bare `anchor build`: it defaults to platform-tools v1.57, which is QA's.
 - Use your own `CARGO_TARGET_DIR` when QA is building at the same time.
-- Expected at HEAD: all engineer suites and QA's `qa_launch` / `qa_regression` green.
+- Expected at HEAD (`fix/modes-1-5`): engineer suites green; QA suites red only on the Modes 1–5 review
+  tripwires listed under "QA suites".
 - Fixtures: `tests/track-a-hybrid/fixtures/{switchboard-devnet,dbc}`, read-only public dumps; see their READMEs.
