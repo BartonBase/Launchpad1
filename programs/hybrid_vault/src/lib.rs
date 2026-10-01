@@ -206,6 +206,18 @@ pub mod hybrid_vault {
         instructions::raffle::handle_reveal_raffle(ctx, args)
     }
 
+    /// Permissionless. Advance a Mode 4 payout / Mode 5 snapshot past the NFT at the cursor, only if
+    /// that NFT was burned. Mode 4 forfeits its share back to the pending pot; Mode 5 writes no seat.
+    pub fn skip_dead_nft(ctx: Context<SkipDeadNft>) -> Result<()> {
+        instructions::dead_nft::handle_skip_dead_nft(ctx)
+    }
+
+    /// Permissionless. After the reveal deadline with no reveal: allow a fresh commit (different
+    /// oracle), or after 1 + MAX_RECOMMITS commits roll the round back with the pot kept.
+    pub fn retry_raffle(ctx: Context<RetryRaffle>) -> Result<()> {
+        instructions::raffle::handle_retry_raffle(ctx)
+    }
+
     /// Pay the snapshotted owner of the winning NFT the whole pot.
     pub fn settle_raffle(ctx: Context<SettleRaffle>) -> Result<()> {
         instructions::raffle::handle_settle_raffle(ctx)

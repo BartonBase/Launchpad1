@@ -106,6 +106,7 @@ pub fn handle_init_raffle_vault(
         params.sb_queue,
         VaultError::WrongQueue
     );
+    require!(is_approved_sb_queue(&params.sb_queue), VaultError::QueueNotApproved);
     require_keys_eq!(
         *ctx.accounts.mint.owner,
         anchor_spl::token_2022::ID,
@@ -234,7 +235,7 @@ pub struct SnapshotRaffle<'info> {
         init,
         payer = payer,
         space = 8 + RaffleSeat::INIT_SPACE,
-        seeds = [RAFFLE_SEAT_SEED, vault.key().as_ref(), &vault.round_id.to_le_bytes(), &vault.payout_cursor.to_le_bytes()],
+        seeds = [RAFFLE_SEAT_SEED, vault.key().as_ref(), &vault.round_id.to_le_bytes(), &vault.live_seats.to_le_bytes()],
         bump
     )]
     pub seat: Box<Account<'info, RaffleSeat>>,
@@ -265,16 +266,19 @@ pub fn handle_snapshot_raffle(ctx: Context<SnapshotRaffle>) -> Result<()> {
         &ctx.accounts.holder.key(),
     )?;
     let round_id = vault.round_id;
+    // Seats are dense: seat number = live seats so far (a burned NFT is skipped and gets none).
+    let seat_no = vault.live_seats;
     ctx.accounts.seat.set_inner(RaffleSeat {
         vault: vault.key(),
         round_id,
-        index: cursor,
+        index: seat_no,
         owner: ctx.accounts.holder.key(),
     });
     let v = &mut ctx.accounts.vault;
+    v.live_seats = seat_no.checked_add(1).ok_or(VaultError::MathOverflow)?;
     v.payout_cursor = cursor.checked_add(1).ok_or(VaultError::MathOverflow)?;
     if v.payout_cursor == v.round_minted {
-        v.raffle_phase = RAFFLE_READY;
+        crate::instructions::dead_nft::finish_snapshot(v)?;
     }
     Ok(())
 }
@@ -402,6 +406,9 @@ pub fn handle_commit_raffle(ctx: Context<CommitRaffle>) -> Result<()> {
     let vault = &ctx.accounts.vault;
     require!(vault.kind == KIND_RAFFLE, VaultError::WrongRequestKind);
     require!(vault.raffle_phase == RAFFLE_READY, VaultError::OutOfOrder);
+    let commits = vault.raffle_commits as usize;
+    require!(commits < 1 + MAX_RECOMMITS as usize, VaultError::RecommitsExhausted);
+    let used: Vec<Pubkey> = vault.raffle_oracles[..commits].to_vec();
     let vault_key = vault.key();
     let round_id = vault.round_id;
     let seeds: &[&[u8]] = &[
@@ -420,7 +427,7 @@ pub fn handle_commit_raffle(ctx: Context<CommitRaffle>) -> Result<()> {
         seeds,
         &vault_key,
         round_id,
-        &[],
+        &used,
         ctx.remaining_accounts,
     )?;
     ctx.accounts.rand_lock.set_inner(RandLock {
@@ -433,7 +440,46 @@ pub fn handle_commit_raffle(ctx: Context<CommitRaffle>) -> Result<()> {
     v.raffle_oracle = ctx.accounts.sb_oracle.key();
     v.seed_slot = seed_slot;
     v.raffle_phase = RAFFLE_COMMITTED;
+    v.raffle_oracles[commits] = ctx.accounts.sb_oracle.key();
+    v.raffle_commits = (commits as u8).checked_add(1).ok_or(VaultError::MathOverflow)?;
+    v.raffle_deadline_slot = Clock::get()?
+        .slot
+        .checked_add(REVEAL_TIMEOUT_SLOTS)
+        .ok_or(VaultError::MathOverflow)?;
     Ok(())
+}
+
+#[derive(Accounts)]
+pub struct RetryRaffle<'info> {
+    #[account(mut, seeds = [VAULT_SEED, vault.launch_config.as_ref()], bump = vault.bump)]
+    pub vault: Box<Account<'info, TaxVault>>,
+}
+
+/// Fix for the review's finding 2 (2026-10-01): the oracle never reveals. Permissionless.
+/// After `raffle_deadline_slot` with no reveal:
+/// - fewer than 1 + MAX_RECOMMITS commits so far: back to READY. The next `commit_raffle` needs a fresh
+///   randomness account and the program must pick an oracle not used before in this round. Seats and
+///   pot are untouched.
+/// - otherwise: the round is rolled back. The pot returns to `pending_base` (redistributed by a later
+///   round with a new snapshot and round id). No SOL or tokens leave the treasury on either path.
+pub fn handle_retry_raffle(ctx: Context<RetryRaffle>) -> Result<()> {
+    let v = &mut ctx.accounts.vault;
+    require!(
+        v.kind == KIND_RAFFLE && v.raffle_phase == RAFFLE_COMMITTED,
+        VaultError::OutOfOrder
+    );
+    require!(
+        Clock::get()?.slot > v.raffle_deadline_slot,
+        VaultError::RaffleDeadlineNotReached
+    );
+    if (v.raffle_commits as usize) < 1 + MAX_RECOMMITS as usize {
+        v.raffle_phase = RAFFLE_READY;
+        v.randomness = Pubkey::default();
+        v.raffle_oracle = Pubkey::default();
+        v.seed_slot = 0;
+        return Ok(());
+    }
+    crate::instructions::dead_nft::rollback_raffle_round(v)
 }
 
 #[derive(Accounts)]
@@ -539,6 +585,7 @@ pub struct SettleRaffle<'info> {
     #[account(mut, seeds = [VAULT_SEED, vault.launch_config.as_ref()], bump = vault.bump)]
     pub vault: Box<Account<'info, TaxVault>>,
 
+    /// CHECK: address-pinned to `vault.mint` (the Token-2022 mint this vault was opened for).
     #[account(mut, address = vault.mint @ VaultError::MintMismatch)]
     pub mint: UncheckedAccount<'info>,
 
@@ -578,7 +625,8 @@ pub fn handle_settle_raffle(ctx: Context<SettleRaffle>) -> Result<()> {
         VaultError::RandomnessMismatch
     );
     let mixed = selection::request_randomness(&vault.revealed, &vault.key(), vault.round_id);
-    let index = uniform_below(&mixed, vault.round_minted);
+    require!(vault.live_seats > 0, VaultError::OutOfOrder);
+    let index = uniform_below(&mixed, vault.live_seats);
     let (expected, _) = Pubkey::find_program_address(
         &[
             RAFFLE_SEAT_SEED,

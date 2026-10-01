@@ -141,6 +141,12 @@ pub enum VaultError {
     ExtensionsNotAllowed,
     #[msg("claim pays more than this NFT's share of the pool, or more than the pool has credited")]
     DistributionExceeded,
+    #[msg("Switchboard queue is not on the compile-time APPROVED_SB_QUEUES list")]
+    QueueNotApproved,
+    #[msg("the NFT at the payout cursor still exists; only a burned or missing NFT can be skipped")]
+    AssetNotDead,
+    #[msg("the raffle reveal deadline has not passed yet")]
+    RaffleDeadlineNotReached,
 }
 
 #[cfg(test)]
@@ -215,6 +221,9 @@ mod tests {
             (VaultError::TokenSourceNotDerived, 6062),
             (VaultError::ExtensionsNotAllowed, 6063),
             (VaultError::DistributionExceeded, 6064),
+            (VaultError::QueueNotApproved, 6065),
+            (VaultError::AssetNotDead, 6066),
+            (VaultError::RaffleDeadlineNotReached, 6067),
         ];
         for (e, code) in pinned {
             assert_eq!(u32::from(*e), *code, "{e:?}");

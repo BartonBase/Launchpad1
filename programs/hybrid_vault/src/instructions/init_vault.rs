@@ -93,6 +93,7 @@ pub fn handle_init_vault(ctx: Context<InitVault>, params: InitVaultParams) -> Re
         VaultError::UriNotContentAddressed
     );
     require!(params.sb_queue != Pubkey::default(), VaultError::WrongQueue);
+    require!(is_approved_sb_queue(&params.sb_queue), VaultError::QueueNotApproved);
     let econ = config::econ(cfg)?;
     let collection_size = econ.collection_size;
 

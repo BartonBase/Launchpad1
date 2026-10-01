@@ -32,6 +32,23 @@ pub const SWITCHBOARD_PROGRAM_ID: Pubkey = pubkey!("Aio4gaXjXzJNVLtzwtNVmSqGKpAN
 #[cfg(feature = "mainnet")]
 pub const SWITCHBOARD_PROGRAM_ID: Pubkey = pubkey!("SBondMDrcV3K4kxZR1HNVT7osZxAHVHgYXL5Ze1oMUv");
 
+/// ADR-020: the ONLY Switchboard On-Demand queues a vault may pin (compile-time list, same pattern as
+/// `hybrid_launch::APPROVED_DBC_CONFIGS`). The creator no longer picks the randomness provider: the
+/// program id is hard-pinned above and the queue must be on this list (checked at `init_vault`,
+/// `init_raffle_vault`, and again on every commit). Changing it takes a program upgrade.
+/// Devnet/localnet: Switchboard's default devnet queue (docs.switchboard.xyz, Solana/SVM accounts).
+#[cfg(not(feature = "mainnet"))]
+pub const APPROVED_SB_QUEUES: &[Pubkey] = &[pubkey!("EYiAmGSdsQTuCw413V5BzaruWuCCSDgTPtBGvLkXHbe7")];
+/// Mainnet: Switchboard's default mainnet queue (docs.switchboard.xyz, Solana/SVM accounts). Re-verify
+/// on-chain before a mainnet build.
+#[cfg(feature = "mainnet")]
+pub const APPROVED_SB_QUEUES: &[Pubkey] = &[pubkey!("A43DyUGA7s8eXPxqEjJY6EBu1KKbNgfxF8h17VAHn13w")];
+const _: () = assert!(!APPROVED_SB_QUEUES.is_empty(), "APPROVED_SB_QUEUES must not be empty");
+
+pub fn is_approved_sb_queue(queue: &Pubkey) -> bool {
+    APPROVED_SB_QUEUES.contains(queue)
+}
+
 /// Build marker: logged by `init_vault`, so it's in the binary's rodata and deploy scripts can verify
 /// which Switchboard cluster id was compiled in (pubkey constants are inlined as immediates and
 /// can't be grepped). An exported `#[no_mangle]` static breaks SBPF v2 loading, hence the log.

@@ -1100,9 +1100,11 @@ fn idl_has_no_cancel_refund_update_close_withdraw_or_burn_instruction() {
         "request_reroll",
         "reveal_raffle",
         "reveal_randomness",
+        "retry_raffle",
         "settle_capture",
         "settle_raffle",
         "settle_reroll",
+        "skip_dead_nft",
         "snapshot_raffle",
         "unwrap",
         "wrap_permanent",
@@ -2457,4 +2459,208 @@ fn m04_batch_expire_rejects_substituted_per_request_accounts() {
     let ix = env.expire_batch_ix_raw(2, s.pubkey(), good);
     env.send(&[ix], &[&s]).unwrap();
     env.assert_invariants();
+}
+
+// ------------------------------------------- review 2026-10-01 fixes (burned NFT, raffle stall, queue pin)
+
+fn tax_pda(env: &Env) -> Pubkey {
+    Pubkey::find_program_address(&[b"tax_authority", env.ids.mint.as_ref()], &hybrid_vault::ID).0
+}
+
+fn t22_ata(env: &Env, owner: &Pubkey) -> Pubkey {
+    get_associated_token_address_with_program_id(owner, &env.ids.mint, &TOKEN_2022_ID)
+}
+
+/// Opens a payout round over 3 NFTs (alice #0, bob #1, carol #2) with ~570 SOL of tax tokens.
+fn three_holders_round(env: &mut Env) -> (User, User, User) {
+    let alice = env.new_t22_user(env.ratio_base);
+    let bob = env.new_t22_user(env.ratio_base);
+    let carol = env.new_t22_user(env.ratio_base);
+    env.wrap_token22(&alice, 0).unwrap();
+    env.wrap_token22(&bob, 1).unwrap();
+    env.wrap_token22(&carol, 2).unwrap();
+    let tax = tax_pda(env);
+    let rent = env.svm.minimum_balance_for_rent_exemption(0);
+    env.svm.airdrop(&tax, rent + 600_000u64 * 1_000_000).unwrap();
+    env.buyback().unwrap();
+    assert_eq!(env.tax_vault().round_minted, 3);
+    (alice, bob, carol)
+}
+
+#[test]
+fn fix1_mode4_one_burned_nft_cannot_stall_later_payouts() {
+    let mut env = setup_token22(N, 500);
+    let (alice, bob, carol) = three_holders_round(&mut env);
+    let v0 = env.tax_vault();
+    assert_eq!(v0.round_open, 1);
+    let share = v0.round_share;
+    // A live NFT can never be skipped (no forfeiting someone else's share).
+    expect_vault_err(env.skip_dead_nft(0), VaultError::AssetNotDead);
+    env.burn_nft(&alice.kp, 0).expect("owner burns own Core NFT");
+    // Only the NFT at the cursor; the caller cannot pick another index.
+    expect_vault_err(env.skip_dead_nft(1), VaultError::OutOfOrder);
+    assert!(env.claim_tax(&alice.kp.pubkey(), 0).is_err(), "a burned NFT is never paid");
+    env.skip_dead_nft(0).unwrap();
+    expect_vault_err(env.skip_dead_nft(0), VaultError::OutOfOrder);
+    let v1 = env.tax_vault();
+    assert_eq!(v1.payout_cursor, 1);
+    assert_eq!(v1.credited_base, v0.credited_base - share, "forfeited share is un-credited");
+    assert_eq!(v1.pending_base, v0.pending_base + share, "and returned to the pending pot");
+    // Later holders are paid exactly once, in order.
+    let (bob_ata, carol_ata) = (t22_ata(&env, &bob.kp.pubkey()), t22_ata(&env, &carol.kp.pubkey()));
+    let (b0, c0) = (env.raw_amount(&bob_ata), env.raw_amount(&carol_ata));
+    env.claim_tax(&bob.kp.pubkey(), 1).unwrap();
+    env.claim_tax(&carol.kp.pubkey(), 2).unwrap();
+    let net = share - (share * 500 / 10_000 + u64::from(share * 500 % 10_000 != 0));
+    assert_eq!(env.raw_amount(&bob_ata) - b0, net);
+    assert_eq!(env.raw_amount(&carol_ata) - c0, net);
+    let v2 = env.tax_vault();
+    assert_eq!((v2.round_open, v2.round_share), (0, 0), "round finished despite the burn");
+    assert_eq!(v2.paid_base, v2.credited_base, "no double pay, nothing over-credited");
+    let treasury = t22_ata(&env, &tax_pda(&env));
+    assert_eq!(env.raw_amount(&treasury), v2.pending_base, "forfeit stays in the treasury as pending");
+    expect_vault_err(env.skip_dead_nft(0), VaultError::OutOfOrder);
+    // New tax opens a new round that includes the forfeited share; the burn is skipped again.
+    env.svm.airdrop(&tax_pda(&env), 600_000u64 * 1_000_000).unwrap();
+    env.buyback().unwrap();
+    let v3 = env.tax_vault();
+    assert_eq!(v3.round_open, 1, "a new round can open after the burn");
+    env.skip_dead_nft(0).unwrap();
+    env.claim_tax(&bob.kp.pubkey(), 1).unwrap();
+    env.claim_tax(&carol.kp.pubkey(), 2).unwrap();
+    let v4 = env.tax_vault();
+    assert_eq!(v4.round_open, 0);
+    assert_eq!(v4.paid_base, v4.credited_base);
+    assert_eq!(env.raw_amount(&treasury), v4.pending_base);
+}
+
+#[test]
+fn fix1_mode5_burned_nft_is_skipped_and_the_draw_only_lands_on_live_seats() {
+    let mut env = setup_raffle(N, 500);
+    let (alice, bob, carol) = three_holders_round(&mut env);
+    assert_eq!(env.tax_vault().raffle_phase, hybrid_vault::RAFFLE_SNAPSHOT);
+    env.snapshot_raffle(&alice.kp.pubkey(), 0).unwrap();
+    env.burn_nft(&bob.kp, 1).unwrap();
+    assert!(env.snapshot_raffle(&bob.kp.pubkey(), 1).is_err(), "no seat for a burned NFT");
+    expect_vault_err(env.skip_dead_nft(2), VaultError::OutOfOrder);
+    env.skip_dead_nft(1).unwrap();
+    env.snapshot_raffle(&carol.kp.pubkey(), 2).unwrap();
+    let v = env.tax_vault();
+    assert_eq!((v.raffle_phase, v.live_seats), (hybrid_vault::RAFFLE_READY, 2));
+    let r = env.init_raffle_randomness();
+    env.commit_raffle(&r).unwrap();
+    let value = [3u8; 32];
+    env.reveal_raffle(value).unwrap();
+    let v = env.tax_vault();
+    let mixed = hybrid_vault::selection::request_randomness(&value, &env.ids.vault, v.round_id);
+    let seat = hybrid_vault::selection::uniform_below(&mixed, v.live_seats);
+    let winner = if seat == 0 { alice.kp.pubkey() } else { carol.kp.pubkey() };
+    let ata = t22_ata(&env, &winner);
+    let before = env.raw_amount(&ata);
+    env.settle_raffle(&winner, seat).unwrap();
+    assert!(env.raw_amount(&ata) > before, "a live seat holder wins the pot");
+    let v = env.tax_vault();
+    assert_eq!((v.round_open, v.raffle_phase), (0, 0));
+    assert_eq!(v.paid_base, v.credited_base);
+}
+
+#[test]
+fn fix1_mode5_every_nft_burned_rolls_the_round_back_with_the_pot_kept() {
+    let mut env = setup_raffle(N, 500);
+    let (alice, bob, carol) = three_holders_round(&mut env);
+    let v0 = env.tax_vault();
+    for (u, i) in [(&alice, 0u32), (&bob, 1), (&carol, 2)] {
+        env.burn_nft(&u.kp, i).unwrap();
+        env.skip_dead_nft(i).unwrap();
+    }
+    let v = env.tax_vault();
+    assert_eq!((v.round_open, v.raffle_phase, v.round_pot), (0, 0, 0));
+    assert_eq!(v.credited_base, v0.credited_base - v0.round_pot);
+    assert_eq!(v.pending_base, v0.pending_base + v0.round_pot, "pot returned to pending, nothing lost");
+    let treasury = t22_ata(&env, &tax_pda(&env));
+    assert_eq!(env.raw_amount(&treasury), v.pending_base + (v.credited_base - v.paid_base));
+}
+
+#[test]
+fn fix2_mode5_oracle_never_answers_retry_then_rollback_keeps_the_pot() {
+    let mut env = setup_raffle(N, 500);
+    let (alice, bob, carol) = three_holders_round(&mut env);
+    env.snapshot_raffle(&alice.kp.pubkey(), 0).unwrap();
+    env.snapshot_raffle(&bob.kp.pubkey(), 1).unwrap();
+    env.snapshot_raffle(&carol.kp.pubkey(), 2).unwrap();
+    let v0 = env.tax_vault();
+    let treasury = t22_ata(&env, &tax_pda(&env));
+    let treasury0 = env.raw_amount(&treasury);
+    let r = env.init_raffle_randomness();
+    env.commit_raffle(&r).unwrap();
+    // Nothing before the deadline.
+    expect_vault_err(env.retry_raffle(), VaultError::RaffleDeadlineNotReached);
+    let mut oracles = vec![env.tax_vault().raffle_oracle];
+    for _ in 0..hybrid_vault::MAX_RECOMMITS {
+        env.warp(hybrid_vault::REVEAL_TIMEOUT_SLOTS + 1);
+        env.retry_raffle().unwrap();
+        assert_eq!(env.tax_vault().raffle_phase, hybrid_vault::RAFFLE_READY);
+        assert!(env.reveal_raffle([1u8; 32]).is_err(), "a late reveal of the abandoned commit is refused");
+        let r = env.init_raffle_randomness();
+        env.commit_raffle(&r).unwrap();
+        let o = env.tax_vault().raffle_oracle;
+        assert!(!oracles.contains(&o), "each retry is served by a different oracle");
+        oracles.push(o);
+    }
+    let v = env.tax_vault();
+    assert_eq!(v.raffle_commits, 1 + hybrid_vault::MAX_RECOMMITS);
+    assert_eq!((v.round_pot, v.live_seats), (v0.round_pot, 3), "pot and seats untouched by retries");
+    // Last oracle also silent: the round is rolled back; the pot goes back to pending, nothing leaves.
+    env.warp(hybrid_vault::REVEAL_TIMEOUT_SLOTS + 1);
+    env.retry_raffle().unwrap();
+    let v = env.tax_vault();
+    assert_eq!((v.round_open, v.raffle_phase, v.round_pot), (0, 0, 0));
+    assert_eq!(v.pending_base, v0.pending_base + v0.round_pot);
+    assert_eq!(v.credited_base, v0.credited_base - v0.round_pot);
+    assert_eq!(env.raw_amount(&treasury), treasury0, "no tokens moved");
+    expect_vault_err(env.retry_raffle(), VaultError::OutOfOrder);
+    // More tax reopens a fresh round (new round id) that includes the old pot, and it can be won.
+    env.svm.airdrop(&tax_pda(&env), 1_000_000).unwrap();
+    env.buyback().unwrap();
+    let v = env.tax_vault();
+    assert_eq!((v.round_open, v.round_id, v.raffle_phase), (1, v0.round_id + 1, hybrid_vault::RAFFLE_SNAPSHOT));
+    assert!(v.round_pot >= v0.round_pot, "old pot carried into the new round");
+    env.snapshot_raffle(&alice.kp.pubkey(), 0).unwrap();
+    env.snapshot_raffle(&bob.kp.pubkey(), 1).unwrap();
+    env.snapshot_raffle(&carol.kp.pubkey(), 2).unwrap();
+    let r = env.init_raffle_randomness();
+    env.commit_raffle(&r).unwrap();
+    let value = [5u8; 32];
+    env.reveal_raffle(value).unwrap();
+    let v = env.tax_vault();
+    let mixed = hybrid_vault::selection::request_randomness(&value, &env.ids.vault, v.round_id);
+    let seat = hybrid_vault::selection::uniform_below(&mixed, v.live_seats);
+    let winner = [alice.kp.pubkey(), bob.kp.pubkey(), carol.kp.pubkey()][seat as usize];
+    env.settle_raffle(&winner, seat).unwrap();
+    let v = env.tax_vault();
+    assert_eq!(v.paid_base, v.credited_base);
+}
+
+#[test]
+fn fix3_only_approved_switchboard_queue_and_program() {
+    assert_eq!(
+        hybrid_vault::APPROVED_SB_QUEUES,
+        &["EYiAmGSdsQTuCw413V5BzaruWuCCSDgTPtBGvLkXHbe7".parse::<Pubkey>().unwrap()],
+        "devnet build pins Switchboard's default devnet queue"
+    );
+    assert_eq!(SWITCHBOARD_PROGRAM_ID, "Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2".parse::<Pubkey>().unwrap());
+    assert!(!hybrid_vault::is_approved_sb_queue(&Pubkey::new_unique()));
+    // Mode 2: a creator-run queue (owned by the Switchboard program, valid layout) is refused at init_vault.
+    let mut env = setup_closed(N);
+    env.sb_queue = Pubkey::new_unique();
+    let oracles: Vec<Pubkey> = (0..6).map(|_| Pubkey::new_unique()).collect();
+    env.install_queue(&oracles, 3);
+    expect_vault_err(env.launch_and_init(N).map(|_| ()), VaultError::QueueNotApproved);
+    // Mode 5: same for init_raffle_vault.
+    expect_vault_err(env.launch_raffle(N, 500).map(|_| ()), VaultError::QueueNotApproved);
+    // The approved queue still works for both.
+    env.sb_queue = hybrid_vault::APPROVED_SB_QUEUES[0];
+    env.install_queue(&oracles, 3);
+    env.launch_and_init(N).expect("approved queue accepted (Mode 2)");
+    env.launch_raffle(N, 500).expect("approved queue accepted (Mode 5)");
 }

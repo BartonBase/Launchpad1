@@ -137,6 +137,16 @@ pub struct TaxVault {
     pub raffle_oracle: Pubkey,
     pub seed_slot: u64,
     pub revealed: [u8; 32],
+    /// Raffle: seats written this round. A burned NFT is skipped (`skip_dead_nft`) and gets no seat,
+    /// so seats are numbered densely 0..live_seats and the draw is uniform over live seats only.
+    pub live_seats: u32,
+    /// Raffle: commits made this round (1 + retries). At most 1 + MAX_RECOMMITS; after that a timed-out
+    /// round is rolled back (pot returned to `pending_base`, nothing lost).
+    pub raffle_commits: u8,
+    /// Raffle: the oracle of each commit this round. A retry must be served by a different oracle.
+    pub raffle_oracles: [Pubkey; 4],
+    /// Raffle: after this slot an unrevealed commit may be retried by anyone (`retry_raffle`).
+    pub raffle_deadline_slot: u64,
 }
 #[account]
 #[derive(InitSpace, Debug)]

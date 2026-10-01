@@ -235,6 +235,7 @@ pub struct WrapToken22<'info> {
     )]
     pub launch_config: Box<Account<'info, T22BurnLaunchConfig>>,
 
+    /// CHECK: address-pinned to `vault.mint` (the Token-2022 mint this vault was opened for).
     #[account(mut, address = vault.mint @ VaultError::MintMismatch)]
     pub mint: UncheckedAccount<'info>,
 
@@ -427,6 +428,7 @@ pub struct HarvestTax<'info> {
     #[account(mut, seeds = [VAULT_SEED, vault.launch_config.as_ref()], bump = vault.bump)]
     pub vault: Box<Account<'info, TaxVault>>,
 
+    /// CHECK: address-pinned to `vault.mint` (the Token-2022 mint this vault was opened for).
     #[account(mut, address = vault.mint @ VaultError::MintMismatch)]
     pub mint: UncheckedAccount<'info>,
 
@@ -512,6 +514,7 @@ pub struct ClaimTax<'info> {
     #[account(mut, seeds = [VAULT_SEED, vault.launch_config.as_ref()], bump = vault.bump)]
     pub vault: Box<Account<'info, TaxVault>>,
 
+    /// CHECK: address-pinned to `vault.mint` (the Token-2022 mint this vault was opened for).
     #[account(mut, address = vault.mint @ VaultError::MintMismatch)]
     pub mint: UncheckedAccount<'info>,
 
@@ -674,6 +677,7 @@ pub struct Buyback<'info> {
     )]
     pub launch_config: Box<Account<'info, hybrid_launch::T22BurnLaunchConfig>>,
 
+    /// CHECK: address-pinned to `vault.mint` (the Token-2022 mint this vault was opened for).
     #[account(mut, address = vault.mint @ VaultError::MintMismatch)]
     pub mint: UncheckedAccount<'info>,
 
@@ -810,6 +814,10 @@ fn accrue(vault: &mut TaxVault, gained: u64) -> Result<()> {
         vault.round_pot = booked;
         vault.round_share = 0;
         vault.raffle_phase = RAFFLE_SNAPSHOT;
+        vault.live_seats = 0;
+        vault.raffle_commits = 0;
+        vault.raffle_oracles = [Pubkey::default(); 4];
+        vault.raffle_deadline_slot = 0;
         vault.round_id = vault
             .round_id
             .checked_add(1)

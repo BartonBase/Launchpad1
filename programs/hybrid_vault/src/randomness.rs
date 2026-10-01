@@ -136,6 +136,7 @@ pub fn commit_for_request<'info, 'p>(
         VaultError::InvalidRandomnessAccount
     );
     require_keys_eq!(*queue.key, *pinned_queue, VaultError::WrongQueue);
+    require!(is_approved_sb_queue(queue.key), VaultError::QueueNotApproved);
     let now = Clock::get()?.unix_timestamp;
     let chosen = select_oracle(queue, vault_key, seq, used_oracles, stale_proofs, now)?;
     require_keys_eq!(*oracle.key, chosen, VaultError::WrongOracle);

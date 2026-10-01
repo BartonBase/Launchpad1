@@ -123,6 +123,20 @@ pub fn transfer_asset<'info>(
 }
 
 /// Defence in depth: after a transfer, confirm the asset is a Core asset of `collection` owned by `owner`.
+/// True only for an asset account that no longer holds an asset: what Metaplex Core leaves after an
+/// owner burn (Core-owned, data resized to 1 byte = `Key::Uninitialized`), or an account that does not
+/// exist at all (system-owned, empty). A live asset, or any other owner or data, is NOT dead.
+pub fn asset_is_dead(asset: &AccountInfo) -> bool {
+    let data = match asset.try_borrow_data() {
+        Ok(d) => d,
+        Err(_) => return false,
+    };
+    if *asset.owner == MPL_CORE_ID {
+        return data.len() == 1 && data[0] == 0;
+    }
+    *asset.owner == anchor_lang::system_program::ID && data.is_empty()
+}
+
 pub fn assert_asset_state(asset: &AccountInfo, collection: &Pubkey, owner: &Pubkey) -> Result<()> {
     require_keys_eq!(*asset.owner, MPL_CORE_ID, VaultError::AssetStateMismatch);
     let data = asset.try_borrow_data()?;

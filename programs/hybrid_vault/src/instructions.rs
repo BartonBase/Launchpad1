@@ -1,4 +1,5 @@
 pub mod admin;
+pub mod dead_nft;
 pub mod expire;
 pub mod init_vault;
 pub mod open_vault;
@@ -12,6 +13,7 @@ pub mod unwrap;
 pub mod vault_token_ops;
 
 pub use admin::*;
+pub use dead_nft::*;
 pub use expire::*;
 pub use init_vault::*;
 pub use open_vault::*;

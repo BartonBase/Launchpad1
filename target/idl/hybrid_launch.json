@@ -1373,6 +1373,148 @@
       ]
     }
   ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidDecimals",
+      "msg": "decimals must be <= 9"
+    },
+    {
+      "code": 6001,
+      "name": "RatioNotAllowed",
+      "msg": "ratio must be one of 50_000, 100_000, 200_000, 500_000, 1_000_000, 2_500_000, 5_000_000"
+    },
+    {
+      "code": 6002,
+      "name": "ZeroCollectionSize",
+      "msg": "collection_size must be >= 1"
+    },
+    {
+      "code": 6003,
+      "name": "CollectionTooLargeForSupply",
+      "msg": "collection_size * ratio exceeds the 1B supply"
+    },
+    {
+      "code": 6004,
+      "name": "ReservedFeeAboveCap",
+      "msg": "reserved (removed: token fee bps cap; there is no token fee)"
+    },
+    {
+      "code": 6005,
+      "name": "ReservedCaptureFeeBelowRerollFee",
+      "msg": "reserved (removed: capture vs re-roll fee ordering)"
+    },
+    {
+      "code": 6006,
+      "name": "ReservedFeeDestinationNotBurn",
+      "msg": "reserved (removed: burn fee destination)"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidLaunchDestination",
+      "msg": "launch_destination is not the classic-SPL ATA of the launch_vault PDA for this mint"
+    },
+    {
+      "code": 6008,
+      "name": "MathOverflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6009,
+      "name": "PostLaunchCheckFailed",
+      "msg": "Post-launch invariant check failed"
+    },
+    {
+      "code": 6010,
+      "name": "CollectionBelowMinimum",
+      "msg": "collection_size must be >= MIN_COLLECTION_SIZE (100)"
+    },
+    {
+      "code": 6011,
+      "name": "MintAccountInUse",
+      "msg": "mint address already holds data or is owned by a program"
+    },
+    {
+      "code": 6012,
+      "name": "SolFeeOutOfRange",
+      "msg": "tier SOL fee outside [MIN_FEE_LAMPORTS, MAX_FEE_LAMPORTS]"
+    },
+    {
+      "code": 6013,
+      "name": "CollectionAboveCap",
+      "msg": "collection_size above MAX_COLLECTION_SIZE (10,000)"
+    },
+    {
+      "code": 6014,
+      "name": "GraduationThresholdOutOfRange",
+      "msg": "graduation threshold outside [10 SOL, 100,000 SOL]"
+    },
+    {
+      "code": 6015,
+      "name": "ReservedGraduationUnfundable",
+      "msg": "Reserved (was GraduationUnfundable; affordability rule dropped with lazy minting, ADR-016)"
+    },
+    {
+      "code": 6016,
+      "name": "MintCostConstantStale",
+      "msg": "live rent for a Core asset exceeds the conservative constant"
+    },
+    {
+      "code": 6017,
+      "name": "FeeRecipientInvalid",
+      "msg": "fee recipient must be PLATFORM_FEE_RECIPIENT, system-owned, data-less and not executable"
+    },
+    {
+      "code": 6018,
+      "name": "DbcAccountInvalid",
+      "msg": "not a DBC pool/config account (owner, length or discriminator), or pool/config/mint don't match"
+    },
+    {
+      "code": 6019,
+      "name": "DbcConfigRejected",
+      "msg": "DBC config rejected: needs SOL quote, SPL token type, fixed 1B supply with no burn, immutable authority, our buffer as leftover receiver, and the launch's decimals and threshold"
+    },
+    {
+      "code": 6020,
+      "name": "DbcMintRejected",
+      "msg": "DBC mint rejected: needs classic Token, mint + freeze authority None, supply exactly 1B, the launch's decimals"
+    },
+    {
+      "code": 6021,
+      "name": "DbcCreatorMismatch",
+      "msg": "the signer must be the DBC pool's creator"
+    },
+    {
+      "code": 6022,
+      "name": "DbcAlreadyGraduated",
+      "msg": "the DBC pool has already migrated; register before graduation"
+    },
+    {
+      "code": 6023,
+      "name": "DbcConfigNotApproved",
+      "msg": "DBC config is not on the platform allowlist (APPROVED_DBC_CONFIGS)"
+    },
+    {
+      "code": 6024,
+      "name": "FeeNotTier",
+      "msg": "stored fee is not exactly the tier for the ratio (QA-FEE-03; 0 and off-tier fees are invalid)"
+    },
+    {
+      "code": 6025,
+      "name": "ExtensionsNotAllowed",
+      "msg": "Token-2022 mint must carry the transfer-fee extension and no other extension"
+    },
+    {
+      "code": 6026,
+      "name": "TaxBpsNotAllowed",
+      "msg": "transfer tax must be from 1 to 1000 basis points and is fixed at launch"
+    },
+    {
+      "code": 6027,
+      "name": "BuybackPriceNotAllowed",
+      "msg": "buyback price must be from 1 lamport to 1 SOL per whole token and is fixed at launch"
+    }
+  ],
   "types": [
     {
       "name": "BurnLaunchConfig",
@@ -2051,7 +2193,7 @@
     {
       "name": "MAX_COLLECTION_SIZE",
       "docs": [
-        "Hard cap on collection size for batched pre-mint at graduation (graduation-design \u00a72.3/\u00a74.2:",
+        "Hard cap on collection size for batched pre-mint at graduation (graduation-design §2.3/§4.2:",
         "measured 0.00509 SOL per NFT). DECIDED (Barton 2026-09-25 4:55 PM MT): 10,000.",
         "Effective max N = min(1B / ratio, MAX_COLLECTION_SIZE)."
       ],
@@ -2130,149 +2272,6 @@
       ],
       "type": "u64",
       "value": "1000000000"
-    }
-  ],
-  "events": [],
-  "errors": [
-    {
-      "code": 6000,
-      "name": "InvalidDecimals",
-      "msg": "decimals must be <= 9"
-    },
-    {
-      "code": 6001,
-      "name": "RatioNotAllowed",
-      "msg": "ratio must be one of 50_000, 100_000, 200_000, 500_000, 1_000_000, 2_500_000, 5_000_000"
-    },
-    {
-      "code": 6002,
-      "name": "ZeroCollectionSize",
-      "msg": "collection_size must be >= 1"
-    },
-    {
-      "code": 6003,
-      "name": "CollectionTooLargeForSupply",
-      "msg": "collection_size * ratio exceeds the 1B supply"
-    },
-    {
-      "code": 6004,
-      "name": "ReservedFeeAboveCap",
-      "msg": "reserved (removed: token fee bps cap; there is no token fee)"
-    },
-    {
-      "code": 6005,
-      "name": "ReservedCaptureFeeBelowRerollFee",
-      "msg": "reserved (removed: capture vs re-roll fee ordering)"
-    },
-    {
-      "code": 6006,
-      "name": "ReservedFeeDestinationNotBurn",
-      "msg": "reserved (removed: burn fee destination)"
-    },
-    {
-      "code": 6007,
-      "name": "InvalidLaunchDestination",
-      "msg": "launch_destination is not the classic-SPL ATA of the launch_vault PDA for this mint"
-    },
-    {
-      "code": 6008,
-      "name": "MathOverflow",
-      "msg": "Arithmetic overflow"
-    },
-    {
-      "code": 6009,
-      "name": "PostLaunchCheckFailed",
-      "msg": "Post-launch invariant check failed"
-    },
-    {
-      "code": 6010,
-      "name": "CollectionBelowMinimum",
-      "msg": "collection_size must be >= MIN_COLLECTION_SIZE (100)"
-    },
-    {
-      "code": 6011,
-      "name": "MintAccountInUse",
-      "msg": "mint address already holds data or is owned by a program"
-    },
-    {
-      "code": 6012,
-      "name": "SolFeeOutOfRange",
-      "msg": "tier SOL fee outside [MIN_FEE_LAMPORTS, MAX_FEE_LAMPORTS]"
-    },
-    {
-      "code": 6013,
-      "name": "CollectionAboveCap",
-      "msg": "collection_size above MAX_COLLECTION_SIZE (10,000)"
-    },
-    {
-      "code": 6014,
-      "name": "GraduationThresholdOutOfRange",
-      "msg": "graduation threshold outside [10 SOL, 100,000 SOL]"
-    },
-    {
-      "code": 6015,
-      "name": "ReservedGraduationUnfundable",
-      "msg": "Reserved (was GraduationUnfundable; affordability rule dropped with lazy minting, ADR-016)"
-    },
-    {
-      "code": 6016,
-      "name": "MintCostConstantStale",
-      "msg": "live rent for a Core asset exceeds the conservative constant"
-    },
-    {
-      "code": 6017,
-      "name": "FeeRecipientInvalid",
-      "msg": "fee recipient must be PLATFORM_FEE_RECIPIENT, system-owned, data-less and not executable"
-    },
-    {
-      "code": 6018,
-      "name": "DbcAccountInvalid",
-      "msg": "not a DBC pool/config account (owner, length or discriminator), or pool/config/mint don't match"
-    },
-    {
-      "code": 6019,
-      "name": "DbcConfigRejected",
-      "msg": "DBC config rejected: needs SOL quote, SPL token type, fixed 1B supply with no burn, immutable authority, our buffer as leftover receiver, and the launch's decimals and threshold"
-    },
-    {
-      "code": 6020,
-      "name": "DbcMintRejected",
-      "msg": "DBC mint rejected: needs classic Token, mint + freeze authority None, supply exactly 1B, the launch's decimals"
-    },
-    {
-      "code": 6021,
-      "name": "DbcCreatorMismatch",
-      "msg": "the signer must be the DBC pool's creator"
-    },
-    {
-      "code": 6022,
-      "name": "DbcAlreadyGraduated",
-      "msg": "the DBC pool has already migrated; register before graduation"
-    },
-    {
-      "code": 6023,
-      "name": "DbcConfigNotApproved",
-      "msg": "DBC config is not on the platform allowlist (APPROVED_DBC_CONFIGS)"
-    },
-    {
-      "code": 6024,
-      "name": "FeeNotTier",
-      "msg": "stored fee is not exactly the tier for the ratio (QA-FEE-03; 0 and off-tier fees are invalid)"
-    },
-    {
-      "code": 6025,
-      "name": "ExtensionsNotAllowed",
-      "msg": "Token-2022 mint must carry the transfer-fee extension and no other extension"
-    },
-    {
-      "code": 6026,
-      "name": "TaxBpsNotAllowed",
-      "msg": "transfer tax must be from 1 to 1000 basis points and is fixed at launch"
-    },
-    {
-      "code": 6027,
-      "name": "BuybackPriceNotAllowed",
-      "msg": "buyback price must be from 1 lamport to 1 SOL per whole token and is fixed at launch"
     }
   ]
 }

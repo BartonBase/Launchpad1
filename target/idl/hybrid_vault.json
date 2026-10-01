@@ -3037,6 +3037,49 @@
       ]
     },
     {
+      "name": "retry_raffle",
+      "docs": [
+        "Permissionless. After the reveal deadline with no reveal: allow a fresh commit (different",
+        "oracle), or after 1 + MAX_RECOMMITS commits roll the round back with the pot kept."
+      ],
+      "discriminator": [
+        195,
+        178,
+        71,
+        73,
+        131,
+        71,
+        98,
+        160
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.launch_config",
+                "account": "TaxVault"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "reveal_raffle",
       "docs": [
         "Submit the oracle reveal. The value is stored. It cannot be replaced."
@@ -3994,6 +4037,52 @@
       ]
     },
     {
+      "name": "skip_dead_nft",
+      "docs": [
+        "Permissionless. Advance a Mode 4 payout / Mode 5 snapshot past the NFT at the cursor, only if",
+        "that NFT was burned. Mode 4 forfeits its share back to the pending pot; Mode 5 writes no seat."
+      ],
+      "discriminator": [
+        88,
+        91,
+        141,
+        52,
+        242,
+        9,
+        150,
+        138
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.launch_config",
+                "account": "TaxVault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "snapshot_raffle",
       "docs": [
         "Record the current owner of the next frozen NFT. Must finish before the draw is requested."
@@ -4072,7 +4161,7 @@
               },
               {
                 "kind": "account",
-                "path": "vault.payout_cursor",
+                "path": "vault.live_seats",
                 "account": "TaxVault"
               }
             ]
@@ -4755,6 +4844,348 @@
       ]
     }
   ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "NotCreator",
+      "msg": "Signer is not the LaunchConfig creator"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidPoolAccount",
+      "msg": "Pool account is malformed or belongs to another vault"
+    },
+    {
+      "code": 6002,
+      "name": "PoolMismatch",
+      "msg": "Pool accounting mismatch"
+    },
+    {
+      "code": 6003,
+      "name": "MetadataTooLong",
+      "msg": "Name or URI too long"
+    },
+    {
+      "code": 6004,
+      "name": "IndexOutOfRange",
+      "msg": "Asset index out of range"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidMerkleProof",
+      "msg": "Merkle proof does not match the committed trait root"
+    },
+    {
+      "code": 6006,
+      "name": "ReservedAssetAlreadyDeposited",
+      "msg": "reserved (removed: deposit_asset)"
+    },
+    {
+      "code": 6007,
+      "name": "ReservedVaultSealed",
+      "msg": "reserved (removed: seal model)"
+    },
+    {
+      "code": 6008,
+      "name": "ReservedVaultNotSealed",
+      "msg": "reserved (removed: seal model)"
+    },
+    {
+      "code": 6009,
+      "name": "ReservedPaused",
+      "msg": "reserved (removed: guardian pause, ADR-015)"
+    },
+    {
+      "code": 6010,
+      "name": "NoAssetAvailable",
+      "msg": "No NFT is available to draw"
+    },
+    {
+      "code": 6011,
+      "name": "AliasedTokenAccount",
+      "msg": "User token account aliases the vault token account"
+    },
+    {
+      "code": 6012,
+      "name": "InvalidRandomnessAccount",
+      "msg": "Randomness account is not a Switchboard randomness account"
+    },
+    {
+      "code": 6013,
+      "name": "RandomnessNotFresh",
+      "msg": "Randomness commit is not fresh"
+    },
+    {
+      "code": 6014,
+      "name": "RandomnessMismatch",
+      "msg": "Randomness account does not match the request's commit"
+    },
+    {
+      "code": 6015,
+      "name": "RandomnessNotRevealed",
+      "msg": "Randomness not revealed yet"
+    },
+    {
+      "code": 6016,
+      "name": "RandomnessAlreadyRevealed",
+      "msg": "Randomness already revealed for this request"
+    },
+    {
+      "code": 6017,
+      "name": "OutOfOrder",
+      "msg": "Only the head request (FIFO) can be settled or expired"
+    },
+    {
+      "code": 6018,
+      "name": "WrongRequestKind",
+      "msg": "Request kind does not match the instruction"
+    },
+    {
+      "code": 6019,
+      "name": "MergeBacklog",
+      "msg": "Too many unmerged incoming NFTs; call merge_incoming first"
+    },
+    {
+      "code": 6020,
+      "name": "WrongAsset",
+      "msg": "Asset is not the one selected by the randomness"
+    },
+    {
+      "code": 6021,
+      "name": "DeadlineNotReached",
+      "msg": "Reveal deadline not reached"
+    },
+    {
+      "code": 6022,
+      "name": "ReservedMissingAsset",
+      "msg": "reserved (removed)"
+    },
+    {
+      "code": 6023,
+      "name": "AssetStateMismatch",
+      "msg": "Asset state after CPI does not match expectations"
+    },
+    {
+      "code": 6024,
+      "name": "ReservedNotGuardian",
+      "msg": "reserved (removed: guardian pause, ADR-015)"
+    },
+    {
+      "code": 6025,
+      "name": "ReservedInvalidPauseDuration",
+      "msg": "reserved (removed: guardian pause, ADR-015)"
+    },
+    {
+      "code": 6026,
+      "name": "ReservedPauseNotAllowed",
+      "msg": "reserved (removed: guardian pause, ADR-015)"
+    },
+    {
+      "code": 6027,
+      "name": "InsolventVault",
+      "msg": "Vault token balance below ratio * (NFTs outside + pending captures + pending re-rolls)"
+    },
+    {
+      "code": 6028,
+      "name": "ReservedFeeEscrowShort",
+      "msg": "reserved (removed: token fee escrow)"
+    },
+    {
+      "code": 6029,
+      "name": "AssetAccountingBroken",
+      "msg": "NFT accounting invariant broken"
+    },
+    {
+      "code": 6030,
+      "name": "ReservedFeeDestinationNotBurn",
+      "msg": "reserved (removed: burn fee destination)"
+    },
+    {
+      "code": 6031,
+      "name": "MathOverflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6032,
+      "name": "UriNotContentAddressed",
+      "msg": "URI must be content-addressed (ipfs:// or ar://)"
+    },
+    {
+      "code": 6033,
+      "name": "VaultNotOpen",
+      "msg": "Converting is closed until the vault is opened (graduation + full mint)"
+    },
+    {
+      "code": 6034,
+      "name": "VaultAlreadyOpen",
+      "msg": "Vault is already open"
+    },
+    {
+      "code": 6035,
+      "name": "ReservedCollectionNotFullyMinted",
+      "msg": "Reserved (was CollectionNotFullyMinted; batch pre-mint removed, lazy mint ADR-016)"
+    },
+    {
+      "code": 6036,
+      "name": "GraduationNotVerified",
+      "msg": "Graduation could not be verified on-chain"
+    },
+    {
+      "code": 6037,
+      "name": "GraduationCheckUnavailable",
+      "msg": "No graduation check exists for this launch (no DBC pool recorded: native `launch`); the vault can never open"
+    },
+    {
+      "code": 6038,
+      "name": "RandomnessAuthorityMismatch",
+      "msg": "Randomness authority is not this vault's randomness PDA"
+    },
+    {
+      "code": 6039,
+      "name": "WrongQueue",
+      "msg": "Switchboard queue is not the vault's pinned queue"
+    },
+    {
+      "code": 6040,
+      "name": "OracleReused",
+      "msg": "Oracle already used for this request; a re-commit needs a different oracle"
+    },
+    {
+      "code": 6041,
+      "name": "RecommitsExhausted",
+      "msg": "Maximum number of re-commits reached; only the principal-only expire remains"
+    },
+    {
+      "code": 6042,
+      "name": "RecommitsRemaining",
+      "msg": "Re-commits remain; expire is only possible after MAX_RECOMMITS unrevealed re-commits"
+    },
+    {
+      "code": 6043,
+      "name": "ExpiryNotReached",
+      "msg": "Expiry grace period not reached"
+    },
+    {
+      "code": 6044,
+      "name": "UnsupportedLaunchConfig",
+      "msg": "LaunchConfig version/fields not supported by this vault"
+    },
+    {
+      "code": 6045,
+      "name": "MintMismatch",
+      "msg": "Mint does not match the LaunchConfig mint"
+    },
+    {
+      "code": 6046,
+      "name": "FeeRecipientMismatch",
+      "msg": "Fee recipient is not the recipient fixed in the LaunchConfig"
+    },
+    {
+      "code": 6047,
+      "name": "FeeRecipientNotPlatform",
+      "msg": "LaunchConfig fee recipient is not the platform fee recipient"
+    },
+    {
+      "code": 6048,
+      "name": "FeeAboveHardCap",
+      "msg": "LaunchConfig SOL fee is not the ratio tier value or is outside [MIN_FEE_LAMPORTS, MAX_FEE_LAMPORTS]"
+    },
+    {
+      "code": 6049,
+      "name": "ReservedNothingToSweep",
+      "msg": "Reserved (was NothingToSweep; FeeVault/sweep removed when release became free)"
+    },
+    {
+      "code": 6050,
+      "name": "WrongOracle",
+      "msg": "Oracle is not the one the program selected for this commit"
+    },
+    {
+      "code": 6051,
+      "name": "NoFreshOracle",
+      "msg": "No oracle on the queue that this request hasn't already used"
+    },
+    {
+      "code": 6052,
+      "name": "ReservedGraduationFundShortfall",
+      "msg": "Reserved (was GraduationFundShortfall; graduation mint fund removed, lazy mint ADR-016)"
+    },
+    {
+      "code": 6053,
+      "name": "OracleStale",
+      "msg": "Selected oracle has not heartbeated recently; pass it as a stale proof and retry"
+    },
+    {
+      "code": 6054,
+      "name": "CollectionAboveCap",
+      "msg": "LaunchConfig collection size above MAX_COLLECTION_SIZE (10,000)"
+    },
+    {
+      "code": 6055,
+      "name": "MintArgsMissing",
+      "msg": "Picked asset is not minted yet: settle must supply its leaf preimage and Merkle proof"
+    },
+    {
+      "code": 6056,
+      "name": "MintEscrowShort",
+      "msg": "Lazy mint cost exceeded the request's mint escrow"
+    },
+    {
+      "code": 6057,
+      "name": "AlreadyMinted",
+      "msg": "Asset index already minted"
+    },
+    {
+      "code": 6058,
+      "name": "MintCostConstantStale",
+      "msg": "Live rent for a Core asset + create fee exceeds the mint escrow constant"
+    },
+    {
+      "code": 6059,
+      "name": "ExpireBatchInvalid",
+      "msg": "expire_requests: count must be 1..=MAX_EXPIRE_PER_CALL with 7 remaining accounts per request"
+    },
+    {
+      "code": 6060,
+      "name": "ExpireBatchAccountMismatch",
+      "msg": "expire_requests: a per-request account doesn't match the request (PDA, owner, user, randomness or token account)"
+    },
+    {
+      "code": 6061,
+      "name": "FeeNotTier",
+      "msg": "LaunchConfig fee is not exactly the tier for its ratio (QA-FEE-03; 0 and off-tier fees are invalid)"
+    },
+    {
+      "code": 6062,
+      "name": "TokenSourceNotDerived",
+      "msg": "token source must be the user's classic ATA for this mint"
+    },
+    {
+      "code": 6063,
+      "name": "ExtensionsNotAllowed",
+      "msg": "Token-2022 mint or token account has an extension; Mode 4 allows the base account only"
+    },
+    {
+      "code": 6064,
+      "name": "DistributionExceeded",
+      "msg": "claim pays more than this NFT's share of the pool, or more than the pool has credited"
+    },
+    {
+      "code": 6065,
+      "name": "QueueNotApproved",
+      "msg": "Switchboard queue is not on the compile-time APPROVED_SB_QUEUES list"
+    },
+    {
+      "code": 6066,
+      "name": "AssetNotDead",
+      "msg": "the NFT at the payout cursor still exists; only a burned or missing NFT can be skipped"
+    },
+    {
+      "code": 6067,
+      "name": "RaffleDeadlineNotReached",
+      "msg": "the raffle reveal deadline has not passed yet"
+    }
+  ],
   "types": [
     {
       "name": "BurnLaunchConfig",
@@ -5097,7 +5528,7 @@
     {
       "name": "LeafPreimage",
       "docs": [
-        "Leaf preimage supplied by the settler for a lazy mint (graduation-design \u00a75.1)."
+        "Leaf preimage supplied by the settler for a lazy mint (graduation-design §5.1)."
       ],
       "type": {
         "kind": "struct",
@@ -5904,6 +6335,41 @@
                 32
               ]
             }
+          },
+          {
+            "name": "live_seats",
+            "docs": [
+              "Raffle: seats written this round. A burned NFT is skipped (`skip_dead_nft`) and gets no seat,",
+              "so seats are numbered densely 0..live_seats and the draw is uniform over live seats only."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "raffle_commits",
+            "docs": [
+              "Raffle: commits made this round (1 + retries). At most 1 + MAX_RECOMMITS; after that a timed-out",
+              "round is rolled back (pot returned to `pending_base`, nothing lost)."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "raffle_oracles",
+            "docs": [
+              "Raffle: the oracle of each commit this round. A retry must be served by a different oracle."
+            ],
+            "type": {
+              "array": [
+                "pubkey",
+                4
+              ]
+            }
+          },
+          {
+            "name": "raffle_deadline_slot",
+            "docs": [
+              "Raffle: after this slot an unrevealed commit may be retried by anyone (`retry_raffle`)."
+            ],
+            "type": "u64"
           }
         ]
       }
@@ -6103,335 +6569,6 @@
           }
         ]
       }
-    }
-  ],
-  "constants": [],
-  "events": [],
-  "errors": [
-    {
-      "code": 6000,
-      "name": "NotCreator",
-      "msg": "Signer is not the LaunchConfig creator"
-    },
-    {
-      "code": 6001,
-      "name": "InvalidPoolAccount",
-      "msg": "Pool account is malformed or belongs to another vault"
-    },
-    {
-      "code": 6002,
-      "name": "PoolMismatch",
-      "msg": "Pool accounting mismatch"
-    },
-    {
-      "code": 6003,
-      "name": "MetadataTooLong",
-      "msg": "Name or URI too long"
-    },
-    {
-      "code": 6004,
-      "name": "IndexOutOfRange",
-      "msg": "Asset index out of range"
-    },
-    {
-      "code": 6005,
-      "name": "InvalidMerkleProof",
-      "msg": "Merkle proof does not match the committed trait root"
-    },
-    {
-      "code": 6006,
-      "name": "ReservedAssetAlreadyDeposited",
-      "msg": "reserved (removed: deposit_asset)"
-    },
-    {
-      "code": 6007,
-      "name": "ReservedVaultSealed",
-      "msg": "reserved (removed: seal model)"
-    },
-    {
-      "code": 6008,
-      "name": "ReservedVaultNotSealed",
-      "msg": "reserved (removed: seal model)"
-    },
-    {
-      "code": 6009,
-      "name": "ReservedPaused",
-      "msg": "reserved (removed: guardian pause, ADR-015)"
-    },
-    {
-      "code": 6010,
-      "name": "NoAssetAvailable",
-      "msg": "No NFT is available to draw"
-    },
-    {
-      "code": 6011,
-      "name": "AliasedTokenAccount",
-      "msg": "User token account aliases the vault token account"
-    },
-    {
-      "code": 6012,
-      "name": "InvalidRandomnessAccount",
-      "msg": "Randomness account is not a Switchboard randomness account"
-    },
-    {
-      "code": 6013,
-      "name": "RandomnessNotFresh",
-      "msg": "Randomness commit is not fresh"
-    },
-    {
-      "code": 6014,
-      "name": "RandomnessMismatch",
-      "msg": "Randomness account does not match the request's commit"
-    },
-    {
-      "code": 6015,
-      "name": "RandomnessNotRevealed",
-      "msg": "Randomness not revealed yet"
-    },
-    {
-      "code": 6016,
-      "name": "RandomnessAlreadyRevealed",
-      "msg": "Randomness already revealed for this request"
-    },
-    {
-      "code": 6017,
-      "name": "OutOfOrder",
-      "msg": "Only the head request (FIFO) can be settled or expired"
-    },
-    {
-      "code": 6018,
-      "name": "WrongRequestKind",
-      "msg": "Request kind does not match the instruction"
-    },
-    {
-      "code": 6019,
-      "name": "MergeBacklog",
-      "msg": "Too many unmerged incoming NFTs; call merge_incoming first"
-    },
-    {
-      "code": 6020,
-      "name": "WrongAsset",
-      "msg": "Asset is not the one selected by the randomness"
-    },
-    {
-      "code": 6021,
-      "name": "DeadlineNotReached",
-      "msg": "Reveal deadline not reached"
-    },
-    {
-      "code": 6022,
-      "name": "ReservedMissingAsset",
-      "msg": "reserved (removed)"
-    },
-    {
-      "code": 6023,
-      "name": "AssetStateMismatch",
-      "msg": "Asset state after CPI does not match expectations"
-    },
-    {
-      "code": 6024,
-      "name": "ReservedNotGuardian",
-      "msg": "reserved (removed: guardian pause, ADR-015)"
-    },
-    {
-      "code": 6025,
-      "name": "ReservedInvalidPauseDuration",
-      "msg": "reserved (removed: guardian pause, ADR-015)"
-    },
-    {
-      "code": 6026,
-      "name": "ReservedPauseNotAllowed",
-      "msg": "reserved (removed: guardian pause, ADR-015)"
-    },
-    {
-      "code": 6027,
-      "name": "InsolventVault",
-      "msg": "Vault token balance below ratio * (NFTs outside + pending captures + pending re-rolls)"
-    },
-    {
-      "code": 6028,
-      "name": "ReservedFeeEscrowShort",
-      "msg": "reserved (removed: token fee escrow)"
-    },
-    {
-      "code": 6029,
-      "name": "AssetAccountingBroken",
-      "msg": "NFT accounting invariant broken"
-    },
-    {
-      "code": 6030,
-      "name": "ReservedFeeDestinationNotBurn",
-      "msg": "reserved (removed: burn fee destination)"
-    },
-    {
-      "code": 6031,
-      "name": "MathOverflow",
-      "msg": "Arithmetic overflow"
-    },
-    {
-      "code": 6032,
-      "name": "UriNotContentAddressed",
-      "msg": "URI must be content-addressed (ipfs:// or ar://)"
-    },
-    {
-      "code": 6033,
-      "name": "VaultNotOpen",
-      "msg": "Converting is closed until the vault is opened (graduation + full mint)"
-    },
-    {
-      "code": 6034,
-      "name": "VaultAlreadyOpen",
-      "msg": "Vault is already open"
-    },
-    {
-      "code": 6035,
-      "name": "ReservedCollectionNotFullyMinted",
-      "msg": "Reserved (was CollectionNotFullyMinted; batch pre-mint removed, lazy mint ADR-016)"
-    },
-    {
-      "code": 6036,
-      "name": "GraduationNotVerified",
-      "msg": "Graduation could not be verified on-chain"
-    },
-    {
-      "code": 6037,
-      "name": "GraduationCheckUnavailable",
-      "msg": "No graduation check exists for this launch (no DBC pool recorded: native `launch`); the vault can never open"
-    },
-    {
-      "code": 6038,
-      "name": "RandomnessAuthorityMismatch",
-      "msg": "Randomness authority is not this vault's randomness PDA"
-    },
-    {
-      "code": 6039,
-      "name": "WrongQueue",
-      "msg": "Switchboard queue is not the vault's pinned queue"
-    },
-    {
-      "code": 6040,
-      "name": "OracleReused",
-      "msg": "Oracle already used for this request; a re-commit needs a different oracle"
-    },
-    {
-      "code": 6041,
-      "name": "RecommitsExhausted",
-      "msg": "Maximum number of re-commits reached; only the principal-only expire remains"
-    },
-    {
-      "code": 6042,
-      "name": "RecommitsRemaining",
-      "msg": "Re-commits remain; expire is only possible after MAX_RECOMMITS unrevealed re-commits"
-    },
-    {
-      "code": 6043,
-      "name": "ExpiryNotReached",
-      "msg": "Expiry grace period not reached"
-    },
-    {
-      "code": 6044,
-      "name": "UnsupportedLaunchConfig",
-      "msg": "LaunchConfig version/fields not supported by this vault"
-    },
-    {
-      "code": 6045,
-      "name": "MintMismatch",
-      "msg": "Mint does not match the LaunchConfig mint"
-    },
-    {
-      "code": 6046,
-      "name": "FeeRecipientMismatch",
-      "msg": "Fee recipient is not the recipient fixed in the LaunchConfig"
-    },
-    {
-      "code": 6047,
-      "name": "FeeRecipientNotPlatform",
-      "msg": "LaunchConfig fee recipient is not the platform fee recipient"
-    },
-    {
-      "code": 6048,
-      "name": "FeeAboveHardCap",
-      "msg": "LaunchConfig SOL fee is not the ratio tier value or is outside [MIN_FEE_LAMPORTS, MAX_FEE_LAMPORTS]"
-    },
-    {
-      "code": 6049,
-      "name": "ReservedNothingToSweep",
-      "msg": "Reserved (was NothingToSweep; FeeVault/sweep removed when release became free)"
-    },
-    {
-      "code": 6050,
-      "name": "WrongOracle",
-      "msg": "Oracle is not the one the program selected for this commit"
-    },
-    {
-      "code": 6051,
-      "name": "NoFreshOracle",
-      "msg": "No oracle on the queue that this request hasn't already used"
-    },
-    {
-      "code": 6052,
-      "name": "ReservedGraduationFundShortfall",
-      "msg": "Reserved (was GraduationFundShortfall; graduation mint fund removed, lazy mint ADR-016)"
-    },
-    {
-      "code": 6053,
-      "name": "OracleStale",
-      "msg": "Selected oracle has not heartbeated recently; pass it as a stale proof and retry"
-    },
-    {
-      "code": 6054,
-      "name": "CollectionAboveCap",
-      "msg": "LaunchConfig collection size above MAX_COLLECTION_SIZE (10,000)"
-    },
-    {
-      "code": 6055,
-      "name": "MintArgsMissing",
-      "msg": "Picked asset is not minted yet: settle must supply its leaf preimage and Merkle proof"
-    },
-    {
-      "code": 6056,
-      "name": "MintEscrowShort",
-      "msg": "Lazy mint cost exceeded the request's mint escrow"
-    },
-    {
-      "code": 6057,
-      "name": "AlreadyMinted",
-      "msg": "Asset index already minted"
-    },
-    {
-      "code": 6058,
-      "name": "MintCostConstantStale",
-      "msg": "Live rent for a Core asset + create fee exceeds the mint escrow constant"
-    },
-    {
-      "code": 6059,
-      "name": "ExpireBatchInvalid",
-      "msg": "expire_requests: count must be 1..=MAX_EXPIRE_PER_CALL with 7 remaining accounts per request"
-    },
-    {
-      "code": 6060,
-      "name": "ExpireBatchAccountMismatch",
-      "msg": "expire_requests: a per-request account doesn't match the request (PDA, owner, user, randomness or token account)"
-    },
-    {
-      "code": 6061,
-      "name": "FeeNotTier",
-      "msg": "LaunchConfig fee is not exactly the tier for its ratio (QA-FEE-03; 0 and off-tier fees are invalid)"
-    },
-    {
-      "code": 6062,
-      "name": "TokenSourceNotDerived",
-      "msg": "token source must be the user's classic ATA for this mint"
-    },
-    {
-      "code": 6063,
-      "name": "ExtensionsNotAllowed",
-      "msg": "Token-2022 mint or token account has an extension; Mode 4 allows the base account only"
-    },
-    {
-      "code": 6064,
-      "name": "DistributionExceeded",
-      "msg": "claim pays more than this NFT's share of the pool, or more than the pool has credited"
     }
   ]
 }

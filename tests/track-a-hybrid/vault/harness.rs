@@ -1797,15 +1797,17 @@ impl Env {
         .unwrap()
     }
 
+    /// `index` is the NFT index; the seat PDA uses the next dense seat number (`live_seats`).
     pub fn snapshot_raffle(&mut self, holder: &Pubkey, index: u32) -> Result<(), String> {
-        let round = self.tax_vault().round_id;
+        let tv = self.tax_vault();
+        let round = tv.round_id;
         let asset = self.asset_pda(index);
         let seat = pda(
             &[
                 b"raffle_seat",
                 self.ids.vault.as_ref(),
                 &round.to_le_bytes(),
-                &index.to_le_bytes(),
+                &tv.live_seats.to_le_bytes(),
             ],
             &hybrid_vault::ID,
         );
@@ -1862,8 +1864,9 @@ impl Env {
 
     pub fn commit_raffle(&mut self, randomness: &Pubkey) -> Result<(), String> {
         self.warp(1);
-        let round = self.tax_vault().round_id;
-        let oracle = self.select_oracle(round, &[]);
+        let tv = self.tax_vault();
+        let round = tv.round_id;
+        let oracle = self.select_oracle(round, &tv.raffle_oracles[..tv.raffle_commits as usize]);
         let payer = Keypair::new();
         self.svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
         let mut ix = Instruction::new_with_bytes(
@@ -1924,6 +1927,44 @@ impl Env {
         self.send(&[ix], &[&crank])
     }
 
+    /// Owner burns their own Core NFT (Core allows it by default; the asset has no plugins).
+    pub fn burn_nft(&mut self, owner: &Keypair, index: u32) -> Result<(), String> {
+        let burn = mpl_core::instructions::BurnV1Builder::new()
+            .asset(self.asset_pda(index))
+            .collection(Some(self.ids.collection))
+            .payer(owner.pubkey())
+            .authority(Some(owner.pubkey()))
+            .instruction();
+        let kp = owner.insecure_clone();
+        self.send(&[burn], &[&kp])
+    }
+
+    /// Permissionless skip of the dead NFT at `index` (must be the payout cursor).
+    pub fn skip_dead_nft(&mut self, index: u32) -> Result<(), String> {
+        let payer = Keypair::new();
+        self.svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
+        let ix = Instruction::new_with_bytes(
+            hybrid_vault::ID,
+            &hybrid_vault::instruction::SkipDeadNft {}.data(),
+            hybrid_vault::accounts::SkipDeadNft { vault: self.ids.vault, asset: self.asset_pda(index) }
+                .to_account_metas(None),
+        );
+        self.send(&[ix], &[&payer])
+    }
+
+    /// Permissionless raffle retry after the reveal deadline.
+    pub fn retry_raffle(&mut self) -> Result<(), String> {
+        let payer = Keypair::new();
+        self.svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
+        let ix = Instruction::new_with_bytes(
+            hybrid_vault::ID,
+            &hybrid_vault::instruction::RetryRaffle {}.data(),
+            hybrid_vault::accounts::RetryRaffle { vault: self.ids.vault }.to_account_metas(None),
+        );
+        self.send(&[ix], &[&payer])
+    }
+
+    /// `index` is the dense seat number drawn by the program (equals the NFT index when nothing was burned).
     pub fn settle_raffle(&mut self, holder: &Pubkey, index: u32) -> Result<(), String> {
         let round = self.tax_vault().round_id;
         let (tax_authority, _) = Pubkey::find_program_address(
@@ -1996,7 +2037,8 @@ fn setup_closed_inner(n: u32, prefund_collection: u64, real: bool) -> Env {
         let (svm, r, q, o) = new_svm_real_sb();
         (svm, Some(r), q, o)
     } else {
-        (new_svm(), None, Pubkey::new_unique(), vec![])
+        // Mock queue at the approved devnet queue address (ADR-020 APPROVED_SB_QUEUES).
+        (new_svm(), None, hybrid_vault::APPROVED_SB_QUEUES[0], vec![])
     };
     let creator = Keypair::new();
     let mut env = Env {
@@ -2413,7 +2455,7 @@ pub fn setup_dbc_closed(n: u32) -> (Env, DbcIds) {
         leaves: vec![],
         proofs: vec![],
         root: [0; 32],
-        sb_queue: Pubkey::new_unique(),
+        sb_queue: hybrid_vault::APPROVED_SB_QUEUES[0],
         sb_oracles: vec![],
         graduation_proof: Pubkey::default(),
         users: vec![],
