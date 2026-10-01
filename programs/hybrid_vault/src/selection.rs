@@ -6,7 +6,13 @@ use solana_sha256_hasher::hashv;
 /// Domain-separated per-request randomness: the same VRF value can't be replayed for another
 /// request or vault.
 pub fn request_randomness(vrf_value: &[u8; 32], vault: &Pubkey, seq: u64) -> [u8; 32] {
-    hashv(&[b"hybrid_vault:select", vrf_value, vault.as_ref(), &seq.to_le_bytes()]).to_bytes()
+    hashv(&[
+        b"hybrid_vault:select",
+        vrf_value,
+        vault.as_ref(),
+        &seq.to_le_bytes(),
+    ])
+    .to_bytes()
 }
 
 /// Uniform index in [0, n) by rejection sampling on 64-bit words (re-hashing when all four words of
@@ -52,6 +58,9 @@ mod tests {
         let v = [7u8; 32];
         let a = Pubkey::new_unique();
         assert_ne!(request_randomness(&v, &a, 1), request_randomness(&v, &a, 2));
-        assert_ne!(request_randomness(&v, &a, 1), request_randomness(&v, &Pubkey::new_unique(), 1));
+        assert_ne!(
+            request_randomness(&v, &a, 1),
+            request_randomness(&v, &Pubkey::new_unique(), 1)
+        );
     }
 }

@@ -7,7 +7,9 @@ use anchor_lang::prelude::*;
 pub enum LaunchError {
     #[msg("decimals must be <= 9")]
     InvalidDecimals,
-    #[msg("ratio must be one of 50_000, 100_000, 200_000, 500_000, 1_000_000, 2_500_000, 5_000_000")]
+    #[msg(
+        "ratio must be one of 50_000, 100_000, 200_000, 500_000, 1_000_000, 2_500_000, 5_000_000"
+    )]
     RatioNotAllowed,
     #[msg("collection_size must be >= 1")]
     ZeroCollectionSize,
@@ -39,7 +41,9 @@ pub enum LaunchError {
     ReservedGraduationUnfundable,
     #[msg("live rent for a Core asset exceeds the conservative constant")]
     MintCostConstantStale,
-    #[msg("fee recipient must be PLATFORM_FEE_RECIPIENT, system-owned, data-less and not executable")]
+    #[msg(
+        "fee recipient must be PLATFORM_FEE_RECIPIENT, system-owned, data-less and not executable"
+    )]
     FeeRecipientInvalid,
     #[msg("not a DBC pool/config account (owner, length or discriminator), or pool/config/mint don't match")]
     DbcAccountInvalid,
@@ -55,6 +59,12 @@ pub enum LaunchError {
     DbcConfigNotApproved,
     #[msg("stored fee is not exactly the tier for the ratio (QA-FEE-03; 0 and off-tier fees are invalid)")]
     FeeNotTier,
+    #[msg("Token-2022 mint must carry the transfer-fee extension and no other extension")]
+    ExtensionsNotAllowed,
+    #[msg("transfer tax must be from 1 to 1000 basis points and is fixed at launch")]
+    TaxBpsNotAllowed,
+    #[msg("buyback price must be from 1 lamport to 1 SOL per whole token and is fixed at launch")]
+    BuybackPriceNotAllowed,
 }
 
 #[cfg(test)]
@@ -89,6 +99,9 @@ mod tests {
             (LaunchError::DbcAlreadyGraduated, 6022),
             (LaunchError::DbcConfigNotApproved, 6023),
             (LaunchError::FeeNotTier, 6024),
+            (LaunchError::ExtensionsNotAllowed, 6025),
+            (LaunchError::TaxBpsNotAllowed, 6026),
+            (LaunchError::BuybackPriceNotAllowed, 6027),
         ];
         for (e, code) in pinned {
             assert_eq!(u32::from(*e), *code, "{e:?}");

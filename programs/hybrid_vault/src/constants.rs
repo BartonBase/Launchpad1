@@ -6,6 +6,20 @@ pub const RANDOMNESS_AUTHORITY_SEED: &[u8] = b"randomness_authority";
 pub const VAULT_TOKENS_SEED: &[u8] = b"vault_tokens";
 pub const COLLECTION_SEED: &[u8] = b"collection";
 pub const ASSET_SEED: &[u8] = b"asset";
+pub const TAX_AUTHORITY_SEED: &[u8] = b"tax_authority";
+pub const RAFFLE_SEAT_SEED: &[u8] = b"raffle_seat";
+
+/// Mode 4 pays every snapshotted NFT an equal share. Mode 5 pays one of them the whole pot.
+pub const KIND_SPLIT: u8 = 0;
+pub const KIND_RAFFLE: u8 = 1;
+pub const RAFFLE_SNAPSHOT: u8 = 1;
+pub const RAFFLE_READY: u8 = 2;
+pub const RAFFLE_COMMITTED: u8 = 3;
+pub const RAFFLE_REVEALED: u8 = 4;
+pub const TAX_SHARE_SEED: &[u8] = b"tax_share";
+pub const TAX_VAULT_VERSION: u8 = 1;
+/// Token atoms per 1 unit of `reward_index`.
+pub const REWARD_SCALE: u128 = 1_000_000_000_000;
 pub const REQUEST_SEED: &[u8] = b"request";
 pub const RAND_LOCK_SEED: &[u8] = b"rand_lock";
 
@@ -22,9 +36,11 @@ pub const SWITCHBOARD_PROGRAM_ID: Pubkey = pubkey!("SBondMDrcV3K4kxZR1HNVT7osZxA
 /// which Switchboard cluster id was compiled in (pubkey constants are inlined as immediates and
 /// can't be grepped). An exported `#[no_mangle]` static breaks SBPF v2 loading, hence the log.
 #[cfg(not(feature = "mainnet"))]
-pub const SWITCHBOARD_CLUSTER_MARKER: &str = "hybrid_vault:switchboard=devnet:Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2";
+pub const SWITCHBOARD_CLUSTER_MARKER: &str =
+    "hybrid_vault:switchboard=devnet:Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2";
 #[cfg(feature = "mainnet")]
-pub const SWITCHBOARD_CLUSTER_MARKER: &str = "hybrid_vault:switchboard=mainnet:SBondMDrcV3K4kxZR1HNVT7osZxAHVHgYXL5Ze1oMUv";
+pub const SWITCHBOARD_CLUSTER_MARKER: &str =
+    "hybrid_vault:switchboard=mainnet:SBondMDrcV3K4kxZR1HNVT7osZxAHVHgYXL5Ze1oMUv";
 
 /// Switchboard instruction discriminators (Anchor: sha256("global:<name>")[..8]). The commit value
 /// matches switchboard-on-demand 0.13.0's `RandomnessCommit`; init/reveal match the codama-generated
@@ -36,7 +52,8 @@ pub const SB_RANDOMNESS_REVEAL_DISCRIMINATOR: [u8; 8] = [197, 181, 187, 10, 30, 
 /// SlotHashes sysvar. Passed through to Switchboard only; hybrid_vault NEVER reads it.
 pub const SLOT_HASHES_SYSVAR_ID: Pubkey = pubkey!("SysvarS1otHashes111111111111111111111111111");
 pub const WRAPPED_SOL_MINT: Pubkey = pubkey!("So11111111111111111111111111111111111111112");
-pub const ADDRESS_LOOKUP_TABLE_PROGRAM_ID: Pubkey = pubkey!("AddressLookupTab1e1111111111111111111111111");
+pub const ADDRESS_LOOKUP_TABLE_PROGRAM_ID: Pubkey =
+    pubkey!("AddressLookupTab1e1111111111111111111111111");
 
 /// If a request's randomness is still unrevealed this many slots (~1 h, about Switchboard's own
 /// expiry) after its commit, ANYONE may re-commit fresh randomness for the SAME request with a
@@ -58,6 +75,8 @@ pub const REQUEST_KIND_REROLL: u8 = 1;
 pub const NO_HANDED_IN: u32 = u32::MAX;
 
 pub const VAULT_VERSION: u8 = 2;
+/// Mode 3 `PermanentVault` layout. Not a Mode 2 `Vault` version.
+pub const PERMANENT_VAULT_VERSION: u8 = 1;
 /// Re-commits allowed per request after the first commit (each with a different oracle), before
 /// the principal-only expire becomes possible (audit M-04 rule 4, B's H4).
 pub const MAX_RECOMMITS: u8 = 3;
@@ -81,8 +100,10 @@ pub const MAX_ORACLE_HEARTBEAT_AGE_SECS: i64 = 3_600;
 /// it signs as the Core payer at settle and is drained to the user at settle/expire.
 pub const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
 pub const MINT_ESCROW_MARGIN_PCT: u64 = 125;
-pub const MINT_ESCROW_LAMPORTS: u64 =
-    (hybrid_launch::CORE_ASSET_RENT_LAMPORTS + hybrid_launch::CORE_CREATE_FEE_LAMPORTS) * MINT_ESCROW_MARGIN_PCT / 100;
+pub const MINT_ESCROW_LAMPORTS: u64 = (hybrid_launch::CORE_ASSET_RENT_LAMPORTS
+    + hybrid_launch::CORE_CREATE_FEE_LAMPORTS)
+    * MINT_ESCROW_MARGIN_PCT
+    / 100;
 const _: () = assert!(MINT_ESCROW_LAMPORTS == 6_338_100);
 /// The settler (crank) gets NOTHING from escrow (T-HV-16); it pays only its tx fee.
 pub const SETTLE_TIP_LAMPORTS: u64 = 0;

@@ -44,6 +44,8 @@ pub const POOL_OFF_MIGRATION_PROGRESS: usize = 308;
 
 /// DBC `TokenType::SplToken` / `PoolType::SplToken`.
 pub const DBC_TOKEN_TYPE_SPL: u8 = 0;
+/// DBC `TokenType::Token2022` / `PoolType::Token2022`. Mode 4 only.
+pub const DBC_TOKEN_TYPE_TOKEN2022: u8 = 1;
 /// DBC `TokenAuthorityOption::Immutable` (metadata update authority None, no mint authority).
 pub const DBC_TOKEN_AUTHORITY_IMMUTABLE: u8 = 1;
 /// DBC `MigrationProgress::CreatedPool`: the DAMM pool exists, the curve is done.

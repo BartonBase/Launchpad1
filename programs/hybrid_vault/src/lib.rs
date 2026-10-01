@@ -83,7 +83,10 @@ pub mod hybrid_vault {
         instructions::request::handle_request_reroll(ctx, index)
     }
 
-    pub fn reveal_randomness(ctx: Context<RevealRandomness>, args: randomness::RevealArgs) -> Result<()> {
+    pub fn reveal_randomness(
+        ctx: Context<RevealRandomness>,
+        args: randomness::RevealArgs,
+    ) -> Result<()> {
         instructions::randomness_ix::handle_reveal_randomness(ctx, args)
     }
 
@@ -91,7 +94,10 @@ pub mod hybrid_vault {
         instructions::randomness_ix::handle_recommit_randomness(ctx)
     }
 
-    pub fn settle_capture(ctx: Context<Settle>, mint: Option<asset_source::MintArgs>) -> Result<()> {
+    pub fn settle_capture(
+        ctx: Context<Settle>,
+        mint: Option<asset_source::MintArgs>,
+    ) -> Result<()> {
         instructions::settle::handle_settle(ctx, REQUEST_KIND_CAPTURE, mint)
     }
 
@@ -109,11 +115,99 @@ pub mod hybrid_vault {
 
     /// M-04 batch expire: up to MAX_EXPIRE_PER_CALL consecutive queue heads in one instruction
     /// (7 remaining accounts per request; see instructions/expire.rs).
-    pub fn expire_requests<'info>(ctx: Context<'info, ExpireRequests<'info>>, count: u8) -> Result<()> {
+    pub fn expire_requests<'info>(
+        ctx: Context<'info, ExpireRequests<'info>>,
+        count: u8,
+    ) -> Result<()> {
         instructions::expire::handle_expire_batch(ctx, count)
     }
 
     pub fn merge_incoming(ctx: Context<MergeIncoming>, max: u32) -> Result<()> {
         instructions::admin::handle_merge_incoming(ctx, max)
+    }
+
+    /// Mode 3. Bind a permanent vault to a `BurnLaunchConfig`. No token vault, no release.
+    pub fn init_permanent_vault(
+        ctx: Context<InitPermanentVault>,
+        params: PermanentInitParams,
+    ) -> Result<()> {
+        instructions::permanent::handle_init_permanent_vault(ctx, params)
+    }
+
+    /// Mode 3. Permissionless, one-way. Opens wrapping once graduation is verified.
+    pub fn open_permanent_vault(ctx: Context<OpenPermanentVault>) -> Result<()> {
+        instructions::permanent::handle_open_permanent_vault(ctx)
+    }
+
+    /// Mode 3 wrap. Burns exactly `ratio` tokens and mints the next NFT. Irreversible.
+    pub fn wrap_permanent(ctx: Context<WrapPermanent>, args: asset_source::MintArgs) -> Result<()> {
+        instructions::permanent::handle_wrap_permanent(ctx, args)
+    }
+
+    /// Mode 4. Bind a tax vault to a Token-2022 launch. Creates the project collection.
+    /// Wrap locks tokens; it does not burn them.
+    pub fn init_token22_vault(
+        ctx: Context<InitToken22Vault>,
+        params: Token22InitParams,
+    ) -> Result<()> {
+        instructions::token22::handle_init_token22_vault(ctx, params)
+    }
+
+    /// Mode 4. Lock `ratio` tokens and mint the next project NFT. Supply does not change.
+    pub fn wrap_token22(ctx: Context<WrapToken22>, args: asset_source::MintArgs) -> Result<()> {
+        instructions::token22::handle_wrap_token22(ctx, args)
+    }
+
+    /// Move withheld transfer tax into the program treasury and accrue it per project NFT.
+    pub fn harvest_tax(ctx: Context<HarvestTax>) -> Result<()> {
+        instructions::token22::handle_harvest_tax(ctx)
+    }
+
+    /// Pay the next frozen NFT its exact share. The caller cannot choose the NFT,
+    /// the amount, or the destination. If no round is open, this pays nothing.
+    pub fn claim_tax(ctx: Context<ClaimTax>) -> Result<()> {
+        instructions::token22::handle_claim_tax(ctx)
+    }
+
+    /// Spend SOL on the tax PDA to buy this launch's tokens at the locked price.
+    /// Bought tokens accrue to project NFT holders only.
+    pub fn buyback(ctx: Context<Buyback>) -> Result<()> {
+        instructions::token22::handle_buyback(ctx)
+    }
+
+    /// Mode 5. Bind a raffle vault to a Mode 5 tax launch and pin its Switchboard queue.
+    pub fn init_raffle_vault(
+        ctx: Context<InitRaffleVault>,
+        params: RaffleInitParams,
+    ) -> Result<()> {
+        instructions::raffle::handle_init_raffle_vault(ctx, params)
+    }
+
+    /// Record the current owner of the next frozen NFT. Must finish before the draw is requested.
+    pub fn snapshot_raffle(ctx: Context<SnapshotRaffle>) -> Result<()> {
+        instructions::raffle::handle_snapshot_raffle(ctx)
+    }
+
+    /// Create a Switchboard randomness account whose authority is this vault's PDA.
+    pub fn init_raffle_randomness(
+        ctx: Context<InitRaffleRandomness>,
+        recent_slot: u64,
+    ) -> Result<()> {
+        instructions::raffle::handle_init_raffle_randomness(ctx, recent_slot)
+    }
+
+    /// Commit the pinned Switchboard account. The program picks the oracle. No second try after a reveal.
+    pub fn commit_raffle(ctx: Context<CommitRaffle>) -> Result<()> {
+        instructions::raffle::handle_commit_raffle(ctx)
+    }
+
+    /// Submit the oracle reveal. The value is stored. It cannot be replaced.
+    pub fn reveal_raffle(ctx: Context<RevealRaffle>, args: randomness::RevealArgs) -> Result<()> {
+        instructions::raffle::handle_reveal_raffle(ctx, args)
+    }
+
+    /// Pay the snapshotted owner of the winning NFT the whole pot.
+    pub fn settle_raffle(ctx: Context<SettleRaffle>) -> Result<()> {
+        instructions::raffle::handle_settle_raffle(ctx)
     }
 }

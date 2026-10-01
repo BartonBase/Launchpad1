@@ -5,6 +5,11 @@
 > (ADR-016, [lazy-mint-interface.md](lazy-mint-interface.md)); ratios {50k…5M}, 100 ≤ N ≤ 10,000; exits read a frozen
 > LaunchConfig prefix (ADR-017). Older burn/bps/pause text below is historical.
 
+> **Modes (Barton 2026-10-01).** Mode 1 plain SPL is `launch_plain` / `register_plain_dbc` (`PlainLaunchConfig`).
+> Mode 2 reversible hybrid is unchanged: `launch` / `register_dbc_launch` (`LaunchConfig`). Same PDA seeds,
+> different account type, so a mint cannot be both and `hybrid_vault` cannot wrap a plain mint. Mode 3
+> (burn hybrid) is not built. Track B stays shelved. Not audited. Devnet only.
+
 Owner: Solana Program Engineer. Status: **v0.2 (2026-09-24, after ADR-009)**, localnet/devnet only. Not audited, not
 for mainnet. Related: [DECISIONS.md](DECISIONS.md), [THREAT_MODEL.md](THREAT_MODEL.md),
 [admin-multisig-timelock.md](admin-multisig-timelock.md), [hybrid-rarity-and-assignment.md](hybrid-rarity-and-assignment.md),

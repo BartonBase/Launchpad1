@@ -12,7 +12,6 @@
 //!   reveal_slot = slot and value. DIFFERENCE FROM REAL: the oracle's secp256k1 signature is NOT
 //!   verified (the test supplies the value) and reward/escrow accounts are ignored.
 
-
 /// Marker logged on every instruction (so it's in the binary's rodata); deploy guards
 /// (scripts/lib/deploy-guards.sh) always reject a binary that contains it.
 pub const MOCK_SWITCHBOARD_MARKER: &str = "TEST-ONLY mock_switchboard: never deploy";
@@ -45,7 +44,10 @@ const SYSTEM_PROGRAM_ID: Pubkey = Pubkey::new_from_array([0u8; 32]);
 
 entrypoint!(process);
 
-fn acc<'a, 'b>(accounts: &'a [AccountInfo<'b>], i: usize) -> Result<&'a AccountInfo<'b>, ProgramError> {
+fn acc<'a, 'b>(
+    accounts: &'a [AccountInfo<'b>],
+    i: usize,
+) -> Result<&'a AccountInfo<'b>, ProgramError> {
     accounts.get(i).ok_or(ProgramError::NotEnoughAccountKeys)
 }
 
@@ -63,7 +65,10 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         if !r.is_signer || !auth.is_signer || !payer.is_signer {
             return Err(ProgramError::MissingRequiredSignature);
         }
-        let system = accounts.iter().find(|a| *a.key == SYSTEM_PROGRAM_ID).ok_or(ProgramError::NotEnoughAccountKeys)?;
+        let system = accounts
+            .iter()
+            .find(|a| *a.key == SYSTEM_PROGRAM_ID)
+            .ok_or(ProgramError::NotEnoughAccountKeys)?;
         let lamports = Rent::get()?.minimum_balance(ACCOUNT_SIZE);
         let mut ix_data = vec![0u8, 0, 0, 0];
         ix_data.extend_from_slice(&lamports.to_le_bytes());
@@ -72,7 +77,10 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         invoke(
             &Instruction {
                 program_id: SYSTEM_PROGRAM_ID,
-                accounts: vec![AccountMeta::new(*payer.key, true), AccountMeta::new(*r.key, true)],
+                accounts: vec![
+                    AccountMeta::new(*payer.key, true),
+                    AccountMeta::new(*r.key, true),
+                ],
                 data: ix_data,
             },
             &[payer.clone(), r.clone(), system.clone()],

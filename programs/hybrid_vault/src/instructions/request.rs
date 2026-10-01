@@ -10,12 +10,18 @@
 
 use super::vault_token_ops::{sol_fee, user_pays};
 use crate::{
-    asset_source, config::{self, Econ}, constants::*, error::VaultError, invariants, pool::PoolView, randomness,
+    asset_source,
+    config::{self, Econ},
+    constants::*,
+    error::VaultError,
+    invariants,
+    pool::PoolView,
+    randomness,
     state::{RandLock, Request, Vault},
 };
-use hybrid_launch::LaunchConfig;
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
+use hybrid_launch::LaunchConfig;
 
 #[derive(Accounts)]
 pub struct RequestCapture<'info> {
@@ -171,7 +177,10 @@ fn check_can_request(vault: &Vault, econ: &Econ, pool: &PoolView) -> Result<()> 
         .ok_or_else(|| error!(VaultError::MathOverflow))?;
     let free = available.saturating_sub(vault.pending_draws()?);
     // After this draw at least pool_floor(N) drawable assets must remain (anti-cornering).
-    require!(free > pool_floor(econ.collection_size), VaultError::NoAssetAvailable);
+    require!(
+        free > pool_floor(econ.collection_size),
+        VaultError::NoAssetAvailable
+    );
     Ok(())
 }
 
@@ -200,9 +209,16 @@ fn finish_request(
     request.user = user;
     request.randomness = randomness;
     request.seed_slot = seed_slot;
-    request.deadline_slot = slot.checked_add(REVEAL_TIMEOUT_SLOTS).ok_or_else(|| error!(VaultError::MathOverflow))?;
+    request.deadline_slot = slot
+        .checked_add(REVEAL_TIMEOUT_SLOTS)
+        .ok_or_else(|| error!(VaultError::MathOverflow))?;
     request.commits = 1;
-    request.oracles = [oracle, Pubkey::default(), Pubkey::default(), Pubkey::default()];
+    request.oracles = [
+        oracle,
+        Pubkey::default(),
+        Pubkey::default(),
+        Pubkey::default(),
+    ];
     request.revealed = false;
     request.value = [0u8; 32];
     request.handed_in_index = handed_in_index;
@@ -210,13 +226,27 @@ fn finish_request(
     rand_lock.vault = vault_key;
     rand_lock.seq = seq;
 
-    vault.next_seq = seq.checked_add(1).ok_or_else(|| error!(VaultError::MathOverflow))?;
-    vault.total_fee_lamports = vault.total_fee_lamports.checked_add(sol_fee_lamports).ok_or_else(|| error!(VaultError::MathOverflow))?;
+    vault.next_seq = seq
+        .checked_add(1)
+        .ok_or_else(|| error!(VaultError::MathOverflow))?;
+    vault.total_fee_lamports = vault
+        .total_fee_lamports
+        .checked_add(sol_fee_lamports)
+        .ok_or_else(|| error!(VaultError::MathOverflow))?;
     if kind == REQUEST_KIND_CAPTURE {
-        vault.pending_captures = vault.pending_captures.checked_add(1).ok_or_else(|| error!(VaultError::MathOverflow))?;
+        vault.pending_captures = vault
+            .pending_captures
+            .checked_add(1)
+            .ok_or_else(|| error!(VaultError::MathOverflow))?;
     } else {
-        vault.pending_rerolls = vault.pending_rerolls.checked_add(1).ok_or_else(|| error!(VaultError::MathOverflow))?;
-        vault.assets_outside = vault.assets_outside.checked_sub(1).ok_or_else(|| error!(VaultError::AssetAccountingBroken))?;
+        vault.pending_rerolls = vault
+            .pending_rerolls
+            .checked_add(1)
+            .ok_or_else(|| error!(VaultError::MathOverflow))?;
+        vault.assets_outside = vault
+            .assets_outside
+            .checked_sub(1)
+            .ok_or_else(|| error!(VaultError::AssetAccountingBroken))?;
     }
     Ok(())
 }
@@ -224,12 +254,30 @@ fn finish_request(
 /// Lazy-mint escrow (ADR-016): the worst-case cost of minting whatever this request is assigned is
 /// deposited in the request PDA up front, so settle never needs anyone else's lamports (T-HV-16) and
 /// an underfunded request can't exist. Fails closed if live rent + the Core fee outgrew the constant.
-fn escrow_mint_cost<'info>(system: &Program<'info, System>, user: &Signer<'info>, escrow: &AccountInfo<'info>) -> Result<()> {
-    require!(escrow.data_is_empty() && *escrow.owner == anchor_lang::system_program::ID, VaultError::AssetStateMismatch);
-    let live = Rent::get()?.minimum_balance(hybrid_launch::CORE_ASSET_SPACE_BYTES).saturating_add(hybrid_launch::CORE_CREATE_FEE_LAMPORTS);
-    require!(live <= MINT_ESCROW_LAMPORTS, VaultError::MintCostConstantStale);
+fn escrow_mint_cost<'info>(
+    system: &Program<'info, System>,
+    user: &Signer<'info>,
+    escrow: &AccountInfo<'info>,
+) -> Result<()> {
+    require!(
+        escrow.data_is_empty() && *escrow.owner == anchor_lang::system_program::ID,
+        VaultError::AssetStateMismatch
+    );
+    let live = Rent::get()?
+        .minimum_balance(hybrid_launch::CORE_ASSET_SPACE_BYTES)
+        .saturating_add(hybrid_launch::CORE_CREATE_FEE_LAMPORTS);
+    require!(
+        live <= MINT_ESCROW_LAMPORTS,
+        VaultError::MintCostConstantStale
+    );
     anchor_lang::system_program::transfer(
-        CpiContext::new(system.key(), anchor_lang::system_program::Transfer { from: user.to_account_info(), to: escrow.clone() }),
+        CpiContext::new(
+            system.key(),
+            anchor_lang::system_program::Transfer {
+                from: user.to_account_info(),
+                to: escrow.clone(),
+            },
+        ),
         MINT_ESCROW_LAMPORTS,
     )
 }
@@ -244,11 +292,27 @@ pub fn handle_request_capture(ctx: Context<RequestCapture>) -> Result<()> {
     }
     let a = &ctx.accounts;
     let (ratio, sol) = (econ.ratio_base, econ.request_fee()?);
-    user_pays(&a.token_program, &a.user_token, &a.vault_tokens.to_account_info(), &a.user, &a.mint, ratio)?;
-    sol_fee(&a.system_program, &a.user, &a.fee_recipient.to_account_info(), sol)?;
+    user_pays(
+        &a.token_program,
+        &a.user_token,
+        &a.vault_tokens.to_account_info(),
+        &a.user,
+        &a.mint,
+        ratio,
+    )?;
+    sol_fee(
+        &a.system_program,
+        &a.user,
+        &a.fee_recipient.to_account_info(),
+        sol,
+    )?;
     escrow_mint_cost(&a.system_program, &a.user, &a.mint_escrow.to_account_info())?;
 
-    let rseeds: &[&[u8]] = &[RANDOMNESS_AUTHORITY_SEED, vault_key.as_ref(), &[a.vault.randomness_authority_bump]];
+    let rseeds: &[&[u8]] = &[
+        RANDOMNESS_AUTHORITY_SEED,
+        vault_key.as_ref(),
+        &[a.vault.randomness_authority_bump],
+    ];
     let seed_slot = randomness::commit_for_request(
         &a.randomness.to_account_info(),
         &a.sb_queue.to_account_info(),
@@ -266,15 +330,32 @@ pub fn handle_request_capture(ctx: Context<RequestCapture>) -> Result<()> {
 
     let (user, rnd, oracle) = (a.user.key(), a.randomness.key(), a.sb_oracle.key());
     finish_request(
-        &mut ctx.accounts.vault, &mut ctx.accounts.request, &mut ctx.accounts.rand_lock,
-        ctx.bumps.request, ctx.bumps.rand_lock, REQUEST_KIND_CAPTURE, user, rnd, seed_slot, NO_HANDED_IN, vault_key, oracle, sol,
+        &mut ctx.accounts.vault,
+        &mut ctx.accounts.request,
+        &mut ctx.accounts.rand_lock,
+        ctx.bumps.request,
+        ctx.bumps.rand_lock,
+        REQUEST_KIND_CAPTURE,
+        user,
+        rnd,
+        seed_slot,
+        NO_HANDED_IN,
+        vault_key,
+        oracle,
+        sol,
     )?;
     ctx.accounts.request.mint_escrow_lamports = MINT_ESCROW_LAMPORTS;
 
     ctx.accounts.vault_tokens.reload()?;
     let mut data = ctx.accounts.pool.try_borrow_mut_data()?;
     let pool = PoolView::load(&mut data, &vault_key)?;
-    invariants::check(&ctx.accounts.vault, econ.ratio_base, econ.collection_size, &pool, ctx.accounts.vault_tokens.amount)
+    invariants::check(
+        &ctx.accounts.vault,
+        econ.ratio_base,
+        econ.collection_size,
+        &pool,
+        ctx.accounts.vault_tokens.amount,
+    )
 }
 
 pub fn handle_request_reroll(ctx: Context<RequestReroll>, index: u32) -> Result<()> {
@@ -298,10 +379,19 @@ pub fn handle_request_reroll(ctx: Context<RequestReroll>, index: u32) -> Result<
         &a.vault_authority.to_account_info(),
         &a.system_program.to_account_info(),
     )?;
-    sol_fee(&a.system_program, &a.user, &a.fee_recipient.to_account_info(), sol)?;
+    sol_fee(
+        &a.system_program,
+        &a.user,
+        &a.fee_recipient.to_account_info(),
+        sol,
+    )?;
     escrow_mint_cost(&a.system_program, &a.user, &a.mint_escrow.to_account_info())?;
 
-    let rseeds: &[&[u8]] = &[RANDOMNESS_AUTHORITY_SEED, vault_key.as_ref(), &[a.vault.randomness_authority_bump]];
+    let rseeds: &[&[u8]] = &[
+        RANDOMNESS_AUTHORITY_SEED,
+        vault_key.as_ref(),
+        &[a.vault.randomness_authority_bump],
+    ];
     let seed_slot = randomness::commit_for_request(
         &a.randomness.to_account_info(),
         &a.sb_queue.to_account_info(),
@@ -319,12 +409,29 @@ pub fn handle_request_reroll(ctx: Context<RequestReroll>, index: u32) -> Result<
 
     let (user, rnd, oracle) = (a.user.key(), a.randomness.key(), a.sb_oracle.key());
     finish_request(
-        &mut ctx.accounts.vault, &mut ctx.accounts.request, &mut ctx.accounts.rand_lock,
-        ctx.bumps.request, ctx.bumps.rand_lock, REQUEST_KIND_REROLL, user, rnd, seed_slot, index, vault_key, oracle, sol,
+        &mut ctx.accounts.vault,
+        &mut ctx.accounts.request,
+        &mut ctx.accounts.rand_lock,
+        ctx.bumps.request,
+        ctx.bumps.rand_lock,
+        REQUEST_KIND_REROLL,
+        user,
+        rnd,
+        seed_slot,
+        index,
+        vault_key,
+        oracle,
+        sol,
     )?;
     ctx.accounts.request.mint_escrow_lamports = MINT_ESCROW_LAMPORTS;
 
     let mut data = ctx.accounts.pool.try_borrow_mut_data()?;
     let pool = PoolView::load(&mut data, &vault_key)?;
-    invariants::check(&ctx.accounts.vault, econ.ratio_base, econ.collection_size, &pool, ctx.accounts.vault_tokens.amount)
+    invariants::check(
+        &ctx.accounts.vault,
+        econ.ratio_base,
+        econ.collection_size,
+        &pool,
+        ctx.accounts.vault_tokens.amount,
+    )
 }

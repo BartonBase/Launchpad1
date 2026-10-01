@@ -31,7 +31,7 @@ custom-panic = []
 anchor-lang = "=1.2.0"
 # `token_2022` is needed only because Anchor's `init` + `token::` codegen references anchor_spl::token_2022 /
 # token_interface. Runtime: every token account/program is typed classic-only (Program<Token>, token::TokenAccount).
-anchor-spl = { version = "=1.2.0", default-features = false, features = ["token", "token_2022", "associated_token"] }
+anchor-spl = { version = "=1.2.0", default-features = false, features = ["token", "token_2022", "token_2022_extensions", "associated_token"] }
 hybrid_launch = { path = "../hybrid_launch", features = ["cpi"] }
 mpl-core = "=0.12.1"
 switchboard-on-demand = { version = "=0.13.0", default-features = false, features = ["solana-v3"] }

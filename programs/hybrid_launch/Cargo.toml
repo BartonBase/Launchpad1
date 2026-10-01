@@ -20,9 +20,8 @@ mainnet = []
 # DEVNET E2E ONLY: lowers MIN_GRADUATION_THRESHOLD_LAMPORTS to 0.1 SOL (needs_barton.rs). Never in
 # target/deploy, never with `mainnet` (compile_error).
 devnet-e2e = []
-# anchor-spl 1.2.0's idl_build.rs unconditionally references `token_interface`, which only
-# exists with its `token_2022` feature. Enabled ONLY for IDL generation; the on-chain
-# program never uses Token-2022 (and rejects it via Program<Token>).
+# Token-2022 is linked only so Mode 4 (`launch_token22`) can create an extensionless mint.
+# Modes 1–3 still type their mint and token program as classic SPL and reject Token-2022.
 idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build", "anchor-spl/token_2022"]
 anchor-debug = []
 custom-heap = []
@@ -30,7 +29,7 @@ custom-panic = []
 
 [dependencies]
 anchor-lang = "=1.2.0"
-anchor-spl = { version = "=1.2.0", default-features = false, features = ["token", "associated_token"] }
+anchor-spl = { version = "=1.2.0", default-features = false, features = ["token", "token_2022", "associated_token"] }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

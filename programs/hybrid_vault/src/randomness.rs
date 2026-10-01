@@ -36,9 +36,14 @@ pub struct RandomnessSnapshot {
 
 /// Parse a Switchboard randomness account (owner pinned to the Switchboard program id).
 pub fn read(account: &AccountInfo) -> Result<RandomnessSnapshot> {
-    require_keys_eq!(*account.owner, SWITCHBOARD_PROGRAM_ID, VaultError::InvalidRandomnessAccount);
+    require_keys_eq!(
+        *account.owner,
+        SWITCHBOARD_PROGRAM_ID,
+        VaultError::InvalidRandomnessAccount
+    );
     let data = account.try_borrow_data()?;
-    let parsed = RandomnessAccountData::parse(data).map_err(|_| error!(VaultError::InvalidRandomnessAccount))?;
+    let parsed = RandomnessAccountData::parse(data)
+        .map_err(|_| error!(VaultError::InvalidRandomnessAccount))?;
     Ok(RandomnessSnapshot {
         authority: Pubkey::new_from_array(parsed.authority.to_bytes()),
         queue: Pubkey::new_from_array(parsed.queue.to_bytes()),
@@ -49,7 +54,11 @@ pub fn read(account: &AccountInfo) -> Result<RandomnessSnapshot> {
 }
 
 fn require_sb_program(program: &AccountInfo) -> Result<()> {
-    require_keys_eq!(*program.key, SWITCHBOARD_PROGRAM_ID, VaultError::InvalidRandomnessAccount);
+    require_keys_eq!(
+        *program.key,
+        SWITCHBOARD_PROGRAM_ID,
+        VaultError::InvalidRandomnessAccount
+    );
     require!(program.executable, VaultError::InvalidRandomnessAccount);
     Ok(())
 }
@@ -58,7 +67,12 @@ fn require_sb_program(program: &AccountInfo) -> Result<()> {
 /// 0 randomness (w, s) | 1 reward_escrow (w) | 2 authority (s) = our PDA | 3 queue (w) | 4 payer (w, s)
 /// | 5 system | 6 token | 7 associated token | 8 wrapped SOL mint | 9 program_state | 10 lut_signer
 /// | 11 lut (w) | 12 address lookup table program. Args: recent_slot (u64).
-pub fn init_account<'info>(accounts: &[AccountInfo<'info>; 13], recent_slot: u64, switchboard_program: &AccountInfo<'info>, authority_seeds: &[&[u8]]) -> Result<()> {
+pub fn init_account<'info>(
+    accounts: &[AccountInfo<'info>; 13],
+    recent_slot: u64,
+    switchboard_program: &AccountInfo<'info>,
+    authority_seeds: &[&[u8]],
+) -> Result<()> {
     require_sb_program(switchboard_program)?;
     let metas = vec![
         AccountMeta::new(*accounts[0].key, true),
@@ -79,9 +93,21 @@ pub fn init_account<'info>(accounts: &[AccountInfo<'info>; 13], recent_slot: u64
     data.extend_from_slice(&recent_slot.to_le_bytes());
     let mut infos: Vec<AccountInfo<'info>> = accounts.to_vec();
     infos.push(switchboard_program.clone());
-    invoke_signed(&Instruction { program_id: SWITCHBOARD_PROGRAM_ID, accounts: metas, data }, &infos, &[authority_seeds])?;
+    invoke_signed(
+        &Instruction {
+            program_id: SWITCHBOARD_PROGRAM_ID,
+            accounts: metas,
+            data,
+        },
+        &infos,
+        &[authority_seeds],
+    )?;
     let snap = read(&accounts[0])?;
-    require_keys_eq!(snap.authority, *accounts[2].key, VaultError::RandomnessAuthorityMismatch);
+    require_keys_eq!(
+        snap.authority,
+        *accounts[2].key,
+        VaultError::RandomnessAuthorityMismatch
+    );
     Ok(())
 }
 
@@ -104,7 +130,11 @@ pub fn commit_for_request<'info, 'p>(
     stale_proofs: &[AccountInfo<'p>],
 ) -> Result<u64> {
     require_sb_program(switchboard_program)?;
-    require_keys_eq!(*slot_hashes.key, SLOT_HASHES_SYSVAR_ID, VaultError::InvalidRandomnessAccount);
+    require_keys_eq!(
+        *slot_hashes.key,
+        SLOT_HASHES_SYSVAR_ID,
+        VaultError::InvalidRandomnessAccount
+    );
     require_keys_eq!(*queue.key, *pinned_queue, VaultError::WrongQueue);
     let now = Clock::get()?.unix_timestamp;
     let chosen = select_oracle(queue, vault_key, seq, used_oracles, stale_proofs, now)?;
@@ -113,7 +143,11 @@ pub fn commit_for_request<'info, 'p>(
     let hb = oracle_last_heartbeat(oracle).ok_or_else(|| error!(VaultError::WrongOracle))?;
     require!(heartbeat_is_fresh(hb, now), VaultError::OracleStale);
     let before = read(randomness)?;
-    require_keys_eq!(before.authority, *randomness_authority.key, VaultError::RandomnessAuthorityMismatch);
+    require_keys_eq!(
+        before.authority,
+        *randomness_authority.key,
+        VaultError::RandomnessAuthorityMismatch
+    );
     require_keys_eq!(before.queue, *pinned_queue, VaultError::WrongQueue);
 
     let ix = Instruction {
@@ -129,14 +163,27 @@ pub fn commit_for_request<'info, 'p>(
     };
     invoke_signed(
         &ix,
-        &[randomness.clone(), queue.clone(), oracle.clone(), slot_hashes.clone(), randomness_authority.clone(), switchboard_program.clone()],
+        &[
+            randomness.clone(),
+            queue.clone(),
+            oracle.clone(),
+            slot_hashes.clone(),
+            randomness_authority.clone(),
+            switchboard_program.clone(),
+        ],
         &[authority_seeds],
     )?;
 
     let after = read(randomness)?;
     let slot = Clock::get()?.slot;
-    require!(after.seed_slot.checked_add(1) == Some(slot), VaultError::RandomnessNotFresh);
-    require!(after.reveal_slot <= after.seed_slot, VaultError::RandomnessNotFresh);
+    require!(
+        after.seed_slot.checked_add(1) == Some(slot),
+        VaultError::RandomnessNotFresh
+    );
+    require!(
+        after.reveal_slot <= after.seed_slot,
+        VaultError::RandomnessNotFresh
+    );
     Ok(after.seed_slot)
 }
 
@@ -152,7 +199,12 @@ pub struct RevealArgs {
 /// 0 randomness (w) | 1 oracle | 2 queue | 3 stats (w) | 4 authority (s) = our PDA | 5 payer (w, s)
 /// | 6 slothashes | 7 system | 8 reward_escrow (w) | 9 token | 10 wrapped SOL mint | 11 program_state.
 /// Switchboard verifies the oracle signature over the committed seed; we only sign as authority.
-pub fn reveal<'info>(accounts: &[AccountInfo<'info>; 12], args: &RevealArgs, switchboard_program: &AccountInfo<'info>, authority_seeds: &[&[u8]]) -> Result<()> {
+pub fn reveal<'info>(
+    accounts: &[AccountInfo<'info>; 12],
+    args: &RevealArgs,
+    switchboard_program: &AccountInfo<'info>,
+    authority_seeds: &[&[u8]],
+) -> Result<()> {
     require_sb_program(switchboard_program)?;
     let metas = vec![
         AccountMeta::new(*accounts[0].key, false),
@@ -172,14 +224,21 @@ pub fn reveal<'info>(accounts: &[AccountInfo<'info>; 12], args: &RevealArgs, swi
     args.serialize(&mut data)?;
     let mut infos: Vec<AccountInfo<'info>> = accounts.to_vec();
     infos.push(switchboard_program.clone());
-    invoke_signed(&Instruction { program_id: SWITCHBOARD_PROGRAM_ID, accounts: metas, data }, &infos, &[authority_seeds])?;
+    invoke_signed(
+        &Instruction {
+            program_id: SWITCHBOARD_PROGRAM_ID,
+            accounts: metas,
+            data,
+        },
+        &infos,
+        &[authority_seeds],
+    )?;
     Ok(())
 }
 
 pub fn is_revealed(snap: &RandomnessSnapshot, expected_seed_slot: u64) -> bool {
     snap.seed_slot == expected_seed_slot && snap.reveal_slot > snap.seed_slot
 }
-
 
 /// Queue layout (from the crate's own `QueueAccountData`): (body size, oracle_keys, oracle_keys_len,
 /// curr_idx) offsets relative to the byte after the 8-byte discriminator.
@@ -197,7 +256,10 @@ pub const ORACLE_ACCOUNT_DISCRIMINATOR: [u8; 8] = [128, 30, 16, 241, 170, 73, 55
 
 /// (body size, offset of `last_heartbeat`) from the crate's own `OracleAccountData`.
 pub fn oracle_layout() -> (usize, usize) {
-    (core::mem::size_of::<OracleAccountData>(), core::mem::offset_of!(OracleAccountData, last_heartbeat))
+    (
+        core::mem::size_of::<OracleAccountData>(),
+        core::mem::offset_of!(OracleAccountData, last_heartbeat),
+    )
 }
 
 /// `last_heartbeat` of a Switchboard oracle account, or None if it isn't one (owner/discriminator/size).
@@ -210,7 +272,9 @@ pub fn oracle_last_heartbeat(acc: &AccountInfo) -> Option<i64> {
     if data.len() < 8 + size || data[..8] != ORACLE_ACCOUNT_DISCRIMINATOR {
         return None;
     }
-    Some(i64::from_le_bytes(data[8 + hb..8 + hb + 8].try_into().ok()?))
+    Some(i64::from_le_bytes(
+        data[8 + hb..8 + hb + 8].try_into().ok()?,
+    ))
 }
 
 /// Heartbeat freshness (M-04 staleness filter): heartbeated within MAX_ORACLE_HEARTBEAT_AGE_SECS.
@@ -222,7 +286,14 @@ pub fn heartbeat_is_fresh(last_heartbeat: i64, now: i64) -> bool {
 /// candidate order. A candidate is skipped ONLY if the caller supplied that oracle's own account in
 /// `stale_proofs` and it proves the oracle stale (heartbeat older than the limit). The caller can
 /// therefore skip dead oracles but never a live one, and never pick one.
-pub fn select_oracle(queue: &AccountInfo, vault_key: &Pubkey, seq: u64, used: &[Pubkey], stale_proofs: &[AccountInfo], now: i64) -> Result<Pubkey> {
+pub fn select_oracle(
+    queue: &AccountInfo,
+    vault_key: &Pubkey,
+    seq: u64,
+    used: &[Pubkey],
+    stale_proofs: &[AccountInfo],
+    now: i64,
+) -> Result<Pubkey> {
     require_keys_eq!(*queue.owner, SWITCHBOARD_PROGRAM_ID, VaultError::WrongQueue);
     let stale: Vec<Pubkey> = stale_proofs
         .iter()
@@ -235,20 +306,38 @@ pub fn select_oracle(queue: &AccountInfo, vault_key: &Pubkey, seq: u64, used: &[
 
 /// Pure selection over queue account data (discriminator and size checked). Skips zero keys, keys
 /// already used by this request, and keys proven stale.
-pub fn select_oracle_in(data: &[u8], vault_key: &Pubkey, seq: u64, used: &[Pubkey], stale: &[Pubkey]) -> Result<Pubkey> {
+pub fn select_oracle_in(
+    data: &[u8],
+    vault_key: &Pubkey,
+    seq: u64,
+    used: &[Pubkey],
+    stale: &[Pubkey],
+) -> Result<Pubkey> {
     let (size, keys_off, len_off, curr_off) = queue_layout();
-    require!(data.len() >= 8 + size && data[..8] == QUEUE_ACCOUNT_DISCRIMINATOR, VaultError::WrongQueue);
+    require!(
+        data.len() >= 8 + size && data[..8] == QUEUE_ACCOUNT_DISCRIMINATOR,
+        VaultError::WrongQueue
+    );
     let body = &data[8..8 + size];
     let rd_u32 = |off: usize| u32::from_le_bytes(body[off..off + 4].try_into().unwrap());
     let len = rd_u32(len_off) as usize;
     let curr = rd_u32(curr_off) as u64;
     require!(len > 0 && len <= 78, VaultError::NoFreshOracle);
-    let h = solana_sha256_hasher::hashv(&[b"hybrid_vault/oracle", vault_key.as_ref(), &seq.to_le_bytes()]).to_bytes();
+    let h = solana_sha256_hasher::hashv(&[
+        b"hybrid_vault/oracle",
+        vault_key.as_ref(),
+        &seq.to_le_bytes(),
+    ])
+    .to_bytes();
     let spread = u64::from_le_bytes(h[..8].try_into().unwrap());
     let start = (curr % len as u64 + spread % len as u64 + used.len() as u64) % len as u64;
     for step in 0..len as u64 {
         let i = ((start + step) % len as u64) as usize;
-        let k = Pubkey::new_from_array(body[keys_off + 32 * i..keys_off + 32 * (i + 1)].try_into().unwrap());
+        let k = Pubkey::new_from_array(
+            body[keys_off + 32 * i..keys_off + 32 * (i + 1)]
+                .try_into()
+                .unwrap(),
+        );
         if k != Pubkey::default() && !used.contains(&k) && !stale.contains(&k) {
             return Ok(k);
         }

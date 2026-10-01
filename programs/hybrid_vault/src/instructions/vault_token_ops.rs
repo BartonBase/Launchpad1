@@ -21,7 +21,12 @@ pub fn pay_out<'info>(
     token::transfer_checked(
         CpiContext::new_with_signer(
             token_program.key(),
-            TransferChecked { from: from.to_account_info(), mint: mint.to_account_info(), to: to.clone(), authority: vault_authority.clone() },
+            TransferChecked {
+                from: from.to_account_info(),
+                mint: mint.to_account_info(),
+                to: to.clone(),
+                authority: vault_authority.clone(),
+            },
             &[seeds],
         ),
         amount,
@@ -44,7 +49,12 @@ pub fn user_pays<'info>(
     token::transfer_checked(
         CpiContext::new(
             token_program.key(),
-            TransferChecked { from: from.to_account_info(), mint: mint.to_account_info(), to: to.clone(), authority: user.to_account_info() },
+            TransferChecked {
+                from: from.to_account_info(),
+                mint: mint.to_account_info(),
+                to: to.clone(),
+                authority: user.to_account_info(),
+            },
         ),
         amount,
         mint.decimals,
@@ -53,12 +63,23 @@ pub fn user_pays<'info>(
 
 /// user -> `to` flat SOL fee by system transfer (the user signs). `to` is PLATFORM_FEE_RECIPIENT
 /// (capture / re-roll only; release is free).
-pub fn sol_fee<'info>(system: &Program<'info, System>, user: &Signer<'info>, to: &AccountInfo<'info>, lamports: u64) -> Result<()> {
+pub fn sol_fee<'info>(
+    system: &Program<'info, System>,
+    user: &Signer<'info>,
+    to: &AccountInfo<'info>,
+    lamports: u64,
+) -> Result<()> {
     if lamports == 0 {
         return Ok(());
     }
     system_program::transfer(
-        CpiContext::new(system.key(), system_program::Transfer { from: user.to_account_info(), to: to.clone() }),
+        CpiContext::new(
+            system.key(),
+            system_program::Transfer {
+                from: user.to_account_info(),
+                to: to.clone(),
+            },
+        ),
         lamports,
     )
 }

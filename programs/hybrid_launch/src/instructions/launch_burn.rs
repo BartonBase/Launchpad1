@@ -1,5 +1,5 @@
-//! `launch`: create a Track A classic SPL Token mint with a fixed 1B supply and
-//! an immutable LaunchConfig, in ONE instruction:
+//! `launch_burn` (Mode 3): create a Track A classic SPL Token mint with a fixed 1B supply and
+//! an immutable BurnLaunchConfig, in ONE instruction:
 //! 1. validate params (ratio set, 100 <= collection_size, collection_size * ratio <= 1B via
 //!    checked_mul, collection_size <= MAX_COLLECTION_SIZE; the flat SOL fee is looked up from the
 //!    ratio tier table, never supplied; there is no token fee, ADR-013);
@@ -13,7 +13,8 @@
 //!    owner is NOT caller-chosen and no instruction signs for it (QA-HL-02);
 //! 5. mint exactly 1_000_000_000 * 10^decimals;
 //! 6. SetAuthority(MintTokens -> None);
-//! 7. re-read the mint and assert supply/authorities; write LaunchConfig.
+//! 7. re-read the mint and assert supply/authorities; write BurnLaunchConfig.
+//! Mode 2 `launch` is unchanged. This path has no wrap instruction of its own.
 
 use anchor_lang::{
     prelude::*,
@@ -30,12 +31,12 @@ use anchor_spl::{
 use crate::{
     constants::*,
     error::LaunchError,
-    state::LaunchConfig,
+    state::BurnLaunchConfig,
     validation::{validate, LaunchParams},
 };
 
 #[derive(Accounts)]
-pub struct Launch<'info> {
+pub struct LaunchBurn<'info> {
     /// Pays rent. Recorded as `creator`; holds no powers.
     #[account(mut)]
     pub creator: Signer<'info>,
@@ -50,11 +51,11 @@ pub struct Launch<'info> {
     #[account(
         init,
         payer = creator,
-        space = 8 + LaunchConfig::INIT_SPACE,
+        space = 8 + BurnLaunchConfig::INIT_SPACE,
         seeds = [LAUNCH_CONFIG_SEED, mint.key().as_ref()],
         bump
     )]
-    pub launch_config: Account<'info, LaunchConfig>,
+    pub launch_config: Account<'info, BurnLaunchConfig>,
 
     /// CHECK: data-less PDA (canonical bump verified); temporary mint authority.
     #[account(seeds = [MINT_AUTHORITY_SEED, launch_config.key().as_ref()], bump)]
@@ -80,7 +81,7 @@ pub struct Launch<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
+pub fn handle_launch_burn(ctx: Context<LaunchBurn>, params: LaunchParams) -> Result<()> {
     let amounts = validate(&params)?;
     {
         let r = ctx.accounts.fee_recipient.to_account_info();
@@ -116,7 +117,7 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
 
     // 2. Classic SPL mint account (82 bytes).
     let space = <anchor_spl::token::spl_token::state::Mint as anchor_lang::solana_program::program_pack::Pack>::LEN;
-    create_mint_account(&ctx, space, &token_program_id)?;
+    create_burn_mint_account(&ctx, space, &token_program_id)?;
 
     // 3. Freeze authority is never set.
     token::initialize_mint2(
@@ -213,10 +214,11 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
         crate::validation::is_exact_tier_fee(amounts.fee_lamports, params.ratio_whole_tokens),
         LaunchError::FeeNotTier
     );
-    ctx.accounts.launch_config.set_inner(LaunchConfig {
-        version: LAUNCH_CONFIG_VERSION,
+    ctx.accounts.launch_config.set_inner(BurnLaunchConfig {
+        version: BURN_LAUNCH_CONFIG_VERSION,
         bump: ctx.bumps.launch_config,
         mint_authority_bump: bump,
+        launch_mode: LAUNCH_MODE_BURN,
         creator: ctx.accounts.creator.key(),
         mint: mint_key,
         launch_destination: ctx.accounts.launch_destination.key(),
@@ -238,7 +240,7 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
     });
 
     msg!(
-        "hybrid_launch: mint {} supply {} ratio {} size {}",
+        "hybrid_launch: burn mint {} supply {} ratio {} size {}",
         mint_key,
         amounts.total_supply_base,
         params.ratio_whole_tokens,
@@ -252,8 +254,8 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
 /// lamports is topped up to rent-exempt, allocated and assigned (the mint
 /// keypair signs the tx, so allocate/assign are authorised). Otherwise a plain
 /// `create_account`. An account with data or any non-system owner is rejected.
-fn create_mint_account(
-    ctx: &Context<Launch>,
+fn create_burn_mint_account(
+    ctx: &Context<LaunchBurn>,
     space: usize,
     token_program_id: &Pubkey,
 ) -> Result<()> {

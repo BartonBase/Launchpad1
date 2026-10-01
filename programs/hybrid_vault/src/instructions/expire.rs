@@ -14,7 +14,12 @@
 
 use super::vault_token_ops::pay_out;
 use crate::{
-    asset_source, config, constants::*, error::VaultError, invariants, pool::PoolView, randomness,
+    asset_source, config,
+    constants::*,
+    error::VaultError,
+    invariants,
+    pool::PoolView,
+    randomness,
     state::{RandLock, Request, Vault},
 };
 use anchor_lang::prelude::*;
@@ -104,41 +109,86 @@ pub struct ExpireShared<'a, 'info> {
 /// Checks that `r` is expirable as the queue head `expected_seq`, returns the principal (tokens or
 /// the handed-in NFT) and the full mint escrow to the user, and updates the vault counters. The
 /// caller closes the request + rand_lock to the user and runs the invariant check.
-pub fn expire_one<'info>(sh: &ExpireShared<'_, 'info>, r: &ExpireOne<'_, 'info>, vault: &mut Vault) -> Result<()> {
+pub fn expire_one<'info>(
+    sh: &ExpireShared<'_, 'info>,
+    r: &ExpireOne<'_, 'info>,
+    vault: &mut Vault,
+) -> Result<()> {
     let req = r.request;
     require!(req.seq == vault.next_settle_seq, VaultError::OutOfOrder);
     require!(!req.revealed, VaultError::RandomnessAlreadyRevealed);
     {
         let snap = randomness::read(r.randomness)?;
-        require!(!randomness::is_revealed(&snap, req.seed_slot), VaultError::RandomnessAlreadyRevealed);
+        require!(
+            !randomness::is_revealed(&snap, req.seed_slot),
+            VaultError::RandomnessAlreadyRevealed
+        );
     }
     require!(req.commits > MAX_RECOMMITS, VaultError::RecommitsRemaining);
-    let earliest = req.deadline_slot.checked_add(EXPIRE_GRACE_SLOTS).ok_or_else(|| error!(VaultError::MathOverflow))?;
+    let earliest = req
+        .deadline_slot
+        .checked_add(EXPIRE_GRACE_SLOTS)
+        .ok_or_else(|| error!(VaultError::MathOverflow))?;
     require!(Clock::get()?.slot > earliest, VaultError::ExpiryNotReached);
     let (kind, handed_in, seq) = (req.kind, req.handed_in_index, req.seq);
 
     if kind == REQUEST_KIND_CAPTURE {
-        pay_out(sh.token_program, sh.vault_tokens, r.user_token, sh.mint, sh.vault_authority, &sh.vault_key, sh.authority_bump, sh.ratio_base)?;
+        pay_out(
+            sh.token_program,
+            sh.vault_tokens,
+            r.user_token,
+            sh.mint,
+            sh.vault_authority,
+            &sh.vault_key,
+            sh.authority_bump,
+            sh.ratio_base,
+        )?;
     } else {
         let (expected, _) = asset_source::asset_address(&sh.vault_key, handed_in);
         require_keys_eq!(r.asset.key(), expected, VaultError::WrongAsset);
         asset_source::deliver(
-            sh.mpl_core_program, r.asset, sh.collection, sh.caller, sh.vault_authority, r.user, sh.system_program,
-            &sh.vault_key, sh.authority_bump,
+            sh.mpl_core_program,
+            r.asset,
+            sh.collection,
+            sh.caller,
+            sh.vault_authority,
+            r.user,
+            sh.system_program,
+            &sh.vault_key,
+            sh.authority_bump,
         )?;
     }
     {
         let seq_le = seq.to_le_bytes();
-        let escrow_seeds: &[&[u8]] = &[MINT_ESCROW_SEED, sh.vault_key.as_ref(), &seq_le, &[r.mint_escrow_bump]];
+        let escrow_seeds: &[&[u8]] = &[
+            MINT_ESCROW_SEED,
+            sh.vault_key.as_ref(),
+            &seq_le,
+            &[r.mint_escrow_bump],
+        ];
         asset_source::refund_escrow(r.mint_escrow, r.user, sh.system_program, escrow_seeds)?;
     }
-    vault.next_settle_seq = seq.checked_add(1).ok_or_else(|| error!(VaultError::MathOverflow))?;
-    vault.total_expired = vault.total_expired.checked_add(1).ok_or_else(|| error!(VaultError::MathOverflow))?;
+    vault.next_settle_seq = seq
+        .checked_add(1)
+        .ok_or_else(|| error!(VaultError::MathOverflow))?;
+    vault.total_expired = vault
+        .total_expired
+        .checked_add(1)
+        .ok_or_else(|| error!(VaultError::MathOverflow))?;
     if kind == REQUEST_KIND_CAPTURE {
-        vault.pending_captures = vault.pending_captures.checked_sub(1).ok_or_else(|| error!(VaultError::MathOverflow))?;
+        vault.pending_captures = vault
+            .pending_captures
+            .checked_sub(1)
+            .ok_or_else(|| error!(VaultError::MathOverflow))?;
     } else {
-        vault.pending_rerolls = vault.pending_rerolls.checked_sub(1).ok_or_else(|| error!(VaultError::MathOverflow))?;
-        vault.assets_outside = vault.assets_outside.checked_add(1).ok_or_else(|| error!(VaultError::MathOverflow))?;
+        vault.pending_rerolls = vault
+            .pending_rerolls
+            .checked_sub(1)
+            .ok_or_else(|| error!(VaultError::MathOverflow))?;
+        vault.assets_outside = vault
+            .assets_outside
+            .checked_add(1)
+            .ok_or_else(|| error!(VaultError::MathOverflow))?;
     }
     Ok(())
 }
@@ -149,21 +199,40 @@ pub fn handle_expire(ctx: Context<ExpireRequest>) -> Result<()> {
     {
         let a = &ctx.accounts;
         let (caller, va, coll, core, sys) = (
-            a.caller.to_account_info(), a.vault_authority.to_account_info(), a.collection.to_account_info(),
-            a.mpl_core_program.to_account_info(), a.system_program.to_account_info(),
+            a.caller.to_account_info(),
+            a.vault_authority.to_account_info(),
+            a.collection.to_account_info(),
+            a.mpl_core_program.to_account_info(),
+            a.system_program.to_account_info(),
         );
         let (rnd, user, ut, esc, asset) = (
-            a.randomness.to_account_info(), a.user.to_account_info(), a.user_token.to_account_info(),
-            a.mint_escrow.to_account_info(), a.asset.to_account_info(),
+            a.randomness.to_account_info(),
+            a.user.to_account_info(),
+            a.user_token.to_account_info(),
+            a.mint_escrow.to_account_info(),
+            a.asset.to_account_info(),
         );
         let sh = ExpireShared {
-            caller: &caller, vault_key, authority_bump: a.vault.authority_bump, mint: &a.mint, vault_authority: &va,
-            vault_tokens: &a.vault_tokens, collection: &coll, mpl_core_program: &core, token_program: &a.token_program,
-            system_program: &sys, ratio_base: econ.ratio_base,
+            caller: &caller,
+            vault_key,
+            authority_bump: a.vault.authority_bump,
+            mint: &a.mint,
+            vault_authority: &va,
+            vault_tokens: &a.vault_tokens,
+            collection: &coll,
+            mpl_core_program: &core,
+            token_program: &a.token_program,
+            system_program: &sys,
+            ratio_base: econ.ratio_base,
         };
         let one = ExpireOne {
-            request: &a.request, randomness: &rnd, user: &user, user_token: &ut, mint_escrow: &esc,
-            mint_escrow_bump: ctx.bumps.mint_escrow, asset: &asset,
+            request: &a.request,
+            randomness: &rnd,
+            user: &user,
+            user_token: &ut,
+            mint_escrow: &esc,
+            mint_escrow_bump: ctx.bumps.mint_escrow,
+            asset: &asset,
         };
         let mut v: Vault = (**a.vault).clone();
         expire_one(&sh, &one, &mut v)?;
@@ -172,7 +241,13 @@ pub fn handle_expire(ctx: Context<ExpireRequest>) -> Result<()> {
     ctx.accounts.vault_tokens.reload()?;
     let mut data = ctx.accounts.pool.try_borrow_mut_data()?;
     let pool = PoolView::load(&mut data, &vault_key)?;
-    invariants::check(&ctx.accounts.vault, econ.ratio_base, econ.collection_size, &pool, ctx.accounts.vault_tokens.amount)
+    invariants::check(
+        &ctx.accounts.vault,
+        econ.ratio_base,
+        econ.collection_size,
+        &pool,
+        ctx.accounts.vault_tokens.amount,
+    )
 }
 
 /// Batch variant: shared accounts only; per-request accounts in remaining_accounts.
@@ -205,42 +280,81 @@ pub struct ExpireRequests<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handle_expire_batch<'info>(ctx: Context<'info, ExpireRequests<'info>>, count: u8) -> Result<()> {
+pub fn handle_expire_batch<'info>(
+    ctx: Context<'info, ExpireRequests<'info>>,
+    count: u8,
+) -> Result<()> {
     let n = count as usize;
-    require!(count >= 1 && count <= MAX_EXPIRE_PER_CALL, VaultError::ExpireBatchInvalid);
-    require!(ctx.remaining_accounts.len() == n * EXPIRE_BATCH_STRIDE, VaultError::ExpireBatchInvalid);
+    require!(
+        count >= 1 && count <= MAX_EXPIRE_PER_CALL,
+        VaultError::ExpireBatchInvalid
+    );
+    require!(
+        ctx.remaining_accounts.len() == n * EXPIRE_BATCH_STRIDE,
+        VaultError::ExpireBatchInvalid
+    );
     let vault_key = ctx.accounts.vault.key();
     let econ = config::exit_view(&ctx.accounts.launch_config.to_account_info())?;
     let a = &ctx.accounts;
     let (caller, va, coll, core, sys) = (
-        a.caller.to_account_info(), a.vault_authority.to_account_info(), a.collection.to_account_info(),
-        a.mpl_core_program.to_account_info(), a.system_program.to_account_info(),
+        a.caller.to_account_info(),
+        a.vault_authority.to_account_info(),
+        a.collection.to_account_info(),
+        a.mpl_core_program.to_account_info(),
+        a.system_program.to_account_info(),
     );
     let sh = ExpireShared {
-        caller: &caller, vault_key, authority_bump: a.vault.authority_bump, mint: &a.mint, vault_authority: &va,
-        vault_tokens: &a.vault_tokens, collection: &coll, mpl_core_program: &core, token_program: &a.token_program,
-        system_program: &sys, ratio_base: econ.ratio_base,
+        caller: &caller,
+        vault_key,
+        authority_bump: a.vault.authority_bump,
+        mint: &a.mint,
+        vault_authority: &va,
+        vault_tokens: &a.vault_tokens,
+        collection: &coll,
+        mpl_core_program: &core,
+        token_program: &a.token_program,
+        system_program: &sys,
+        ratio_base: econ.ratio_base,
     };
     let mut v: Vault = (**a.vault).clone();
     let mismatch = || error!(VaultError::ExpireBatchAccountMismatch);
     for g in ctx.remaining_accounts.chunks(EXPIRE_BATCH_STRIDE) {
-        let (req_ai, lock_ai, rnd, user, ut, esc, asset) = (&g[0], &g[1], &g[2], &g[3], &g[4], &g[5], &g[6]);
+        let (req_ai, lock_ai, rnd, user, ut, esc, asset) =
+            (&g[0], &g[1], &g[2], &g[3], &g[4], &g[5], &g[6]);
         for w in [req_ai, lock_ai, user, ut, esc, asset] {
             require!(w.is_writable, VaultError::ExpireBatchAccountMismatch);
         }
         // request: our program's Request at ["request", vault, seq] for the CURRENT head.
         let request: Account<'info, Request> = Account::try_from(req_ai).map_err(|_| mismatch())?;
         let seq_le = v.next_settle_seq.to_le_bytes();
-        let want = Pubkey::create_program_address(&[REQUEST_SEED, vault_key.as_ref(), &seq_le, &[request.bump]], &crate::ID)
-            .map_err(|_| mismatch())?;
+        let want = Pubkey::create_program_address(
+            &[REQUEST_SEED, vault_key.as_ref(), &seq_le, &[request.bump]],
+            &crate::ID,
+        )
+        .map_err(|_| mismatch())?;
         require_keys_eq!(req_ai.key(), want, VaultError::ExpireBatchAccountMismatch);
-        require_keys_eq!(request.vault, vault_key, VaultError::ExpireBatchAccountMismatch);
-        require_keys_eq!(request.user, user.key(), VaultError::ExpireBatchAccountMismatch);
-        require_keys_eq!(request.randomness, rnd.key(), VaultError::ExpireBatchAccountMismatch);
+        require_keys_eq!(
+            request.vault,
+            vault_key,
+            VaultError::ExpireBatchAccountMismatch
+        );
+        require_keys_eq!(
+            request.user,
+            user.key(),
+            VaultError::ExpireBatchAccountMismatch
+        );
+        require_keys_eq!(
+            request.randomness,
+            rnd.key(),
+            VaultError::ExpireBatchAccountMismatch
+        );
         // rand_lock: ["rand_lock", randomness].
         let lock: Account<'info, RandLock> = Account::try_from(lock_ai).map_err(|_| mismatch())?;
-        let want = Pubkey::create_program_address(&[RAND_LOCK_SEED, rnd.key.as_ref(), &[lock.bump]], &crate::ID)
-            .map_err(|_| mismatch())?;
+        let want = Pubkey::create_program_address(
+            &[RAND_LOCK_SEED, rnd.key.as_ref(), &[lock.bump]],
+            &crate::ID,
+        )
+        .map_err(|_| mismatch())?;
         require_keys_eq!(lock_ai.key(), want, VaultError::ExpireBatchAccountMismatch);
         // user_token: classic token account of `mint` owned by the user.
         {
@@ -252,7 +366,15 @@ pub fn handle_expire_batch<'info>(ctx: Context<'info, ExpireRequests<'info>>, co
         let (want, esc_bump) = asset_source::mint_escrow_address(&vault_key, request.seq);
         require_keys_eq!(esc.key(), want, VaultError::ExpireBatchAccountMismatch);
 
-        let one = ExpireOne { request: &request, randomness: rnd, user, user_token: ut, mint_escrow: esc, mint_escrow_bump: esc_bump, asset };
+        let one = ExpireOne {
+            request: &request,
+            randomness: rnd,
+            user,
+            user_token: ut,
+            mint_escrow: esc,
+            mint_escrow_bump: esc_bump,
+            asset,
+        };
         expire_one(&sh, &one, &mut v)?;
         // close request + rand_lock to the user (same as Anchor's `close = user`).
         request.close(user.clone())?;
@@ -262,5 +384,11 @@ pub fn handle_expire_batch<'info>(ctx: Context<'info, ExpireRequests<'info>>, co
     ctx.accounts.vault_tokens.reload()?;
     let mut data = ctx.accounts.pool.try_borrow_mut_data()?;
     let pool = PoolView::load(&mut data, &vault_key)?;
-    invariants::check(&ctx.accounts.vault, econ.ratio_base, econ.collection_size, &pool, ctx.accounts.vault_tokens.amount)
+    invariants::check(
+        &ctx.accounts.vault,
+        econ.ratio_base,
+        econ.collection_size,
+        &pool,
+        ctx.accounts.vault_tokens.amount,
+    )
 }

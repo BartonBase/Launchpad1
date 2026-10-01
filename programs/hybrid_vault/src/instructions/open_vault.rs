@@ -5,7 +5,9 @@
 //! graduation is verified by `graduation::verify` (the DBC pool recorded at registration has migrated).
 //! No pre-mint, no minted == N requirement. There is no close/un-open instruction.
 
-use crate::{config, constants::*, error::VaultError, graduation, invariants, pool::PoolView, state::Vault};
+use crate::{
+    config, constants::*, error::VaultError, graduation, invariants, pool::PoolView, state::Vault,
+};
 use anchor_lang::prelude::*;
 use anchor_spl::token::TokenAccount;
 use hybrid_launch::LaunchConfig;
@@ -44,12 +46,23 @@ pub fn handle_open_vault(ctx: Context<OpenVault>) -> Result<()> {
         let c = &ctx.accounts.collection;
         require_keys_eq!(*c.owner, MPL_CORE_ID, VaultError::AssetStateMismatch);
         let data = c.try_borrow_data()?;
-        let col = mpl_core::accounts::BaseCollectionV1::from_bytes(&data).map_err(|_| error!(VaultError::AssetStateMismatch))?;
-        let (va, _) = Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED, v.key().as_ref()], &crate::ID);
-        require!(col.update_authority.to_bytes() == va.to_bytes(), VaultError::AssetStateMismatch);
-        require!(col.num_minted == v.minted_count && col.current_size == v.minted_count, VaultError::AssetAccountingBroken);
+        let col = mpl_core::accounts::BaseCollectionV1::from_bytes(&data)
+            .map_err(|_| error!(VaultError::AssetStateMismatch))?;
+        let (va, _) =
+            Pubkey::find_program_address(&[VAULT_AUTHORITY_SEED, v.key().as_ref()], &crate::ID);
+        require!(
+            col.update_authority.to_bytes() == va.to_bytes(),
+            VaultError::AssetStateMismatch
+        );
+        require!(
+            col.num_minted == v.minted_count && col.current_size == v.minted_count,
+            VaultError::AssetAccountingBroken
+        );
     }
-    graduation::verify(&ctx.accounts.launch_config, &ctx.accounts.graduation_proof.to_account_info())?;
+    graduation::verify(
+        &ctx.accounts.launch_config,
+        &ctx.accounts.graduation_proof.to_account_info(),
+    )?;
 
     let vault_key = v.key();
     let v = &mut ctx.accounts.vault;
@@ -57,6 +70,15 @@ pub fn handle_open_vault(ctx: Context<OpenVault>) -> Result<()> {
     v.opened_at_slot = Clock::get()?.slot;
     let mut data = ctx.accounts.pool.try_borrow_mut_data()?;
     let pool = PoolView::load(&mut data, &vault_key)?;
-    require!(pool.capacity() == econ.collection_size, VaultError::InvalidPoolAccount);
-    invariants::check(v, econ.ratio_base, econ.collection_size, &pool, ctx.accounts.vault_tokens.amount)
+    require!(
+        pool.capacity() == econ.collection_size,
+        VaultError::InvalidPoolAccount
+    );
+    invariants::check(
+        v,
+        econ.ratio_base,
+        econ.collection_size,
+        &pool,
+        ctx.accounts.vault_tokens.amount,
+    )
 }

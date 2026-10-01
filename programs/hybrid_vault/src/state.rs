@@ -46,6 +46,116 @@ pub struct Vault {
     pub total_expired: u64,
 }
 
+/// One Mode 3 vault per `BurnLaunchConfig`. PDA `["vault", launch_config]`.
+///
+/// Not a [`Vault`]. Mode 2 instructions cannot load it, and this mode has no release, re-roll, or
+/// expire. The next NFT index is `minted_count` (not a VRF draw): burn and mint are one instruction,
+/// so a failed reveal cannot destroy tokens that there is no release instruction to return.
+#[account]
+#[derive(InitSpace, Debug)]
+pub struct PermanentVault {
+    pub version: u8,
+    pub bump: u8,
+    pub authority_bump: u8,
+    pub collection_bump: u8,
+    pub open: bool,
+    /// Always `hybrid_launch::LAUNCH_MODE_BURN`.
+    pub launch_mode: u8,
+    pub launch_config: Pubkey,
+    pub mint: Pubkey,
+    pub creator: Pubkey,
+    pub collection: Pubkey,
+    pub trait_root: [u8; 32],
+    pub trait_schema_hash: [u8; 32],
+    pub minted_count: u32,
+    /// Tokens burned by wraps. Not a balance anyone can withdraw.
+    pub total_burned_base: u64,
+    pub total_fee_lamports: u64,
+    pub total_wraps: u64,
+}
+
+/// Mode 4 vault. Not a [`Vault`] and not a [`PermanentVault`].
+///
+/// Wrap locks `ratio` tokens (it does not burn them) and mints the next project NFT.
+/// Transfer-tax withheld by Token-2022 is withdrawn by `tax_authority` and paid only to
+/// the current owner of one of this collection's NFTs. There is no burn and no unwrap.
+#[account]
+#[derive(InitSpace, Debug)]
+pub struct TaxVault {
+    pub version: u8,
+    pub bump: u8,
+    pub authority_bump: u8,
+    pub tax_authority_bump: u8,
+    pub collection_bump: u8,
+    /// Always `hybrid_launch::LAUNCH_MODE_TOKEN22`.
+    pub launch_mode: u8,
+    pub launch_config: Pubkey,
+    pub mint: Pubkey,
+    pub creator: Pubkey,
+    pub collection: Pubkey,
+    pub trait_root: [u8; 32],
+    pub trait_schema_hash: [u8; 32],
+    pub minted_count: u32,
+    /// Fixed at init. Caps how many NFTs can exist. Not used to reserve rewards.
+    pub collection_size: u32,
+    /// Next NFT index the program will pay. Callers cannot choose a different one.
+    pub payout_cursor: u32,
+    /// How many NFTs were already minted when this round was frozen.
+    pub round_minted: u32,
+    /// Exact tokens each of those NFTs is paid. Zero when no round is open.
+    pub round_share: u64,
+    /// 1 while a round is frozen. Nobody can change the set or the share while this is set.
+    pub round_open: u8,
+    /// Tokens assigned to minted NFTs. Claims cannot exceed this.
+    pub credited_base: u64,
+    /// Tokens already paid to holders of minted NFTs.
+    pub paid_base: u64,
+    /// Arrived tokens not yet assigned because the pot is under the market-cap tier,
+    /// no NFT exists yet, or the split left rounding dust.
+    pub pending_base: u64,
+    /// Locked at init from the launch. Values the pot and the market cap. Not updatable.
+    pub buyback_lamports_per_whole: u64,
+    /// Locked at init. 1_000_000_000 * 10^decimals.
+    pub total_supply_base: u64,
+    pub decimals: u8,
+    pub total_locked_base: u64,
+    pub total_fee_lamports: u64,
+    pub total_wraps: u64,
+    pub tax_bps: u16,
+    /// `KIND_SPLIT` (Mode 4) or `KIND_RAFFLE` (Mode 5). Fixed at init.
+    pub kind: u8,
+    /// Raffle only. Idle until a pot crosses the tier, then snapshot, commit, reveal.
+    pub raffle_phase: u8,
+    pub randomness_authority_bump: u8,
+    /// Pinned Switchboard queue. Default for a split vault.
+    pub sb_queue: Pubkey,
+    /// Increments when a raffle round opens, before any seat is written.
+    pub round_id: u64,
+    /// Whole pot for the open raffle round. Zero for a split round.
+    pub round_pot: u64,
+    pub randomness: Pubkey,
+    pub raffle_oracle: Pubkey,
+    pub seed_slot: u64,
+    pub revealed: [u8; 32],
+}
+#[account]
+#[derive(InitSpace, Debug)]
+pub struct TaxShare {
+    pub vault: Pubkey,
+    pub asset: Pubkey,
+    pub index: u128,
+}
+
+/// Owner of one NFT at the moment the raffle list was frozen. Written before randomness exists.
+#[account]
+#[derive(InitSpace, Debug)]
+pub struct RaffleSeat {
+    pub vault: Pubkey,
+    pub round_id: u64,
+    pub index: u32,
+    pub owner: Pubkey,
+}
+
 impl Vault {
     pub fn pending_draws(&self) -> Result<u64> {
         self.pending_captures

@@ -68,9 +68,18 @@ const fn tiers_within_bounds() -> bool {
     }
     true
 }
-const _: () = assert!(tiers_within_bounds(), "every tier within [MIN_FEE_LAMPORTS, MAX_FEE_LAMPORTS]");
-const _: () = assert!(MIN_FEE_LAMPORTS >= RENT_EXEMPT_MIN_0_BYTES, "fee floor must be >= rent-exempt minimum");
-const _: () = assert!(MAX_FEE_LAMPORTS == 10_000_000, "hard cap is exactly 0.01 SOL");
+const _: () = assert!(
+    tiers_within_bounds(),
+    "every tier within [MIN_FEE_LAMPORTS, MAX_FEE_LAMPORTS]"
+);
+const _: () = assert!(
+    MIN_FEE_LAMPORTS >= RENT_EXEMPT_MIN_0_BYTES,
+    "fee floor must be >= rent-exempt minimum"
+);
+const _: () = assert!(
+    MAX_FEE_LAMPORTS == 10_000_000,
+    "hard cap is exactly 0.01 SOL"
+);
 
 /// The ONE fee recipient (Barton's fee wallet). Program constant, never a launch parameter or
 /// instruction argument (M-05, F-06); recorded in every LaunchConfig and checked (fail closed) by
@@ -102,7 +111,8 @@ pub const CORE_CREATE_FEE_LAMPORTS: u64 = 1_500_000;
 /// Tx base share + crank reward per asset (graduation-design §1.4); sized so the all-in stays 0.00509 SOL.
 pub const MINT_OVERHEAD_LAMPORTS: u64 = 19_520;
 /// All-in per-NFT mint cost estimate: 0.00509 SOL (reference; the escrow uses rent + Core fee x 125%).
-pub const PER_NFT_MINT_COST_LAMPORTS: u64 = CORE_ASSET_RENT_LAMPORTS + CORE_CREATE_FEE_LAMPORTS + MINT_OVERHEAD_LAMPORTS;
+pub const PER_NFT_MINT_COST_LAMPORTS: u64 =
+    CORE_ASSET_RENT_LAMPORTS + CORE_CREATE_FEE_LAMPORTS + MINT_OVERHEAD_LAMPORTS;
 const _: () = assert!(PER_NFT_MINT_COST_LAMPORTS == 5_090_000);
 /// Reference only since ADR-016 (was the pre-mint fundability margin).
 pub const GRADUATION_MARGIN_PCT: u64 = 125;
@@ -144,16 +154,18 @@ pub const MAX_GRADUATION_THRESHOLD_LAMPORTS: u64 = 100_000_000_000_000_u64;
 ///   Immutable, leftover_receiver = our buffer PDA (dbc.rs), migration_quote_threshold 0.1 SOL
 ///   (registers only on the `devnet-e2e` build; the default floor is 10 SOL), DAMM v2 migration.
 #[cfg(not(feature = "mainnet"))]
-pub const APPROVED_DBC_CONFIGS: &[Pubkey] = &[
-    pubkey!("DuQYHUCToW6uHkWngXFiU4uGVSjcVKKCTJwViEb87Em9"),
-];
+pub const APPROVED_DBC_CONFIGS: &[Pubkey] =
+    &[pubkey!("DuQYHUCToW6uHkWngXFiU4uGVSjcVKKCTJwViEb87Em9")];
 
 /// NEEDS BARTON: the platform's mainnet DBC config key(s). Empty => no mainnet DBC launch can register;
 /// a mainnet build refuses to compile until at least one is set.
 #[cfg(feature = "mainnet")]
 pub const APPROVED_DBC_CONFIGS: &[Pubkey] = &[];
 #[cfg(feature = "mainnet")]
-const _: () = assert!(!APPROVED_DBC_CONFIGS.is_empty(), "hybrid_launch: set APPROVED_DBC_CONFIGS for mainnet");
+const _: () = assert!(
+    !APPROVED_DBC_CONFIGS.is_empty(),
+    "hybrid_launch: set APPROVED_DBC_CONFIGS for mainnet"
+);
 
 pub fn is_approved_dbc_config(k: &Pubkey) -> bool {
     APPROVED_DBC_CONFIGS.contains(k)

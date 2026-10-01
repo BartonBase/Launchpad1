@@ -66,6 +66,36 @@ pub fn create_asset<'info>(
     Ok(())
 }
 
+/// Mode 3 mint. The user pays rent and is already a transaction signer, so only the asset PDA and
+/// the vault-authority PDA sign.
+#[allow(clippy::too_many_arguments)]
+pub fn create_asset_user_pays<'info>(
+    core: &AccountInfo<'info>,
+    asset: &AccountInfo<'info>,
+    collection: &AccountInfo<'info>,
+    vault_authority: &AccountInfo<'info>,
+    payer: &AccountInfo<'info>,
+    owner: &AccountInfo<'info>,
+    system_program: &AccountInfo<'info>,
+    name: String,
+    uri: String,
+    asset_seeds: &[&[u8]],
+    authority_seeds: &[&[u8]],
+) -> Result<()> {
+    check_program(core)?;
+    CreateV2CpiBuilder::new(core)
+        .asset(asset)
+        .collection(Some(collection))
+        .authority(Some(vault_authority))
+        .payer(payer)
+        .owner(Some(owner))
+        .system_program(system_program)
+        .name(name)
+        .uri(uri)
+        .invoke_signed(&[asset_seeds, authority_seeds])?;
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn transfer_asset<'info>(
     core: &AccountInfo<'info>,
@@ -96,8 +126,12 @@ pub fn transfer_asset<'info>(
 pub fn assert_asset_state(asset: &AccountInfo, collection: &Pubkey, owner: &Pubkey) -> Result<()> {
     require_keys_eq!(*asset.owner, MPL_CORE_ID, VaultError::AssetStateMismatch);
     let data = asset.try_borrow_data()?;
-    let base = BaseAssetV1::from_bytes(&data).map_err(|_| error!(VaultError::AssetStateMismatch))?;
-    require!(base.owner.to_bytes() == owner.to_bytes(), VaultError::AssetStateMismatch);
+    let base =
+        BaseAssetV1::from_bytes(&data).map_err(|_| error!(VaultError::AssetStateMismatch))?;
+    require!(
+        base.owner.to_bytes() == owner.to_bytes(),
+        VaultError::AssetStateMismatch
+    );
     match base.update_authority {
         UpdateAuthority::Collection(c) if c.to_bytes() == collection.to_bytes() => Ok(()),
         _ => err!(VaultError::AssetStateMismatch),

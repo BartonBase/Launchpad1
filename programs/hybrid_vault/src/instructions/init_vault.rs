@@ -1,8 +1,11 @@
 //! `init_vault`: bind a vault 1:1 to a hybrid_launch LaunchConfig (program-owned PDA of the mint,
-//! version 2, economics re-validated by config::econ), create the vault's token account and Core
+//! version 4, economics re-validated by config::econ), create the vault's token account and Core
 //! collection, commit the trait root, pin the Switchboard queue. Economics are NOT copied: every
 //! instruction reads them from the LaunchConfig (M-01). The vault starts CLOSED (`open == false`).
 //! No instruction ever changes the vault's fields listed here and there is no close instruction.
+//!
+//! Mode 1 (`PlainLaunchConfig`) uses the same seeds and a different discriminator. This instruction
+//! loads `Account<LaunchConfig>` only, so a plain mint cannot be wrapped, unwrapped, or given an NFT.
 
 use crate::{asset_source, config, constants::*, core_cpi, error::VaultError, pool, state::Vault};
 use anchor_lang::prelude::*;
@@ -77,9 +80,18 @@ pub struct InitVault<'info> {
 pub fn handle_init_vault(ctx: Context<InitVault>, params: InitVaultParams) -> Result<()> {
     msg!("{}", crate::constants::SWITCHBOARD_CLUSTER_MARKER);
     let cfg = &ctx.accounts.launch_config;
-    require!(params.collection_name.len() <= MAX_NAME_LEN, VaultError::MetadataTooLong);
-    require!(params.collection_uri.len() <= MAX_URI_LEN, VaultError::MetadataTooLong);
-    require!(asset_source::is_content_addressed(&params.collection_uri), VaultError::UriNotContentAddressed);
+    require!(
+        params.collection_name.len() <= MAX_NAME_LEN,
+        VaultError::MetadataTooLong
+    );
+    require!(
+        params.collection_uri.len() <= MAX_URI_LEN,
+        VaultError::MetadataTooLong
+    );
+    require!(
+        asset_source::is_content_addressed(&params.collection_uri),
+        VaultError::UriNotContentAddressed
+    );
     require!(params.sb_queue != Pubkey::default(), VaultError::WrongQueue);
     let econ = config::econ(cfg)?;
     let collection_size = econ.collection_size;

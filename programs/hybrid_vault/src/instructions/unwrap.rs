@@ -7,7 +7,9 @@
 //! next_seq, so it can't be drawn by any request made before it came back.
 
 use super::vault_token_ops::pay_out;
-use crate::{asset_source, config, constants::*, error::VaultError, invariants, pool::PoolView, state::Vault};
+use crate::{
+    asset_source, config, constants::*, error::VaultError, invariants, pool::PoolView, state::Vault,
+};
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 
@@ -92,11 +94,23 @@ pub fn handle_unwrap(ctx: Context<Unwrap>, index: u32) -> Result<()> {
         pool.incoming_push(index, tag)?;
     }
     let v = &mut ctx.accounts.vault;
-    v.assets_outside = v.assets_outside.checked_sub(1).ok_or_else(|| error!(VaultError::AssetAccountingBroken))?;
-    v.total_unwraps = v.total_unwraps.checked_add(1).ok_or_else(|| error!(VaultError::MathOverflow))?;
+    v.assets_outside = v
+        .assets_outside
+        .checked_sub(1)
+        .ok_or_else(|| error!(VaultError::AssetAccountingBroken))?;
+    v.total_unwraps = v
+        .total_unwraps
+        .checked_add(1)
+        .ok_or_else(|| error!(VaultError::MathOverflow))?;
 
     ctx.accounts.vault_tokens.reload()?;
     let mut data = ctx.accounts.pool.try_borrow_mut_data()?;
     let pool = PoolView::load(&mut data, &vault_key)?;
-    invariants::check(&ctx.accounts.vault, econ.ratio_base, econ.collection_size, &pool, ctx.accounts.vault_tokens.amount)
+    invariants::check(
+        &ctx.accounts.vault,
+        econ.ratio_base,
+        econ.collection_size,
+        &pool,
+        ctx.accounts.vault_tokens.amount,
+    )
 }

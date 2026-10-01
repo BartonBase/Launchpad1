@@ -26,26 +26,44 @@ pub const MOCK_GRADUATION_DISCRIMINATOR: [u8; 8] = *b"MOCKGRAD";
 
 /// Ok(()) iff `proof` proves the launch described by `cfg` has graduated.
 pub fn verify(cfg: &LaunchConfig, proof: &AccountInfo) -> Result<()> {
+    verify_recorded(&cfg.mint, &cfg.dbc_config, &cfg.dbc_pool, proof)
+}
+
+/// Same check as [`verify`], for a mode whose config is not `LaunchConfig` (Mode 3).
+pub fn verify_recorded(
+    mint: &Pubkey,
+    dbc_config: &Pubkey,
+    dbc_pool: &Pubkey,
+    proof: &AccountInfo,
+) -> Result<()> {
     #[cfg(feature = "test-mock-graduation")]
     {
         if *proof.owner == MOCK_GRADUATION_OWNER {
-            return verify_mock(&cfg.mint, proof);
+            return verify_mock(mint, proof);
         }
         // Test builds DO have a verifier for native launches (the mock), so a bad proof is "not verified".
-        if cfg.dbc_pool == Pubkey::default() {
+        if *dbc_pool == Pubkey::default() {
             return err!(VaultError::GraduationNotVerified);
         }
     }
-    verify_dbc(cfg, proof)
+    verify_dbc_keys(mint, dbc_config, dbc_pool, proof)
 }
 
-pub fn verify_dbc(cfg: &LaunchConfig, proof: &AccountInfo) -> Result<()> {
-    // No DBC pool recorded (native `launch`): production has no graduation check for this launch at all.
-    require!(cfg.dbc_pool != Pubkey::default(), VaultError::GraduationCheckUnavailable);
-    require_keys_eq!(proof.key(), cfg.dbc_pool, VaultError::GraduationNotVerified);
+fn verify_dbc_keys(
+    mint: &Pubkey,
+    dbc_config: &Pubkey,
+    dbc_pool: &Pubkey,
+    proof: &AccountInfo,
+) -> Result<()> {
+    // No DBC pool recorded (native launch): production has no graduation check for this launch at all.
+    require!(
+        *dbc_pool != Pubkey::default(),
+        VaultError::GraduationCheckUnavailable
+    );
+    require_keys_eq!(proof.key(), *dbc_pool, VaultError::GraduationNotVerified);
     let pool = dbc::load_pool(proof).ok_or(error!(VaultError::GraduationNotVerified))?;
-    require_keys_eq!(pool.base_mint, cfg.mint, VaultError::GraduationNotVerified);
-    require_keys_eq!(pool.config, cfg.dbc_config, VaultError::GraduationNotVerified);
+    require_keys_eq!(pool.base_mint, *mint, VaultError::GraduationNotVerified);
+    require_keys_eq!(pool.config, *dbc_config, VaultError::GraduationNotVerified);
     require!(pool.graduated(), VaultError::GraduationNotVerified);
     Ok(())
 }
@@ -55,8 +73,14 @@ fn verify_mock(mint: &Pubkey, proof: &AccountInfo) -> Result<()> {
     msg!("hybrid_vault: TEST-ONLY mock graduation verifier");
     let d = proof.try_borrow_data()?;
     require!(d.len() >= 41, VaultError::GraduationNotVerified);
-    require!(d[..8] == MOCK_GRADUATION_DISCRIMINATOR, VaultError::GraduationNotVerified);
-    require!(d[8..40] == mint.to_bytes(), VaultError::GraduationNotVerified);
+    require!(
+        d[..8] == MOCK_GRADUATION_DISCRIMINATOR,
+        VaultError::GraduationNotVerified
+    );
+    require!(
+        d[8..40] == mint.to_bytes(),
+        VaultError::GraduationNotVerified
+    );
     require!(d[40] == 1, VaultError::GraduationNotVerified);
     Ok(())
 }

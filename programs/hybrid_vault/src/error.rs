@@ -59,7 +59,9 @@ pub enum VaultError {
     ReservedInvalidPauseDuration,
     #[msg("reserved (removed: guardian pause, ADR-015)")]
     ReservedPauseNotAllowed,
-    #[msg("Vault token balance below ratio * (NFTs outside + pending captures + pending re-rolls)")]
+    #[msg(
+        "Vault token balance below ratio * (NFTs outside + pending captures + pending re-rolls)"
+    )]
     InsolventVault,
     #[msg("reserved (removed: token fee escrow)")]
     ReservedFeeEscrowShort,
@@ -109,7 +111,9 @@ pub enum VaultError {
     WrongOracle,
     #[msg("No oracle on the queue that this request hasn't already used")]
     NoFreshOracle,
-    #[msg("Reserved (was GraduationFundShortfall; graduation mint fund removed, lazy mint ADR-016)")]
+    #[msg(
+        "Reserved (was GraduationFundShortfall; graduation mint fund removed, lazy mint ADR-016)"
+    )]
     ReservedGraduationFundShortfall,
     #[msg("Selected oracle has not heartbeated recently; pass it as a stale proof and retry")]
     OracleStale,
@@ -129,6 +133,14 @@ pub enum VaultError {
     ExpireBatchAccountMismatch,
     #[msg("LaunchConfig fee is not exactly the tier for its ratio (QA-FEE-03; 0 and off-tier fees are invalid)")]
     FeeNotTier,
+    #[msg("token source must be the user's classic ATA for this mint")]
+    TokenSourceNotDerived,
+    #[msg(
+        "Token-2022 mint or token account has an extension; Mode 4 allows the base account only"
+    )]
+    ExtensionsNotAllowed,
+    #[msg("claim pays more than this NFT's share of the pool, or more than the pool has credited")]
+    DistributionExceeded,
 }
 
 #[cfg(test)]
@@ -200,6 +212,9 @@ mod tests {
             (VaultError::ExpireBatchInvalid, 6059),
             (VaultError::ExpireBatchAccountMismatch, 6060),
             (VaultError::FeeNotTier, 6061),
+            (VaultError::TokenSourceNotDerived, 6062),
+            (VaultError::ExtensionsNotAllowed, 6063),
+            (VaultError::DistributionExceeded, 6064),
         ];
         for (e, code) in pinned {
             assert_eq!(u32::from(*e), *code, "{e:?}");

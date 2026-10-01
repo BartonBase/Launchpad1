@@ -15,8 +15,8 @@
 use crate::error::VaultError;
 use anchor_lang::{prelude::*, Discriminator};
 use hybrid_launch::{
-    is_exact_tier_fee, LaunchConfig, LC_DISCRIMINATOR_LEN, LC_OFF_COLLECTION_SIZE, LC_OFF_RATIO_BASE, LC_STABLE_PREFIX_LEN,
-    MAX_COLLECTION_SIZE, PLATFORM_FEE_RECIPIENT,
+    is_exact_tier_fee, LaunchConfig, LC_DISCRIMINATOR_LEN, LC_OFF_COLLECTION_SIZE,
+    LC_OFF_RATIO_BASE, LC_STABLE_PREFIX_LEN, MAX_COLLECTION_SIZE, PLATFORM_FEE_RECIPIENT,
 };
 
 pub const SUPPORTED_LAUNCH_CONFIG_VERSION: u8 = 4;
@@ -34,7 +34,10 @@ pub struct Econ {
 /// release(0)). The stored fee must be EXACTLY the tier (hybrid_launch::tier_fee_lamports, the one
 /// shared derivation); 0 or anything else reverts.
 pub fn request_fee(stored: u64, ratio_whole_tokens: u64) -> Result<u64> {
-    require!(is_exact_tier_fee(stored, ratio_whole_tokens), VaultError::FeeNotTier);
+    require!(
+        is_exact_tier_fee(stored, ratio_whole_tokens),
+        VaultError::FeeNotTier
+    );
     Ok(stored)
 }
 
@@ -45,10 +48,88 @@ impl Econ {
 }
 
 pub fn econ(cfg: &LaunchConfig) -> Result<Econ> {
-    require!(cfg.version == SUPPORTED_LAUNCH_CONFIG_VERSION, VaultError::UnsupportedLaunchConfig);
-    require!(cfg.collection_size <= MAX_COLLECTION_SIZE as u64, VaultError::CollectionAboveCap);
-    let collection_size: u32 = cfg.collection_size.try_into().map_err(|_| error!(VaultError::UnsupportedLaunchConfig))?;
-    require!(collection_size > 0 && cfg.ratio_base > 0, VaultError::UnsupportedLaunchConfig);
+    require!(
+        cfg.version == SUPPORTED_LAUNCH_CONFIG_VERSION,
+        VaultError::UnsupportedLaunchConfig
+    );
+    require!(
+        cfg.collection_size <= MAX_COLLECTION_SIZE as u64,
+        VaultError::CollectionAboveCap
+    );
+    let collection_size: u32 = cfg
+        .collection_size
+        .try_into()
+        .map_err(|_| error!(VaultError::UnsupportedLaunchConfig))?;
+    require!(
+        collection_size > 0 && cfg.ratio_base > 0,
+        VaultError::UnsupportedLaunchConfig
+    );
+    Ok(Econ {
+        ratio_base: cfg.ratio_base,
+        collection_size,
+        stored_fee_lamports: cfg.fee_lamports,
+        ratio_whole_tokens: cfg.ratio_whole_tokens,
+        fee_recipient: PLATFORM_FEE_RECIPIENT,
+    })
+}
+
+/// Mode 3 economics. Same ratio set, collection cap, and exact-tier fee as Mode 2. There is no
+/// release, so nothing here is an exit-path read.
+pub fn burn_econ(cfg: &hybrid_launch::BurnLaunchConfig) -> Result<Econ> {
+    require!(
+        cfg.version == hybrid_launch::BURN_LAUNCH_CONFIG_VERSION
+            && cfg.launch_mode == hybrid_launch::LAUNCH_MODE_BURN,
+        VaultError::UnsupportedLaunchConfig
+    );
+    require!(
+        cfg.collection_size <= MAX_COLLECTION_SIZE as u64,
+        VaultError::CollectionAboveCap
+    );
+    let collection_size: u32 = cfg
+        .collection_size
+        .try_into()
+        .map_err(|_| error!(VaultError::UnsupportedLaunchConfig))?;
+    require!(
+        collection_size > 0 && cfg.ratio_base > 0,
+        VaultError::UnsupportedLaunchConfig
+    );
+    require!(
+        is_exact_tier_fee(cfg.fee_lamports, cfg.ratio_whole_tokens),
+        VaultError::FeeNotTier
+    );
+    Ok(Econ {
+        ratio_base: cfg.ratio_base,
+        collection_size,
+        stored_fee_lamports: cfg.fee_lamports,
+        ratio_whole_tokens: cfg.ratio_whole_tokens,
+        fee_recipient: PLATFORM_FEE_RECIPIENT,
+    })
+}
+
+/// Mode 4 economics. Same ratio set and exact-tier fee as Mode 3. The mint is extensionless Token-2022.
+pub fn t22_econ(cfg: &hybrid_launch::T22BurnLaunchConfig) -> Result<Econ> {
+    require!(
+        cfg.version == hybrid_launch::T22_BURN_LAUNCH_CONFIG_VERSION
+            && (cfg.launch_mode == hybrid_launch::LAUNCH_MODE_TOKEN22
+                || cfg.launch_mode == hybrid_launch::LAUNCH_MODE_RAFFLE),
+        VaultError::UnsupportedLaunchConfig
+    );
+    require!(
+        cfg.collection_size <= MAX_COLLECTION_SIZE as u64,
+        VaultError::CollectionAboveCap
+    );
+    let collection_size: u32 = cfg
+        .collection_size
+        .try_into()
+        .map_err(|_| error!(VaultError::UnsupportedLaunchConfig))?;
+    require!(
+        collection_size > 0 && cfg.ratio_base > 0,
+        VaultError::UnsupportedLaunchConfig
+    );
+    require!(
+        is_exact_tier_fee(cfg.fee_lamports, cfg.ratio_whole_tokens),
+        VaultError::FeeNotTier
+    );
     Ok(Econ {
         ratio_base: cfg.ratio_base,
         collection_size,
@@ -66,21 +147,34 @@ pub struct ExitView {
 /// Minimal, upgrade-proof read for user-exit paths (M-41). `acc` must already be address-pinned to
 /// `vault.launch_config`.
 pub fn exit_view(acc: &AccountInfo) -> Result<ExitView> {
-    require_keys_eq!(*acc.owner, hybrid_launch::ID, VaultError::UnsupportedLaunchConfig);
+    require_keys_eq!(
+        *acc.owner,
+        hybrid_launch::ID,
+        VaultError::UnsupportedLaunchConfig
+    );
     let data = acc.try_borrow_data()?;
     exit_view_in(&data)
 }
 
 pub fn exit_view_in(data: &[u8]) -> Result<ExitView> {
     require!(
-        data.len() >= LC_STABLE_PREFIX_LEN && &data[..LC_DISCRIMINATOR_LEN] == LaunchConfig::DISCRIMINATOR,
+        data.len() >= LC_STABLE_PREFIX_LEN
+            && &data[..LC_DISCRIMINATOR_LEN] == LaunchConfig::DISCRIMINATOR,
         VaultError::UnsupportedLaunchConfig
     );
     let u64_at = |o: usize| u64::from_le_bytes(data[o..o + 8].try_into().unwrap());
     let ratio_base = u64_at(LC_OFF_RATIO_BASE);
-    let collection_size: u32 = u64_at(LC_OFF_COLLECTION_SIZE).try_into().map_err(|_| error!(VaultError::UnsupportedLaunchConfig))?;
-    require!(ratio_base > 0 && collection_size > 0, VaultError::UnsupportedLaunchConfig);
-    Ok(ExitView { ratio_base, collection_size })
+    let collection_size: u32 = u64_at(LC_OFF_COLLECTION_SIZE)
+        .try_into()
+        .map_err(|_| error!(VaultError::UnsupportedLaunchConfig))?;
+    require!(
+        ratio_base > 0 && collection_size > 0,
+        VaultError::UnsupportedLaunchConfig
+    );
+    Ok(ExitView {
+        ratio_base,
+        collection_size,
+    })
 }
 
 #[cfg(test)]
@@ -93,11 +187,22 @@ mod tests {
         for &r in ALLOWED_RATIOS.iter() {
             let tier = hybrid_launch::tier_fee_lamports(r).unwrap();
             assert_eq!(request_fee(tier, r).unwrap(), tier);
-            for bad in [0, 1, tier - 1, tier + 1, MIN_FEE_LAMPORTS - 1, MAX_FEE_LAMPORTS + 1, u64::MAX] {
+            for bad in [
+                0,
+                1,
+                tier - 1,
+                tier + 1,
+                MIN_FEE_LAMPORTS - 1,
+                MAX_FEE_LAMPORTS + 1,
+                u64::MAX,
+            ] {
                 assert!(request_fee(bad, r).is_err(), "ratio {r} stored {bad}");
             }
         }
-        assert!(request_fee(MAX_FEE_LAMPORTS, 10_000).is_err(), "ratio not in the table");
+        assert!(
+            request_fee(MAX_FEE_LAMPORTS, 10_000).is_err(),
+            "ratio not in the table"
+        );
     }
 
     /// Re-roll fee == capture fee and release is free, so re-roll <= capture + release for every tier.
@@ -124,13 +229,26 @@ mod tests {
     fn exit_view_ignores_everything_but_ratio_and_n() {
         let mut d = cfg_bytes(7, 100, 64);
         d[hybrid_launch::LC_OFF_VERSION] = 99; // future version
-        d[hybrid_launch::LC_OFF_FEE_LAMPORTS..hybrid_launch::LC_OFF_FEE_LAMPORTS + 8].copy_from_slice(&u64::MAX.to_le_bytes());
-        d[hybrid_launch::LC_OFF_FEE_RECIPIENT..hybrid_launch::LC_OFF_FEE_RECIPIENT + 32].copy_from_slice(&[9; 32]);
+        d[hybrid_launch::LC_OFF_FEE_LAMPORTS..hybrid_launch::LC_OFF_FEE_LAMPORTS + 8]
+            .copy_from_slice(&u64::MAX.to_le_bytes());
+        d[hybrid_launch::LC_OFF_FEE_RECIPIENT..hybrid_launch::LC_OFF_FEE_RECIPIENT + 32]
+            .copy_from_slice(&[9; 32]);
         let v = exit_view_in(&d).unwrap();
         assert_eq!((v.ratio_base, v.collection_size), (7, 100));
         assert!(exit_view_in(&d[..LC_STABLE_PREFIX_LEN - 1]).is_err());
         let mut bad = d.clone();
         bad[0] ^= 1;
         assert!(exit_view_in(&bad).is_err());
+    }
+
+    /// Mode 1 is a different account. The vault's `Account<LaunchConfig>` load rejects it on-chain.
+    #[test]
+    fn plain_launch_discriminator_is_not_hybrid() {
+        use anchor_lang::Discriminator;
+        use hybrid_launch::PlainLaunchConfig;
+        assert_ne!(
+            PlainLaunchConfig::DISCRIMINATOR,
+            LaunchConfig::DISCRIMINATOR
+        );
     }
 }

@@ -21,22 +21,48 @@ pub fn required_vault_tokens(vault: &Vault, ratio_base: u64) -> Result<u64> {
         .checked_add(vault.pending_captures)
         .and_then(|x| x.checked_add(vault.pending_rerolls))
         .ok_or_else(|| error!(VaultError::MathOverflow))?;
-    ratio_base.checked_mul(owed_units).ok_or_else(|| error!(VaultError::MathOverflow))
+    ratio_base
+        .checked_mul(owed_units)
+        .ok_or_else(|| error!(VaultError::MathOverflow))
 }
 
 /// `ratio_base` / `collection_size` come from the LaunchConfig (config::econ or config::exit_view).
-pub fn check(vault: &Vault, ratio_base: u64, collection_size: u32, pool: &PoolView, vault_tokens_amount: u64) -> Result<()> {
-    require!(vault_tokens_amount >= required_vault_tokens(vault, ratio_base)?, VaultError::InsolventVault);
+pub fn check(
+    vault: &Vault,
+    ratio_base: u64,
+    collection_size: u32,
+    pool: &PoolView,
+    vault_tokens_amount: u64,
+) -> Result<()> {
+    require!(
+        vault_tokens_amount >= required_vault_tokens(vault, ratio_base)?,
+        VaultError::InsolventVault
+    );
 
     let accounted = (pool.pool_len() as u64)
         .checked_add(pool.incoming_len() as u64)
         .and_then(|x| x.checked_add(vault.pending_rerolls))
         .and_then(|x| x.checked_add(vault.assets_outside))
         .ok_or_else(|| error!(VaultError::MathOverflow))?;
-    require!(accounted == collection_size as u64, VaultError::AssetAccountingBroken);
-    require!(pool.capacity() == collection_size, VaultError::AssetAccountingBroken);
-    require!(vault.minted_count <= collection_size, VaultError::AssetAccountingBroken);
-    let held_or_out = vault.assets_outside.checked_add(vault.pending_rerolls).ok_or_else(|| error!(VaultError::MathOverflow))?;
-    require!(held_or_out <= vault.minted_count as u64, VaultError::AssetAccountingBroken);
+    require!(
+        accounted == collection_size as u64,
+        VaultError::AssetAccountingBroken
+    );
+    require!(
+        pool.capacity() == collection_size,
+        VaultError::AssetAccountingBroken
+    );
+    require!(
+        vault.minted_count <= collection_size,
+        VaultError::AssetAccountingBroken
+    );
+    let held_or_out = vault
+        .assets_outside
+        .checked_add(vault.pending_rerolls)
+        .ok_or_else(|| error!(VaultError::MathOverflow))?;
+    require!(
+        held_or_out <= vault.minted_count as u64,
+        VaultError::AssetAccountingBroken
+    );
     Ok(())
 }

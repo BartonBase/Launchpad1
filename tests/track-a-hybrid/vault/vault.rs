@@ -9,13 +9,353 @@ use harness::*;
 
 fn idl_instruction_names() -> Vec<String> {
     let idl = vault_idl();
-    idl["instructions"].as_array().unwrap().iter().map(|i| i["name"].as_str().unwrap().to_string()).collect()
+    idl["instructions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["name"].as_str().unwrap().to_string())
+        .collect()
 }
 
 fn kp_funded(env: &mut Env) -> Keypair {
     let k = Keypair::new();
     env.svm.airdrop(&k.pubkey(), 10_000_000_000).unwrap();
     k
+}
+
+#[test]
+fn mode3_wrap_burns_the_ratio_mints_the_next_nft_and_cannot_release() {
+    let mut env = setup_permanent_closed(N);
+    let alice = env.new_user(env.ratio_base * 2);
+    expect_vault_err(env.wrap_permanent(&alice, 0), VaultError::VaultNotOpen);
+    let mint = env.ids.mint;
+    env.graduation_proof = env.set_graduation(MOCK_GRADUATION_OWNER, mint, 1);
+    let proof = env.graduation_proof;
+    env.open_permanent(proof).expect("open_permanent_vault");
+
+    let supply_before = env.supply();
+    let bal = env.token_amount(&alice.ata);
+    env.wrap_permanent(&alice, 0).expect("wrap 0");
+    assert_eq!(env.token_amount(&alice.ata), bal - env.ratio_base);
+    assert_eq!(env.supply(), supply_before - env.ratio_base);
+    assert_eq!(env.asset_owner(0), alice.kp.pubkey());
+    let v = hybrid_vault::PermanentVault::try_deserialize(
+        &mut env.svm.get_account(&env.ids.vault).unwrap().data.as_slice(),
+    )
+    .unwrap();
+    assert_eq!(v.minted_count, 1);
+    assert_eq!(v.total_burned_base, env.ratio_base);
+    assert_eq!(v.total_wraps, 1);
+    assert!(v.total_fee_lamports > 0);
+    assert!(hybrid_vault::Vault::try_deserialize(
+        &mut env.svm.get_account(&env.ids.vault).unwrap().data.as_slice()
+    )
+    .is_err());
+
+    env.wrap_permanent(&alice, 1).expect("wrap 1");
+    assert_eq!(env.asset_owner(1), alice.kp.pubkey());
+    assert_eq!(env.supply(), supply_before - 2 * env.ratio_base);
+    assert!(env.unwrap(&alice, 0).is_err(), "no release on a burn vault");
+    assert!(
+        env.wrap_permanent(&alice, 0).is_err(),
+        "index is not caller-chosen"
+    );
+
+    let err = match env.init_vault_for(env.ids.clone(), N) {
+        Err(err) => err,
+        Ok(_) => panic!("burn config must not open a Mode 2 vault"),
+    };
+    assert!(
+        err.contains("AccountDiscriminatorMismatch") || err.contains("3002"),
+        "{err}"
+    );
+}
+
+#[test]
+fn mode4_tax_is_locked_does_not_burn_and_pays_only_the_project_nft_holder() {
+    let mut env = setup_token22(N, 500);
+    let cfg = hybrid_launch::T22BurnLaunchConfig::try_deserialize(
+        &mut env
+            .svm
+            .get_account(&env.ids.launch_config)
+            .unwrap()
+            .data
+            .as_slice(),
+    )
+    .unwrap();
+    assert_eq!(cfg.tax_bps, 500);
+    assert_eq!(cfg.launch_mode, hybrid_launch::LAUNCH_MODE_TOKEN22);
+    let mint_acct = env.svm.get_account(&env.ids.mint).unwrap();
+    assert_eq!(mint_acct.owner, TOKEN_2022_ID);
+    assert!(
+        mint_acct.data.len() > 82,
+        "transfer-fee mint is larger than a base mint"
+    );
+
+    let alice = env.new_t22_user(env.ratio_base * 2);
+    let supply = env.raw_supply();
+    let bal = env.raw_amount(&alice.ata);
+    env.wrap_token22(&alice, 0)
+        .expect("wrap locks, does not burn");
+    assert_eq!(env.raw_supply(), supply, "supply is not burned");
+    assert_eq!(env.raw_amount(&alice.ata), bal - env.ratio_base);
+    assert_eq!(env.asset_owner(0), alice.kp.pubkey());
+    let v = hybrid_vault::TaxVault::try_deserialize(
+        &mut env.svm.get_account(&env.ids.vault).unwrap().data.as_slice(),
+    )
+    .unwrap();
+    assert_eq!(v.total_locked_base, env.ratio_base);
+    assert_eq!(v.minted_count, 1);
+    assert!(env.unwrap(&alice, 0).is_err(), "no unwrap on the tax vault");
+
+    env.harvest_tax().expect("harvest withheld tax");
+    let (tax_authority, _) = Pubkey::find_program_address(
+        &[b"tax_authority", env.ids.mint.as_ref()],
+        &hybrid_vault::ID,
+    );
+    let treasury =
+        get_associated_token_address_with_program_id(&tax_authority, &env.ids.mint, &TOKEN_2022_ID);
+    assert!(
+        env.raw_amount(&treasury) > 0,
+        "tax sits in the program treasury"
+    );
+    let holder = alice.kp.pubkey();
+    let held = env.raw_amount(&alice.ata);
+    env.claim_tax(&holder, 0).unwrap();
+    assert_eq!(
+        env.raw_amount(&alice.ata),
+        held,
+        "one wrap of tax is under the market-cap tier, so no round opens"
+    );
+
+    let bob = env.new_t22_user(0);
+    let err = env.claim_tax(&bob.kp.pubkey(), 0).unwrap_err();
+    assert!(
+        err.contains("AssetStateMismatch")
+            || err.contains("6000")
+            || err.contains("custom program error"),
+        "{err}"
+    );
+}
+
+#[test]
+fn mode4_buyback_buys_inventory_at_the_locked_price_for_the_nft_holder_only() {
+    let mut env = setup_token22(N, 500);
+    let alice = env.new_t22_user(env.ratio_base);
+    env.wrap_token22(&alice, 0).expect("holder");
+    let (tax_authority, _) = Pubkey::find_program_address(
+        &[b"tax_authority", env.ids.mint.as_ref()],
+        &hybrid_vault::ID,
+    );
+    let price = 1_000_000u64;
+    let rent = env.svm.minimum_balance_for_rent_exemption(0);
+    env.svm.airdrop(&tax_authority, rent + 10 * price).unwrap();
+    env.buyback().unwrap();
+    let holder = alice.kp.pubkey();
+    let holder_ata =
+        get_associated_token_address_with_program_id(&holder, &env.ids.mint, &TOKEN_2022_ID);
+    let before_small = env.raw_amount(&holder_ata);
+    env.claim_tax(&holder, 0).unwrap();
+    assert_eq!(
+        env.raw_amount(&holder_ata),
+        before_small,
+        "10 tokens is under the tier"
+    );
+
+    let whole = 600_000u64;
+    env.svm.airdrop(&tax_authority, whole * price).unwrap();
+    let supply = env.raw_supply();
+    let before = env.raw_amount(&env.ids.launch_destination);
+    let vault_sol = env.lamports(&env.ids.launch_vault);
+    env.buyback().expect("buyback");
+    let unit = 10u64.pow(DECIMALS as u32);
+    assert_eq!(env.raw_supply(), supply, "buyback does not mint or burn");
+    assert_eq!(
+        env.raw_amount(&env.ids.launch_destination),
+        before - whole * unit
+    );
+    assert_eq!(
+        env.lamports(&env.ids.launch_vault),
+        vault_sol + whole * price
+    );
+    env.claim_tax(&holder, 0)
+        .expect("holder is paid once the pot clears the tier");
+    assert!(env.raw_amount(&holder_ata) > before_small);
+    let bob = env.new_t22_user(0);
+    assert!(env.claim_tax(&bob.kp.pubkey(), 0).is_err());
+}
+
+#[test]
+fn mode4_each_nft_earns_the_same_share_and_the_pool_cannot_be_swept() {
+    let mut env = setup_token22(N, 500);
+    let alice = env.new_t22_user(env.ratio_base * 2);
+    let bob = env.new_t22_user(env.ratio_base);
+    env.wrap_token22(&alice, 0).unwrap();
+    env.wrap_token22(&alice, 1).unwrap();
+    env.wrap_token22(&bob, 2).unwrap();
+
+    let (tax_authority, _) = Pubkey::find_program_address(
+        &[b"tax_authority", env.ids.mint.as_ref()],
+        &hybrid_vault::ID,
+    );
+    let whole = 600_000u64;
+    let price = 1_000_000u64;
+    let rent = env.svm.minimum_balance_for_rent_exemption(0);
+    env.svm
+        .airdrop(&tax_authority, rent + whole * price)
+        .unwrap();
+    env.buyback().unwrap();
+
+    // 600_000 whole tokens, 5% fee, 570_000 land. At the locked price that is 570 SOL,
+    // over the $50k-cap tier (500 SOL). Split across the 3 NFTs that exist.
+    let per_nft_net = 180_500_000_000u64;
+    let alice_key = alice.kp.pubkey();
+    let bob_key = bob.kp.pubkey();
+    let alice_ata =
+        get_associated_token_address_with_program_id(&alice_key, &env.ids.mint, &TOKEN_2022_ID);
+    let bob_ata =
+        get_associated_token_address_with_program_id(&bob_key, &env.ids.mint, &TOKEN_2022_ID);
+    let alice_before = env.raw_amount(&alice_ata);
+    let bob_before = env.raw_amount(&bob_ata);
+
+    env.claim_tax(&alice_key, 0).unwrap();
+    env.claim_tax(&alice_key, 1).unwrap();
+    env.claim_tax(&bob_key, 2).unwrap();
+    assert_eq!(
+        env.raw_amount(&alice_ata) - alice_before,
+        per_nft_net * 2,
+        "2 NFTs earn exactly 2x"
+    );
+    assert_eq!(env.raw_amount(&bob_ata) - bob_before, per_nft_net);
+
+    let treasury =
+        get_associated_token_address_with_program_id(&tax_authority, &env.ids.mint, &TOKEN_2022_ID);
+    assert_eq!(
+        env.raw_amount(&treasury),
+        0,
+        "unminted NFTs were not reserved a share"
+    );
+
+    let carol = env.new_t22_user(env.ratio_base);
+    env.wrap_token22(&carol, 3).unwrap();
+    let carol_key = carol.kp.pubkey();
+    let carol_ata =
+        get_associated_token_address_with_program_id(&carol_key, &env.ids.mint, &TOKEN_2022_ID);
+    let carol_before = env.raw_amount(&carol_ata);
+    env.claim_tax(&carol_key, 3).unwrap();
+    assert_eq!(
+        env.raw_amount(&carol_ata),
+        carol_before,
+        "an NFT minted after the round earns nothing from it"
+    );
+
+    env.svm.airdrop(&tax_authority, whole * price).unwrap();
+    env.buyback().unwrap();
+    assert!(
+        env.claim_tax(&carol_key, 3).is_err(),
+        "a crank cannot skip ahead"
+    );
+    let second_net = 135_375_000_000u64;
+    let alice_mid = env.raw_amount(&alice_ata);
+    let carol_mid = env.raw_amount(&carol_ata);
+    let bob_mid = env.raw_amount(&bob_ata);
+    env.claim_tax(&alice_key, 0).unwrap();
+    env.claim_tax(&alice_key, 1).unwrap();
+    env.claim_tax(&bob_key, 2).unwrap();
+    env.claim_tax(&carol_key, 3).unwrap();
+    assert_eq!(env.raw_amount(&alice_ata) - alice_mid, second_net * 2);
+    assert_eq!(env.raw_amount(&bob_ata) - bob_mid, second_net);
+    assert_eq!(env.raw_amount(&carol_ata) - carol_mid, second_net);
+
+    let v = hybrid_vault::TaxVault::try_deserialize(
+        &mut env.svm.get_account(&env.ids.vault).unwrap().data.as_slice(),
+    )
+    .unwrap();
+    assert_eq!(v.round_open, 0);
+    assert!(v.paid_base <= v.credited_base);
+    let again = env.raw_amount(&alice_ata);
+    env.claim_tax(&alice_key, 0).unwrap();
+    assert_eq!(
+        env.raw_amount(&alice_ata),
+        again,
+        "a finished round cannot be paid again"
+    );
+}
+
+#[test]
+fn mode5_one_snapshotted_nft_wins_the_whole_pot_and_the_draw_cannot_be_aimed() {
+    let mut env = setup_raffle(N, 500);
+    let alice = env.new_t22_user(env.ratio_base * 2);
+    let bob = env.new_t22_user(env.ratio_base);
+    env.wrap_token22(&alice, 0).unwrap();
+    env.wrap_token22(&alice, 1).unwrap();
+    env.wrap_token22(&bob, 2).unwrap();
+    let (tax_authority, _) = Pubkey::find_program_address(
+        &[b"tax_authority", env.ids.mint.as_ref()],
+        &hybrid_vault::ID,
+    );
+    let price = 1_000_000u64;
+    let rent = env.svm.minimum_balance_for_rent_exemption(0);
+    env.svm.airdrop(&tax_authority, rent + 10 * price).unwrap();
+    env.buyback().unwrap();
+    assert_eq!(
+        env.tax_vault().raffle_phase,
+        0,
+        "10 tokens is under the tier"
+    );
+
+    env.svm.airdrop(&tax_authority, 600_000 * price).unwrap();
+    env.buyback().unwrap();
+    assert_eq!(env.tax_vault().round_minted, 3);
+    assert_eq!(env.tax_vault().raffle_phase, hybrid_vault::RAFFLE_SNAPSHOT);
+
+    env.snapshot_raffle(&alice.kp.pubkey(), 0).unwrap();
+    assert!(
+        env.snapshot_raffle(&bob.kp.pubkey(), 2).is_err(),
+        "cannot skip a seat"
+    );
+    let early = env.init_raffle_randomness();
+    assert!(
+        env.commit_raffle(&early).is_err(),
+        "the draw cannot start before every seat is frozen"
+    );
+    env.snapshot_raffle(&alice.kp.pubkey(), 1).unwrap();
+    env.snapshot_raffle(&bob.kp.pubkey(), 2).unwrap();
+    let randomness = env.init_raffle_randomness();
+    env.commit_raffle(&randomness).unwrap();
+    let value = [9u8; 32];
+    env.reveal_raffle(value).unwrap();
+    assert!(
+        env.reveal_raffle(value).is_err(),
+        "a reveal cannot be replaced"
+    );
+
+    let v = env.tax_vault();
+    let mixed = hybrid_vault::selection::request_randomness(&value, &env.ids.vault, v.round_id);
+    let winner = hybrid_vault::selection::uniform_below(&mixed, v.round_minted);
+    let alice_key = alice.kp.pubkey();
+    let bob_key = bob.kp.pubkey();
+    let winner_key = if winner == 2 { bob_key } else { alice_key };
+    let loser_key = if winner == 2 { alice_key } else { bob_key };
+    assert!(env.settle_raffle(&loser_key, winner).is_err());
+
+    let treasury =
+        get_associated_token_address_with_program_id(&tax_authority, &env.ids.mint, &TOKEN_2022_ID);
+    let pot = env.raw_amount(&treasury);
+    let winner_ata =
+        get_associated_token_address_with_program_id(&winner_key, &env.ids.mint, &TOKEN_2022_ID);
+    let loser_ata =
+        get_associated_token_address_with_program_id(&loser_key, &env.ids.mint, &TOKEN_2022_ID);
+    let winner_before = env.raw_amount(&winner_ata);
+    let loser_before = env.raw_amount(&loser_ata);
+    env.settle_raffle(&winner_key, winner).unwrap();
+    let owed = v.round_pot;
+    let fee = owed * 500 / 10_000 + u64::from(owed * 500 % 10_000 != 0);
+    assert_eq!(env.raw_amount(&winner_ata) - winner_before, owed - fee);
+    assert_eq!(env.raw_amount(&loser_ata), loser_before);
+    assert_eq!(env.raw_amount(&treasury), pot - owed);
+    assert!(env.settle_raffle(&winner_key, winner).is_err());
+    assert!(env.claim_tax(&winner_key, winner).is_err());
 }
 
 // ---------------------------------------------------------------- flat SOL fee (ADR-013)
@@ -27,47 +367,103 @@ fn capture_then_release_returns_exactly_ratio_tokens_and_release_is_free() {
     let before = env.token_amount(&alice.ata);
     let idx = env.capture(&alice, val(1));
     assert_eq!(env.asset_owner(idx), alice.kp.pubkey());
-    assert_eq!(env.token_amount(&alice.ata), before - env.ratio_base, "capture costs exactly N tokens, no token fee");
+    assert_eq!(
+        env.token_amount(&alice.ata),
+        before - env.ratio_base,
+        "capture costs exactly N tokens, no token fee"
+    );
     env.assert_invariants();
 
-    let (rec0, sol0) = (env.lamports(&env.ids.fee_recipient), env.lamports(&alice.kp.pubkey()));
+    let (rec0, sol0) = (
+        env.lamports(&env.ids.fee_recipient),
+        env.lamports(&alice.kp.pubkey()),
+    );
     env.unwrap(&alice, idx).expect("release");
     assert_eq!(env.asset_owner(idx), env.ids.vault_authority);
-    assert_eq!(env.token_amount(&alice.ata), before, "release returns exactly N tokens");
-    assert_eq!(env.lamports(&env.ids.fee_recipient), rec0, "release pays no fee (Barton 5:04 PM)");
-    assert_eq!(sol0 - env.lamports(&alice.kp.pubkey()), 5_000, "user pays only the 1-signature tx fee on release");
+    assert_eq!(
+        env.token_amount(&alice.ata),
+        before,
+        "release returns exactly N tokens"
+    );
+    assert_eq!(
+        env.lamports(&env.ids.fee_recipient),
+        rec0,
+        "release pays no fee (Barton 5:04 PM)"
+    );
+    assert_eq!(
+        sol0 - env.lamports(&alice.kp.pubkey()),
+        5_000,
+        "user pays only the 1-signature tx fee on release"
+    );
     env.assert_invariants();
 }
 
 #[test]
 fn release_has_no_fee_account_in_its_interface() {
     let names: Vec<String> = hybrid_vault::accounts::Unwrap {
-        user: Pubkey::new_unique(), vault: Pubkey::new_unique(), launch_config: Pubkey::new_unique(), pool: Pubkey::new_unique(),
-        mint: Pubkey::new_unique(), vault_authority: Pubkey::new_unique(), vault_tokens: Pubkey::new_unique(), user_token: Pubkey::new_unique(),
-        asset: Pubkey::new_unique(), collection: Pubkey::new_unique(), mpl_core_program: Pubkey::new_unique(),
-        token_program: Pubkey::new_unique(), system_program: Pubkey::new_unique(),
+        user: Pubkey::new_unique(),
+        vault: Pubkey::new_unique(),
+        launch_config: Pubkey::new_unique(),
+        pool: Pubkey::new_unique(),
+        mint: Pubkey::new_unique(),
+        vault_authority: Pubkey::new_unique(),
+        vault_tokens: Pubkey::new_unique(),
+        user_token: Pubkey::new_unique(),
+        asset: Pubkey::new_unique(),
+        collection: Pubkey::new_unique(),
+        mpl_core_program: Pubkey::new_unique(),
+        token_program: Pubkey::new_unique(),
+        system_program: Pubkey::new_unique(),
     }
     .to_account_metas(None)
     .iter()
     .map(|m| m.pubkey.to_string())
     .collect();
-    assert_eq!(names.len(), 13, "unwrap takes exactly 13 accounts, none of them a fee account");
+    assert_eq!(
+        names.len(),
+        13,
+        "unwrap takes exactly 13 accounts, none of them a fee account"
+    );
 }
 
 #[test]
 fn capture_fee_is_flat_sol_to_fixed_recipient_no_token_fee_no_burn() {
     let mut env = setup(N);
     let alice = env.new_user(USER_TOKENS);
-    let (vault0, rec0, supply0, user_sol0) =
-        (env.token_amount(&env.ids.vault_tokens), env.lamports(&env.ids.fee_recipient), env.supply(), env.lamports(&alice.kp.pubkey()));
+    let (vault0, rec0, supply0, user_sol0) = (
+        env.token_amount(&env.ids.vault_tokens),
+        env.lamports(&env.ids.fee_recipient),
+        env.supply(),
+        env.lamports(&alice.kp.pubkey()),
+    );
     let r = env.new_randomness();
     env.request_capture(&alice, &r).unwrap();
-    assert_eq!(env.token_amount(&env.ids.vault_tokens) - vault0, env.ratio_base, "vault receives exactly N");
-    assert_eq!(env.lamports(&env.ids.fee_recipient) - rec0, FEE, "0.01 SOL (1M tier) to the fixed recipient");
+    assert_eq!(
+        env.token_amount(&env.ids.vault_tokens) - vault0,
+        env.ratio_base,
+        "vault receives exactly N"
+    );
+    assert_eq!(
+        env.lamports(&env.ids.fee_recipient) - rec0,
+        FEE,
+        "0.01 SOL (1M tier) to the fixed recipient"
+    );
     assert_eq!(env.supply(), supply0, "nothing burned");
-    assert!(env.svm.get_account(&get_associated_token_address(&PLATFORM_FEE_RECIPIENT, &env.ids.mint)).is_none(), "no token fee account");
+    assert!(
+        env.svm
+            .get_account(&get_associated_token_address(
+                &PLATFORM_FEE_RECIPIENT,
+                &env.ids.mint
+            ))
+            .is_none(),
+        "no token fee account"
+    );
     let spent = user_sol0 - env.lamports(&alice.kp.pubkey());
-    assert!(spent >= FEE + hybrid_vault::MINT_ESCROW_LAMPORTS && spent < FEE + hybrid_vault::MINT_ESCROW_LAMPORTS + 10_000_000, "user paid the fee + mint escrow + rent/tx: {spent}");
+    assert!(
+        spent >= FEE + hybrid_vault::MINT_ESCROW_LAMPORTS
+            && spent < FEE + hybrid_vault::MINT_ESCROW_LAMPORTS + 10_000_000,
+        "user paid the fee + mint escrow + rent/tx: {spent}"
+    );
     env.assert_invariants();
 }
 
@@ -77,12 +473,26 @@ fn reroll_charges_same_flat_sol_fee_moves_no_tokens_and_never_returns_handed_in_
     let alice = env.new_user(USER_TOKENS);
     env.capture(&alice, val(2));
     for round in 0..5u8 {
-        let current = (0..N).find(|i| env.asset_owner(*i) == alice.kp.pubkey()).unwrap();
-        let (rec0, vault0, tok0) = (env.lamports(&env.ids.fee_recipient), env.token_amount(&env.ids.vault_tokens), env.token_amount(&alice.ata));
+        let current = (0..N)
+            .find(|i| env.asset_owner(*i) == alice.kp.pubkey())
+            .unwrap();
+        let (rec0, vault0, tok0) = (
+            env.lamports(&env.ids.fee_recipient),
+            env.token_amount(&env.ids.vault_tokens),
+            env.token_amount(&alice.ata),
+        );
         let r = env.new_randomness();
         let seq = env.request_reroll(&alice, current, &r).unwrap();
-        assert_eq!(env.lamports(&env.ids.fee_recipient) - rec0, FEE, "re-roll fee == capture fee");
-        assert_eq!(env.token_amount(&env.ids.vault_tokens), vault0, "re-roll moves no tokens");
+        assert_eq!(
+            env.lamports(&env.ids.fee_recipient) - rec0,
+            FEE,
+            "re-roll fee == capture fee"
+        );
+        assert_eq!(
+            env.token_amount(&env.ids.vault_tokens),
+            vault0,
+            "re-roll moves no tokens"
+        );
         assert_eq!(env.token_amount(&alice.ata), tok0, "no token fee");
         env.assert_invariants();
         env.reveal(seq, val(40 + round)).unwrap();
@@ -99,10 +509,18 @@ fn attack_fee_to_own_wallet_or_other_recipient_is_rejected_fail_closed() {
     let mut env = setup(N);
     let alice = env.new_user(USER_TOKENS);
     let r = env.new_randomness();
-    for bad in [alice.kp.pubkey(), Pubkey::new_unique(), env.ids.vault, env.ids.vault_authority] {
+    for bad in [
+        alice.kp.pubkey(),
+        Pubkey::new_unique(),
+        env.ids.vault,
+        env.ids.vault_authority,
+    ] {
         let mut a = env.request_capture_ix(&alice, &r);
         a.fee_recipient = bad;
-        expect_vault_err(env.request_capture_with(&alice, a), VaultError::FeeRecipientMismatch);
+        expect_vault_err(
+            env.request_capture_with(&alice, a),
+            VaultError::FeeRecipientMismatch,
+        );
     }
     let idx = env.capture(&alice, val(3));
     let r2 = env.new_randomness();
@@ -118,26 +536,44 @@ fn patch_config(env: &mut Env, f: impl Fn(&mut Vec<u8>)) {
     let lc = env.ids.launch_config;
     let mut acct = env.svm.get_account(&lc).unwrap();
     f(&mut acct.data);
-    acct.lamports = acct.lamports.max(env.svm.minimum_balance_for_rent_exemption(acct.data.len()));
+    acct.lamports = acct
+        .lamports
+        .max(env.svm.minimum_balance_for_rent_exemption(acct.data.len()));
     env.svm.set_account(lc, acct).unwrap();
 }
 
 fn set_stored_fee(env: &mut Env, fee: u64) {
-    patch_config(env, |d| d[hybrid_launch::LC_OFF_FEE_LAMPORTS..hybrid_launch::LC_OFF_FEE_LAMPORTS + 8].copy_from_slice(&fee.to_le_bytes()));
+    patch_config(env, |d| {
+        d[hybrid_launch::LC_OFF_FEE_LAMPORTS..hybrid_launch::LC_OFF_FEE_LAMPORTS + 8]
+            .copy_from_slice(&fee.to_le_bytes())
+    });
 }
 
 /// Patch the LaunchConfig's ratio_whole_tokens (the fee key; token amounts use ratio_base) and fee.
 fn set_ratio_and_fee(env: &mut Env, ratio_whole: u64, fee: u64) {
     patch_config(env, |d| {
-        d[hybrid_launch::LC_OFF_RATIO_WHOLE_TOKENS..hybrid_launch::LC_OFF_RATIO_WHOLE_TOKENS + 8].copy_from_slice(&ratio_whole.to_le_bytes());
-        d[hybrid_launch::LC_OFF_FEE_LAMPORTS..hybrid_launch::LC_OFF_FEE_LAMPORTS + 8].copy_from_slice(&fee.to_le_bytes());
+        d[hybrid_launch::LC_OFF_RATIO_WHOLE_TOKENS..hybrid_launch::LC_OFF_RATIO_WHOLE_TOKENS + 8]
+            .copy_from_slice(&ratio_whole.to_le_bytes());
+        d[hybrid_launch::LC_OFF_FEE_LAMPORTS..hybrid_launch::LC_OFF_FEE_LAMPORTS + 8]
+            .copy_from_slice(&fee.to_le_bytes());
     });
 }
 
 /// Off-tier stored fees for `tier` (QA-FEE-03): 0, one lamport off either way, another tier's value, above the cap.
 fn bad_fees(tier: u64) -> Vec<u64> {
-    let mut v = vec![0, 1, tier - 1, tier + 1, hybrid_launch::MAX_FEE_LAMPORTS + 1, u64::MAX];
-    v.extend([2_000_000u64, 5_000_000, 10_000_000].into_iter().filter(|f| *f != tier));
+    let mut v = vec![
+        0,
+        1,
+        tier - 1,
+        tier + 1,
+        hybrid_launch::MAX_FEE_LAMPORTS + 1,
+        u64::MAX,
+    ];
+    v.extend(
+        [2_000_000u64, 5_000_000, 10_000_000]
+            .into_iter()
+            .filter(|f| *f != tier),
+    );
     v
 }
 
@@ -147,10 +583,20 @@ fn qa_fee03_capture_rejects_zero_and_off_tier_fee_before_charging_anything() {
     let alice = env.new_user(USER_TOKENS);
     for bad in bad_fees(FEE) {
         set_stored_fee(&mut env, bad);
-        let (rec0, tok0) = (env.lamports(&env.ids.fee_recipient), env.token_amount(&alice.ata));
+        let (rec0, tok0) = (
+            env.lamports(&env.ids.fee_recipient),
+            env.token_amount(&alice.ata),
+        );
         let r = env.new_randomness();
         expect_vault_err(env.request_capture(&alice, &r), VaultError::FeeNotTier);
-        assert_eq!((env.lamports(&env.ids.fee_recipient), env.token_amount(&alice.ata)), (rec0, tok0), "stored {bad}: nothing charged");
+        assert_eq!(
+            (
+                env.lamports(&env.ids.fee_recipient),
+                env.token_amount(&alice.ata)
+            ),
+            (rec0, tok0),
+            "stored {bad}: nothing charged"
+        );
     }
 }
 
@@ -163,7 +609,11 @@ fn qa_fee03_reroll_rejects_zero_and_off_tier_fee() {
         set_stored_fee(&mut env, bad);
         let r = env.new_randomness();
         expect_vault_err(env.request_reroll(&alice, idx, &r), VaultError::FeeNotTier);
-        assert_eq!(env.asset_owner(idx), alice.kp.pubkey(), "stored {bad}: NFT not taken");
+        assert_eq!(
+            env.asset_owner(idx),
+            alice.kp.pubkey(),
+            "stored {bad}: NFT not taken"
+        );
     }
 }
 
@@ -176,7 +626,11 @@ fn qa_fee03_capture_and_reroll_accept_each_exact_tier_and_charge_it() {
         set_ratio_and_fee(&mut env, ratio, tier);
         let rec0 = env.lamports(&env.ids.fee_recipient);
         let got = env.capture(&alice, val(80 + k as u8));
-        assert_eq!(env.lamports(&env.ids.fee_recipient) - rec0, tier, "capture ratio {ratio}");
+        assert_eq!(
+            env.lamports(&env.ids.fee_recipient) - rec0,
+            tier,
+            "capture ratio {ratio}"
+        );
         // Every off-tier value for THIS ratio is still refused.
         for bad in bad_fees(tier) {
             set_ratio_and_fee(&mut env, ratio, bad);
@@ -186,8 +640,14 @@ fn qa_fee03_capture_and_reroll_accept_each_exact_tier_and_charge_it() {
         set_ratio_and_fee(&mut env, ratio, tier);
         let rec1 = env.lamports(&env.ids.fee_recipient);
         let r = env.new_randomness();
-        let seq = env.request_reroll(&alice, got, &r).unwrap_or_else(|e| panic!("re-roll ratio {ratio}: {e}"));
-        assert_eq!(env.lamports(&env.ids.fee_recipient) - rec1, tier, "re-roll ratio {ratio}");
+        let seq = env
+            .request_reroll(&alice, got, &r)
+            .unwrap_or_else(|e| panic!("re-roll ratio {ratio}: {e}"));
+        assert_eq!(
+            env.lamports(&env.ids.fee_recipient) - rec1,
+            tier,
+            "re-roll ratio {ratio}"
+        );
         env.reveal(seq, val(90 + k as u8)).unwrap();
         env.settle(seq, val(90 + k as u8)).unwrap();
         env.assert_invariants();
@@ -206,9 +666,15 @@ fn release_survives(mutate: impl Fn(&mut Vec<u8>), what: &str) {
     env.reveal(seq, val(71)).unwrap();
     patch_config(&mut env, &mutate);
     let before = env.token_amount(&alice.ata);
-    env.unwrap(&alice, idx).unwrap_or_else(|e| panic!("release must succeed after {what}: {e}"));
-    assert_eq!(env.token_amount(&alice.ata) - before, env.ratio_base, "exactly N after {what}");
-    env.settle(seq, val(71)).unwrap_or_else(|e| panic!("settle must succeed after {what}: {e}"));
+    env.unwrap(&alice, idx)
+        .unwrap_or_else(|e| panic!("release must succeed after {what}: {e}"));
+    assert_eq!(
+        env.token_amount(&alice.ata) - before,
+        env.ratio_base,
+        "exactly N after {what}"
+    );
+    env.settle(seq, val(71))
+        .unwrap_or_else(|e| panic!("settle must succeed after {what}: {e}"));
     env.assert_invariants();
 }
 
@@ -221,13 +687,25 @@ fn m41_release_and_settle_survive_a_launch_version_bump() {
 fn m41_release_and_settle_survive_a_tier_or_bounds_change() {
     // A tier change or new MIN/MAX looks, to an old config, like a stored fee that no longer matches: any value.
     for fee in [0u64, 1, u64::MAX] {
-        release_survives(move |d| d[hybrid_launch::LC_OFF_FEE_LAMPORTS..hybrid_launch::LC_OFF_FEE_LAMPORTS + 8].copy_from_slice(&fee.to_le_bytes()), "fee/tier/bounds change");
+        release_survives(
+            move |d| {
+                d[hybrid_launch::LC_OFF_FEE_LAMPORTS..hybrid_launch::LC_OFF_FEE_LAMPORTS + 8]
+                    .copy_from_slice(&fee.to_le_bytes())
+            },
+            "fee/tier/bounds change",
+        );
     }
 }
 
 #[test]
 fn m41_release_and_settle_survive_a_fee_wallet_rotation() {
-    release_survives(|d| d[hybrid_launch::LC_OFF_FEE_RECIPIENT..hybrid_launch::LC_OFF_FEE_RECIPIENT + 32].copy_from_slice(&[7u8; 32]), "wallet rotation");
+    release_survives(
+        |d| {
+            d[hybrid_launch::LC_OFF_FEE_RECIPIENT..hybrid_launch::LC_OFF_FEE_RECIPIENT + 32]
+                .copy_from_slice(&[7u8; 32])
+        },
+        "wallet rotation",
+    );
 }
 
 #[test]
@@ -240,8 +718,10 @@ fn m41_release_and_settle_survive_everything_at_once() {
     release_survives(
         |d| {
             d[hybrid_launch::LC_OFF_VERSION] = 42;
-            d[hybrid_launch::LC_OFF_FEE_LAMPORTS..hybrid_launch::LC_OFF_FEE_LAMPORTS + 8].copy_from_slice(&u64::MAX.to_le_bytes());
-            d[hybrid_launch::LC_OFF_FEE_RECIPIENT..hybrid_launch::LC_OFF_FEE_RECIPIENT + 32].copy_from_slice(&[9u8; 32]);
+            d[hybrid_launch::LC_OFF_FEE_LAMPORTS..hybrid_launch::LC_OFF_FEE_LAMPORTS + 8]
+                .copy_from_slice(&u64::MAX.to_le_bytes());
+            d[hybrid_launch::LC_OFF_FEE_RECIPIENT..hybrid_launch::LC_OFF_FEE_RECIPIENT + 32]
+                .copy_from_slice(&[9u8; 32]);
             d.extend_from_slice(&[1; 200]);
         },
         "all changes",
@@ -254,16 +734,25 @@ fn m41_capture_still_fails_closed_on_an_unknown_version() {
     let alice = env.new_user(USER_TOKENS);
     patch_config(&mut env, |d| d[hybrid_launch::LC_OFF_VERSION] = 99);
     let r = env.new_randomness();
-    expect_vault_err(env.request_capture(&alice, &r), VaultError::UnsupportedLaunchConfig);
+    expect_vault_err(
+        env.request_capture(&alice, &r),
+        VaultError::UnsupportedLaunchConfig,
+    );
 }
 
 #[test]
 fn m22_vault_rejects_collection_size_above_cap() {
     let mut env = setup(N);
     let alice = env.new_user(USER_TOKENS);
-    patch_config(&mut env, |d| d[hybrid_launch::LC_OFF_COLLECTION_SIZE..hybrid_launch::LC_OFF_COLLECTION_SIZE + 8].copy_from_slice(&10_001u64.to_le_bytes()));
+    patch_config(&mut env, |d| {
+        d[hybrid_launch::LC_OFF_COLLECTION_SIZE..hybrid_launch::LC_OFF_COLLECTION_SIZE + 8]
+            .copy_from_slice(&10_001u64.to_le_bytes())
+    });
     let r = env.new_randomness();
-    expect_vault_err(env.request_capture(&alice, &r), VaultError::CollectionAboveCap);
+    expect_vault_err(
+        env.request_capture(&alice, &r),
+        VaultError::CollectionAboveCap,
+    );
 }
 
 // ---------------------------------------------------------------- M-26: no fee wallet state can block release
@@ -275,7 +764,19 @@ fn release_ok_with_recipient_state(state: &str) {
     let rec = env.ids.fee_recipient;
     match state {
         "missing" => env.svm.set_account(rec, Account::default()).unwrap(),
-        "program_owned" => env.svm.set_account(rec, Account { lamports: 5_000_000, data: vec![1; 16], owner: Pubkey::new_unique(), executable: false, rent_epoch: 0 }).unwrap(),
+        "program_owned" => env
+            .svm
+            .set_account(
+                rec,
+                Account {
+                    lamports: 5_000_000,
+                    data: vec![1; 16],
+                    owner: Pubkey::new_unique(),
+                    executable: false,
+                    rent_epoch: 0,
+                },
+            )
+            .unwrap(),
         "executable" => {
             let prog = env.svm.get_account(&hybrid_launch::ID).unwrap();
             env.svm.set_account(rec, prog).unwrap()
@@ -283,8 +784,13 @@ fn release_ok_with_recipient_state(state: &str) {
         _ => unreachable!(),
     }
     let before = env.token_amount(&alice.ata);
-    env.unwrap(&alice, idx).unwrap_or_else(|e| panic!("release must succeed with recipient {state}: {e}"));
-    assert_eq!(env.token_amount(&alice.ata) - before, env.ratio_base, "exactly N");
+    env.unwrap(&alice, idx)
+        .unwrap_or_else(|e| panic!("release must succeed with recipient {state}: {e}"));
+    assert_eq!(
+        env.token_amount(&alice.ata) - before,
+        env.ratio_base,
+        "exactly N"
+    );
     env.assert_invariants();
 }
 
@@ -324,18 +830,31 @@ fn m04_stale_oracle_is_skipped_only_with_proof_and_live_oracle_cannot_be_skipped
     a.sb_oracle = first;
     env.warp(1);
     let kp = alice.kp.insecure_clone();
-    expect_vault_err(env.send(&[Env::ix_capture(a)], &[&kp]), VaultError::OracleStale);
+    expect_vault_err(
+        env.send(&[Env::ix_capture(a)], &[&kp]),
+        VaultError::OracleStale,
+    );
     // With the proof, the program moves to the next oracle; the harness passes proofs automatically.
     let next = env.select_oracle(seq, &[]);
     assert_ne!(next, first);
-    let seq2 = env.request_capture(&alice, &r).expect("capture with stale proof");
+    let seq2 = env
+        .request_capture(&alice, &r)
+        .expect("capture with stale proof");
     assert_eq!(env.request_state(seq2).oracles[0], next);
     // A caller can't skip a LIVE oracle by passing it as a "proof": it's fresh, so it isn't skipped.
     let r2 = env.new_randomness();
     let seq3 = env.vault_state().next_seq;
     let live = env.select_oracle(seq3, &[]);
     let mut a = env.request_capture_ix(&alice, &r2);
-    let mut ix = Env::ix_capture({ a.sb_oracle = env.sb_oracles.iter().copied().find(|o| *o != live && *o != first).unwrap(); a });
+    let mut ix = Env::ix_capture({
+        a.sb_oracle = env
+            .sb_oracles
+            .iter()
+            .copied()
+            .find(|o| *o != live && *o != first)
+            .unwrap();
+        a
+    });
     ix.accounts.push(AccountMeta::new_readonly(live, false));
     ix.accounts.push(AccountMeta::new_readonly(first, false));
     env.warp(1);
@@ -351,16 +870,31 @@ fn pool_floor_rejects_before_any_fee_or_token_is_charged() {
     for i in 0..(N as u64 - floor) {
         env.capture(&alice, val((i % 250) as u8));
     }
-    let (tok, rec, sol) = (env.token_amount(&alice.ata), env.lamports(&env.ids.fee_recipient), env.lamports(&alice.kp.pubkey()));
+    let (tok, rec, sol) = (
+        env.token_amount(&alice.ata),
+        env.lamports(&env.ids.fee_recipient),
+        env.lamports(&alice.kp.pubkey()),
+    );
     let r = env.new_randomness();
     let sol_after_rand = env.lamports(&alice.kp.pubkey());
-    expect_vault_err(env.request_capture(&alice, &r), VaultError::NoAssetAvailable);
-    let owned = (0..N).find(|i| env.asset_owner(*i) == alice.kp.pubkey()).unwrap();
-    expect_vault_err(env.request_reroll(&alice, owned, &r), VaultError::NoAssetAvailable);
+    expect_vault_err(
+        env.request_capture(&alice, &r),
+        VaultError::NoAssetAvailable,
+    );
+    let owned = (0..N)
+        .find(|i| env.asset_owner(*i) == alice.kp.pubkey())
+        .unwrap();
+    expect_vault_err(
+        env.request_reroll(&alice, owned, &r),
+        VaultError::NoAssetAvailable,
+    );
     assert_eq!(env.token_amount(&alice.ata), tok, "no tokens taken");
     assert_eq!(env.lamports(&env.ids.fee_recipient), rec, "no fee taken");
     // A failed tx costs only its signature fee (5,000 lamports each); no fee, escrow or rent is kept.
-    assert!(sol_after_rand <= sol && sol_after_rand - env.lamports(&alice.kp.pubkey()) <= 10_000, "failed txs charge only the tx fees");
+    assert!(
+        sol_after_rand <= sol && sol_after_rand - env.lamports(&alice.kp.pubkey()) <= 10_000,
+        "failed txs charge only the tx fees"
+    );
     env.assert_invariants();
 }
 
@@ -412,7 +946,10 @@ fn attack_randomness_not_owned_by_switchboard_rejected() {
     let alice = env.new_user(USER_TOKENS);
     let (auth, q) = (env.ids.randomness_authority, env.sb_queue);
     let r = env.raw_randomness(auth, Pubkey::new_unique(), q);
-    expect_vault_err(env.request_capture(&alice, &r), VaultError::InvalidRandomnessAccount);
+    expect_vault_err(
+        env.request_capture(&alice, &r),
+        VaultError::InvalidRandomnessAccount,
+    );
 }
 
 #[test]
@@ -421,7 +958,10 @@ fn attack_randomness_with_foreign_authority_rejected() {
     let alice = env.new_user(USER_TOKENS);
     let q = env.sb_queue;
     let r = env.raw_randomness(alice.kp.pubkey(), SWITCHBOARD_PROGRAM_ID, q);
-    expect_vault_err(env.request_capture(&alice, &r), VaultError::RandomnessAuthorityMismatch);
+    expect_vault_err(
+        env.request_capture(&alice, &r),
+        VaultError::RandomnessAuthorityMismatch,
+    );
 }
 
 #[test]
@@ -463,7 +1003,10 @@ fn attack_stale_value_after_reuse_needs_fresh_reveal() {
     let crank = kp_funded(&mut env);
     let pick = env.expected_pick(seq2, val(7));
     let ix = env.settle_ix(seq2, env.asset_pda(pick), crank.pubkey());
-    expect_vault_err(env.send(&[ix], &[&crank]), VaultError::RandomnessNotRevealed);
+    expect_vault_err(
+        env.send(&[ix], &[&crank]),
+        VaultError::RandomnessNotRevealed,
+    );
     env.reveal(seq2, val(8)).unwrap();
     env.settle(seq2, val(8)).unwrap();
     env.assert_invariants();
@@ -489,7 +1032,10 @@ fn attack_double_settle_rejected() {
     let crank = kp_funded(&mut env);
     let ix = env.settle_ix(seq, env.asset_pda(pick), crank.pubkey());
     env.send(&[ix.clone()], &[&crank]).unwrap();
-    expect_code(env.send(&[ix], &[&crank]), AErr::AccountNotInitialized as u32);
+    expect_code(
+        env.send(&[ix], &[&crank]),
+        AErr::AccountNotInitialized as u32,
+    );
 }
 
 #[test]
@@ -515,7 +1061,10 @@ fn attack_second_reveal_of_same_commit_rejected() {
     let r = env.new_randomness();
     let seq = env.request_capture(&alice, &r).unwrap();
     env.reveal(seq, val(13)).unwrap();
-    expect_vault_err(env.reveal(seq, val(14)), VaultError::RandomnessAlreadyRevealed);
+    expect_vault_err(
+        env.reveal(seq, val(14)),
+        VaultError::RandomnessAlreadyRevealed,
+    );
 }
 
 // ---------------------------------------------------------------- no refund, no abort (ADR-012)
@@ -523,16 +1072,52 @@ fn attack_second_reveal_of_same_commit_rejected() {
 #[test]
 fn idl_has_no_cancel_refund_update_close_withdraw_or_burn_instruction() {
     let idl = vault_idl();
-    let mut names: Vec<String> = idl["instructions"].as_array().unwrap().iter().map(|i| i["name"].as_str().unwrap().to_string()).collect();
+    let mut names: Vec<String> = idl["instructions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["name"].as_str().unwrap().to_string())
+        .collect();
     names.sort();
     let mut expected = vec![
-        "expire_request", "expire_requests", "init_randomness", "init_vault", "merge_incoming", "open_vault", "recommit_randomness",
-        "request_capture", "request_reroll", "reveal_randomness", "settle_capture", "settle_reroll", "unwrap",
+        "buyback",
+        "claim_tax",
+        "commit_raffle",
+        "expire_request",
+        "expire_requests",
+        "harvest_tax",
+        "init_permanent_vault",
+        "init_raffle_randomness",
+        "init_raffle_vault",
+        "init_randomness",
+        "init_token22_vault",
+        "init_vault",
+        "merge_incoming",
+        "open_permanent_vault",
+        "open_vault",
+        "recommit_randomness",
+        "request_capture",
+        "request_reroll",
+        "reveal_raffle",
+        "reveal_randomness",
+        "settle_capture",
+        "settle_raffle",
+        "settle_reroll",
+        "snapshot_raffle",
+        "unwrap",
+        "wrap_permanent",
+        "wrap_token22",
     ];
     expected.sort();
     assert_eq!(names, expected, "exact instruction set");
-    for bad in ["cancel", "refund", "update", "set_", "close", "withdraw", "burn", "migrate", "pause", "freeze", "halt", "guardian"] {
-        assert!(!names.iter().any(|n| n.contains(bad)), "forbidden instruction containing {bad}");
+    for bad in [
+        "cancel", "refund", "update", "set_", "close", "withdraw", "burn", "migrate", "pause",
+        "freeze", "halt", "guardian",
+    ] {
+        assert!(
+            !names.iter().any(|n| n.contains(bad)),
+            "forbidden instruction containing {bad}"
+        );
     }
 }
 
@@ -546,7 +1131,10 @@ fn attack_user_cannot_abort_after_reveal_recommit_refused_once_revealed() {
     // The user dislikes the (public) outcome and waits past the deadline hoping for a redraw.
     env.warp(hybrid_vault::REVEAL_TIMEOUT_SLOTS + 10);
     let kp = alice.kp.insecure_clone();
-    expect_vault_err(env.recommit(seq, &kp), VaultError::RandomnessAlreadyRevealed);
+    expect_vault_err(
+        env.recommit(seq, &kp),
+        VaultError::RandomnessAlreadyRevealed,
+    );
     // Anyone settles; the user gets exactly the revealed pick.
     let pick = env.expected_pick(seq, val(15));
     assert_eq!(env.settle(seq, val(15)).unwrap(), pick);
@@ -573,7 +1161,8 @@ fn randomness_never_arrives_anyone_recommits_same_request_payment_stays_locked_t
     let old_seed = env.request_state(seq).seed_slot;
     env.warp(hybrid_vault::REVEAL_TIMEOUT_SLOTS + 1);
     let stranger = kp_funded(&mut env);
-    env.recommit(seq, &stranger).expect("permissionless recommit");
+    env.recommit(seq, &stranger)
+        .expect("permissionless recommit");
     let req = env.request_state(seq);
     assert!(req.seed_slot > old_seed);
     assert_eq!(req.commits, 2);
@@ -631,7 +1220,10 @@ fn open_is_permissionless_and_one_way() {
 #[test]
 fn mint_crank_instruction_no_longer_exists() {
     let names = idl_instruction_names();
-    assert!(!names.iter().any(|n| n == "mint_assets"), "batch pre-mint crank removed (lazy mint)");
+    assert!(
+        !names.iter().any(|n| n == "mint_assets"),
+        "batch pre-mint crank removed (lazy mint)"
+    );
 }
 
 /// Request + reveal a capture; returns (seq, value).
@@ -650,13 +1242,26 @@ fn request_escrows_worst_case_mint_cost_in_a_per_request_escrow_pda() {
     let seq = env.request_capture(&alice, &r).unwrap();
     let req = env.request_state(seq);
     assert_eq!(req.mint_escrow_lamports, hybrid_vault::MINT_ESCROW_LAMPORTS);
-    assert_eq!(hybrid_vault::MINT_ESCROW_LAMPORTS, 6_338_100, "(3_570_480 rent + 1_500_000 Core fee) x 125%");
+    assert_eq!(
+        hybrid_vault::MINT_ESCROW_LAMPORTS,
+        6_338_100,
+        "(3_570_480 rent + 1_500_000 Core fee) x 125%"
+    );
     let pda = env.request_pda(seq);
-    let rent = env.svm.minimum_balance_for_rent_exemption(env.svm.get_account(&pda).unwrap().data.len());
+    let rent = env
+        .svm
+        .minimum_balance_for_rent_exemption(env.svm.get_account(&pda).unwrap().data.len());
     assert_eq!(env.lamports(&pda), rent, "request PDA holds only its rent");
     let esc = env.svm.get_account(&env.escrow_pda(seq)).unwrap();
-    assert_eq!(esc.lamports, hybrid_vault::MINT_ESCROW_LAMPORTS, "escrow PDA holds the mint escrow");
-    assert!(esc.data.is_empty() && esc.owner == system_program::ID, "data-less system-owned escrow PDA");
+    assert_eq!(
+        esc.lamports,
+        hybrid_vault::MINT_ESCROW_LAMPORTS,
+        "escrow PDA holds the mint escrow"
+    );
+    assert!(
+        esc.data.is_empty() && esc.owner == system_program::ID,
+        "data-less system-owned escrow PDA"
+    );
     env.assert_invariants();
 }
 
@@ -668,20 +1273,47 @@ fn first_pick_is_minted_to_user_from_escrow_settler_pays_only_tx_fee_no_tip() {
     let pick = env.expected_pick(seq, val(1));
     assert!(!env.is_minted(pick));
     let crank = kp_funded(&mut env);
-    let (req_l, lock_l) = (env.lamports(&env.request_pda(seq)), env.lamports(&env.rand_lock_pda(&env.request_state(seq).randomness)));
+    let (req_l, lock_l) = (
+        env.lamports(&env.request_pda(seq)),
+        env.lamports(&env.rand_lock_pda(&env.request_state(seq).randomness)),
+    );
     let esc_l = env.lamports(&env.escrow_pda(seq));
-    let (u0, c0, va0) = (env.lamports(&alice.kp.pubkey()), env.lamports(&crank.pubkey()), env.lamports(&env.ids.vault_authority));
+    let (u0, c0, va0) = (
+        env.lamports(&alice.kp.pubkey()),
+        env.lamports(&crank.pubkey()),
+        env.lamports(&env.ids.vault_authority),
+    );
     let ix = env.settle_ix(seq, env.asset_pda(pick), crank.pubkey());
     env.send(&[ix], &[&crank]).expect("settle with lazy mint");
     let asset_l = env.lamports(&env.asset_pda(pick));
-    assert_eq!(env.asset_owner(pick), alice.kp.pubkey(), "minted straight to the user");
+    assert_eq!(
+        env.asset_owner(pick),
+        alice.kp.pubkey(),
+        "minted straight to the user"
+    );
     assert!(env.is_minted(pick));
     assert_eq!(env.vault_state().minted_count, 1);
-    assert_eq!(c0 - env.lamports(&crank.pubkey()), 5_000, "settler pays only its tx fee; no tip (T-HV-16)");
-    assert_eq!(env.lamports(&env.ids.vault_authority), va0, "vault_authority ends where it started");
+    assert_eq!(
+        c0 - env.lamports(&crank.pubkey()),
+        5_000,
+        "settler pays only its tx fee; no tip (T-HV-16)"
+    );
+    assert_eq!(
+        env.lamports(&env.ids.vault_authority),
+        va0,
+        "vault_authority ends where it started"
+    );
     assert!(asset_l <= hybrid_vault::MINT_ESCROW_LAMPORTS);
-    assert_eq!(env.lamports(&alice.kp.pubkey()) - u0, req_l + lock_l + esc_l - asset_l, "user gets rents + unspent escrow back");
-    assert_eq!(env.lamports(&env.escrow_pda(seq)), 0, "escrow PDA fully drained");
+    assert_eq!(
+        env.lamports(&alice.kp.pubkey()) - u0,
+        req_l + lock_l + esc_l - asset_l,
+        "user gets rents + unspent escrow back"
+    );
+    assert_eq!(
+        env.lamports(&env.escrow_pda(seq)),
+        0,
+        "escrow PDA fully drained"
+    );
     env.assert_invariants();
 }
 
@@ -752,7 +1384,10 @@ fn returned_asset_is_transferred_again_never_reminted() {
     let v = value_picking(&env, seq, idx);
     env.reveal(seq, v).unwrap();
     let c = kp_funded(&mut env);
-    let (u0, req_l) = (env.lamports(&alice.kp.pubkey()), env.lamports(&env.request_pda(seq)));
+    let (u0, req_l) = (
+        env.lamports(&alice.kp.pubkey()),
+        env.lamports(&env.request_pda(seq)),
+    );
     let lock_l = env.lamports(&env.rand_lock_pda(&r));
     let esc_l = env.lamports(&env.escrow_pda(seq));
     let ix = env.settle_ix_with(seq, env.asset_pda(idx), c.pubkey(), None);
@@ -760,7 +1395,11 @@ fn returned_asset_is_transferred_again_never_reminted() {
     assert_eq!(env.asset_owner(idx), alice.kp.pubkey());
     assert_eq!(env.vault_state().minted_count, minted, "no re-mint");
     assert_eq!(esc_l, hybrid_vault::MINT_ESCROW_LAMPORTS);
-    assert_eq!(env.lamports(&alice.kp.pubkey()) - u0, req_l + lock_l + esc_l, "full escrow refunded on the transfer path");
+    assert_eq!(
+        env.lamports(&alice.kp.pubkey()) - u0,
+        req_l + lock_l + esc_l,
+        "full escrow refunded on the transfer path"
+    );
     env.assert_invariants();
 }
 
@@ -772,13 +1411,23 @@ fn reroll_hand_in_returns_to_vault_no_remint_no_burn() {
     let supply0 = env.supply();
     let r = env.new_randomness();
     let seq = env.request_reroll(&alice, idx, &r).unwrap();
-    assert_eq!(env.asset_owner(idx), env.ids.vault_authority, "hand-in held by the vault, still exists");
+    assert_eq!(
+        env.asset_owner(idx),
+        env.ids.vault_authority,
+        "hand-in held by the vault, still exists"
+    );
     env.reveal(seq, val(5)).unwrap();
     let before = env.vault_state().minted_count;
     let got = env.settle(seq, val(5)).unwrap();
     assert_ne!(got, idx);
-    assert!(env.exists(&env.asset_pda(idx)) && env.asset_owner(idx) == env.ids.vault_authority, "never burned");
-    assert!(env.vault_state().minted_count <= before + 1, "at most the new pick is minted");
+    assert!(
+        env.exists(&env.asset_pda(idx)) && env.asset_owner(idx) == env.ids.vault_authority,
+        "never burned"
+    );
+    assert!(
+        env.vault_state().minted_count <= before + 1,
+        "at most the new pick is minted"
+    );
     assert_eq!(env.supply(), supply0);
     env.assert_invariants();
 }
@@ -788,7 +1437,11 @@ fn every_index_is_drawable_from_the_start_minted_or_not() {
     let mut env = setup(N);
     let mut data = env.svm.get_account(&env.ids.pool).unwrap().data;
     let pool = PoolView::load(&mut data, &env.ids.vault).unwrap();
-    assert_eq!(pool.pool_len(), N, "all N indices drawable at open (lazy Fisher-Yates init)");
+    assert_eq!(
+        pool.pool_len(),
+        N,
+        "all N indices drawable at open (lazy Fisher-Yates init)"
+    );
     let mut seen = std::collections::BTreeSet::new();
     for i in 0..pool.pool_len() {
         seen.insert(pool.pool_get(i));
@@ -810,15 +1463,27 @@ fn expire_refunds_principal_and_full_mint_escrow_never_the_fee() {
     let seq = env.request_capture(&alice, &r).unwrap();
     exhaust_recommits(&mut env, seq);
     env.warp(hybrid_vault::REVEAL_TIMEOUT_SLOTS + hybrid_vault::EXPIRE_GRACE_SLOTS + 2);
-    let (u0, req_l, lock_l) = (env.lamports(&alice.kp.pubkey()), env.lamports(&env.request_pda(seq)), env.lamports(&env.rand_lock_pda(&r)));
+    let (u0, req_l, lock_l) = (
+        env.lamports(&alice.kp.pubkey()),
+        env.lamports(&env.request_pda(seq)),
+        env.lamports(&env.rand_lock_pda(&r)),
+    );
     let esc_l = env.lamports(&env.escrow_pda(seq));
     assert_eq!(esc_l, hybrid_vault::MINT_ESCROW_LAMPORTS);
     let s = kp_funded(&mut env);
     let ix = env.expire_ix(seq, s.pubkey(), alice.ata);
     env.send(&[ix], &[&s]).expect("expire");
     assert_eq!(env.token_amount(&alice.ata), tok0, "principal back");
-    assert_eq!(env.lamports(&alice.kp.pubkey()) - u0, req_l + lock_l + esc_l, "rent + full mint escrow back");
-    assert_eq!(env.lamports(&env.ids.fee_recipient) - rec0, FEE, "tier fee never refunded");
+    assert_eq!(
+        env.lamports(&alice.kp.pubkey()) - u0,
+        req_l + lock_l + esc_l,
+        "rent + full mint escrow back"
+    );
+    assert_eq!(
+        env.lamports(&env.ids.fee_recipient) - rec0,
+        FEE,
+        "tier fee never refunded"
+    );
     assert_eq!(env.vault_state().minted_count, 0);
     env.assert_invariants();
 }
@@ -854,10 +1519,16 @@ fn two_launches_get_distinct_per_launch_escrows_and_cross_vault_accounts_rejecte
     // Unwrap into vault A while pointing at vault B's token account / collection.
     let mut a = env.unwrap_accts(&alice, idx);
     a.vault_tokens = other.vault_tokens;
-    expect_code(env.unwrap_with(&alice, idx, a), AErr::ConstraintSeeds as u32);
+    expect_code(
+        env.unwrap_with(&alice, idx, a),
+        AErr::ConstraintSeeds as u32,
+    );
     let mut a = env.unwrap_accts(&alice, idx);
     a.collection = other.collection;
-    expect_code(env.unwrap_with(&alice, idx, a), AErr::ConstraintAddress as u32);
+    expect_code(
+        env.unwrap_with(&alice, idx, a),
+        AErr::ConstraintAddress as u32,
+    );
 }
 
 #[test]
@@ -867,7 +1538,10 @@ fn attack_unwrap_of_foreign_or_wrong_index_asset_rejected() {
     let idx = env.capture(&alice, val(18));
     let mut a = env.unwrap_accts(&alice, idx);
     a.asset = Pubkey::new_unique();
-    expect_code(env.unwrap_with(&alice, idx, a), AErr::ConstraintSeeds as u32);
+    expect_code(
+        env.unwrap_with(&alice, idx, a),
+        AErr::ConstraintSeeds as u32,
+    );
     // Right PDA, but the asset isn't the caller's: Core refuses the transfer.
     let bob = env.new_user(USER_TOKENS);
     assert!(env.unwrap(&bob, idx).is_err());
@@ -881,14 +1555,23 @@ fn attack_fake_program_ids_rejected() {
     let idx = env.capture(&alice, val(19));
     let mut a = env.unwrap_accts(&alice, idx);
     a.mpl_core_program = Pubkey::new_unique();
-    expect_code(env.unwrap_with(&alice, idx, a), AErr::ConstraintAddress as u32);
+    expect_code(
+        env.unwrap_with(&alice, idx, a),
+        AErr::ConstraintAddress as u32,
+    );
     let mut a = env.unwrap_accts(&alice, idx);
     a.token_program = TOKEN_2022_ID;
-    expect_code(env.unwrap_with(&alice, idx, a), AErr::InvalidProgramId as u32);
+    expect_code(
+        env.unwrap_with(&alice, idx, a),
+        AErr::InvalidProgramId as u32,
+    );
     let r = env.new_randomness();
     let mut c = env.request_capture_ix(&alice, &r);
     c.switchboard_program = Pubkey::new_unique();
-    expect_code(env.request_capture_with(&alice, c), AErr::ConstraintAddress as u32);
+    expect_code(
+        env.request_capture_with(&alice, c),
+        AErr::ConstraintAddress as u32,
+    );
 }
 
 #[test]
@@ -903,7 +1586,10 @@ fn attack_token_2022_or_aliased_user_token_account_rejected() {
     let r = env.new_randomness();
     let mut a = env.request_capture_ix(&alice, &r);
     a.user_token = fake;
-    expect_code(env.request_capture_with(&alice, a), AErr::AccountOwnedByWrongProgram as u32);
+    expect_code(
+        env.request_capture_with(&alice, a),
+        AErr::AccountOwnedByWrongProgram as u32,
+    );
     let mut a = env.request_capture_ix(&alice, &r);
     a.user_token = env.ids.vault_tokens;
     assert!(env.request_capture_with(&alice, a).is_err());
@@ -933,13 +1619,41 @@ fn no_pause_path_exists_no_key_can_halt_any_instruction() {
     for bad in ["pause", "guardian", "freeze", "halt"] {
         assert!(!text.contains(bad), "IDL mentions {bad}");
     }
-    let vault = idl["types"].as_array().unwrap().iter().find(|t| t["name"] == "Vault").unwrap();
-    let fields: Vec<&str> = vault["type"]["fields"].as_array().unwrap().iter().map(|f| f["name"].as_str().unwrap()).collect();
-    assert!(!fields.iter().any(|f| f.contains("paus") || f.contains("guardian")), "{fields:?}");
+    let vault = idl["types"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["name"] == "Vault")
+        .unwrap();
+    let fields: Vec<&str> = vault["type"]["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["name"].as_str().unwrap())
+        .collect();
+    assert!(
+        !fields
+            .iter()
+            .any(|f| f.contains("paus") || f.contains("guardian")),
+        "{fields:?}"
+    );
     // Program sources: no paused check anywhere.
-    for f in ["instructions/request.rs", "instructions/unwrap.rs", "instructions/settle.rs", "instructions/expire.rs", "instructions/randomness_ix.rs"] {
-        let src = std::fs::read_to_string(format!("{}/../../programs/hybrid_vault/src/{f}", env!("CARGO_MANIFEST_DIR"))).unwrap();
-        assert!(!src.contains("paused_until") && !src.contains("VaultError::Paused"), "{f}");
+    for f in [
+        "instructions/request.rs",
+        "instructions/unwrap.rs",
+        "instructions/settle.rs",
+        "instructions/expire.rs",
+        "instructions/randomness_ix.rs",
+    ] {
+        let src = std::fs::read_to_string(format!(
+            "{}/../../programs/hybrid_vault/src/{f}",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap();
+        assert!(
+            !src.contains("paused_until") && !src.contains("VaultError::Paused"),
+            "{f}"
+        );
     }
 }
 
@@ -959,8 +1673,12 @@ fn expire_several_stuck_requests_in_one_transaction() {
     }
     env.warp(hybrid_vault::REVEAL_TIMEOUT_SLOTS + hybrid_vault::EXPIRE_GRACE_SLOTS + 2);
     let s = kp_funded(&mut env);
-    let ixs = [env.expire_ix(sa, s.pubkey(), alice.ata), env.expire_ix(sb, s.pubkey(), bob.ata)];
-    env.send(&ixs, &[&s]).expect("batch expire (FIFO head advances per instruction)");
+    let ixs = [
+        env.expire_ix(sa, s.pubkey(), alice.ata),
+        env.expire_ix(sb, s.pubkey(), bob.ata),
+    ];
+    env.send(&ixs, &[&s])
+        .expect("batch expire (FIFO head advances per instruction)");
     assert_eq!(env.vault_state().total_expired, 2);
     env.assert_invariants();
 }
@@ -972,7 +1690,13 @@ fn attack_caller_chosen_oracle_is_rejected_program_selects_it() {
     let r = env.new_randomness();
     let seq = env.vault_state().next_seq;
     let chosen = env.select_oracle(seq, &[]);
-    for bad in env.sb_oracles.clone().into_iter().filter(|o| *o != chosen).chain([Pubkey::new_unique()]) {
+    for bad in env
+        .sb_oracles
+        .clone()
+        .into_iter()
+        .filter(|o| *o != chosen)
+        .chain([Pubkey::new_unique()])
+    {
         let mut a = env.request_capture_ix(&alice, &r);
         a.sb_oracle = bad;
         expect_vault_err(env.request_capture_with(&alice, a), VaultError::WrongOracle);
@@ -1007,7 +1731,11 @@ fn donation_to_vault_tokens_changes_no_outcome_and_keeps_invariant() {
     env.set_token_amount(&vt, bal + 12345);
     let before = env.token_amount(&alice.ata);
     env.unwrap(&alice, idx).unwrap();
-    assert_eq!(env.token_amount(&alice.ata) - before, env.ratio_base, "still exactly N");
+    assert_eq!(
+        env.token_amount(&alice.ata) - before,
+        env.ratio_base,
+        "still exactly N"
+    );
     assert_eq!(env.token_amount(&vt), 12345);
 }
 
@@ -1021,9 +1749,15 @@ fn capture_down_to_pool_floor_then_next_request_rejected_no_asset_available() {
     }
     env.assert_invariants();
     assert_eq!(env.vault_state().assets_outside, max as u64);
-    assert_eq!(env.token_amount(&env.ids.vault_tokens), env.ratio_base * max as u64);
+    assert_eq!(
+        env.token_amount(&env.ids.vault_tokens),
+        env.ratio_base * max as u64
+    );
     let r = env.new_randomness();
-    expect_vault_err(env.request_capture(&alice, &r), VaultError::NoAssetAvailable);
+    expect_vault_err(
+        env.request_capture(&alice, &r),
+        VaultError::NoAssetAvailable,
+    );
 }
 
 #[test]
@@ -1073,7 +1807,9 @@ fn property_solvency_invariant_holds_under_random_operation_sequences() {
                     }
                 }
                 2 => {
-                    let owned: Vec<u32> = (0..N).filter(|i| env.asset_owner(*i) == u.kp.pubkey()).collect();
+                    let owned: Vec<u32> = (0..N)
+                        .filter(|i| env.asset_owner(*i) == u.kp.pubkey())
+                        .collect();
                     if let Some(&i) = owned.get((next() as usize) % owned.len().max(1)) {
                         let r = env.new_randomness();
                         if let Ok(s) = env.request_reroll(u, i, &r) {
@@ -1082,14 +1818,18 @@ fn property_solvency_invariant_holds_under_random_operation_sequences() {
                     }
                 }
                 3 => {
-                    let owned: Vec<u32> = (0..N).filter(|i| env.asset_owner(*i) == u.kp.pubkey()).collect();
+                    let owned: Vec<u32> = (0..N)
+                        .filter(|i| env.asset_owner(*i) == u.kp.pubkey())
+                        .collect();
                     if let Some(&i) = owned.first() {
                         env.unwrap(u, i).expect("unwrap never fails for the owner");
                     }
                 }
                 4 => {
                     if let Some(p) = pending.iter_mut().find(|p| !p.1) {
-                        if next() % 4 == 0 && env.request_state(p.0).commits <= hybrid_vault::MAX_RECOMMITS {
+                        if next() % 4 == 0
+                            && env.request_state(p.0).commits <= hybrid_vault::MAX_RECOMMITS
+                        {
                             env.warp(hybrid_vault::REVEAL_TIMEOUT_SLOTS + 1);
                             let s = Keypair::new();
                             env.svm.airdrop(&s.pubkey(), 1_000_000_000).unwrap();
@@ -1102,7 +1842,13 @@ fn property_solvency_invariant_holds_under_random_operation_sequences() {
                 }
                 _ => {
                     if let Some(&(s, true)) = pending.first() {
-                        let v = env.svm.get_account(&env.request_state(s).randomness).unwrap().data[152..184].try_into().unwrap();
+                        let v = env
+                            .svm
+                            .get_account(&env.request_state(s).randomness)
+                            .unwrap()
+                            .data[152..184]
+                            .try_into()
+                            .unwrap();
                         env.settle(s, v).expect("settle head");
                         pending.remove(0);
                     }
@@ -1119,7 +1865,11 @@ fn uniform_below_reaches_every_index_and_is_unbiased_enough() {
     let n = 7u32;
     let mut hits = vec![0u32; n as usize];
     for i in 0..7000u32 {
-        let r = selection::request_randomness(&[(i % 251) as u8; 32], &Pubkey::new_from_array([(i / 251) as u8; 32]), i as u64);
+        let r = selection::request_randomness(
+            &[(i % 251) as u8; 32],
+            &Pubkey::new_from_array([(i / 251) as u8; 32]),
+            i as u64,
+        );
         hits[selection::uniform_below(&r, n) as usize] += 1;
     }
     for h in hits {
@@ -1139,10 +1889,24 @@ fn regress_poc10_escrow_drain_must_fail() {
     let lc_before = env.svm.get_account(&env.ids.launch_config).unwrap().data;
     // Creator (the would-be authority) tries a direct SPL transfer out of the escrow: not the owner.
     let creator = env.creator.insecure_clone();
-    let steal = spl_token::instruction::transfer(&SPL_TOKEN_ID, &env.ids.vault_tokens, &alice.ata, &creator.pubkey(), &[], env.ratio_base).unwrap();
-    assert!(env.send(&[steal], &[&creator]).is_err(), "escrow can't be moved by the creator");
+    let steal = spl_token::instruction::transfer(
+        &SPL_TOKEN_ID,
+        &env.ids.vault_tokens,
+        &alice.ata,
+        &creator.pubkey(),
+        &[],
+        env.ratio_base,
+    )
+    .unwrap();
+    assert!(
+        env.send(&[steal], &[&creator]).is_err(),
+        "escrow can't be moved by the creator"
+    );
     // No update/withdraw instruction exists (IDL test) and LaunchConfig is unchanged.
-    assert_eq!(env.svm.get_account(&env.ids.launch_config).unwrap().data, lc_before);
+    assert_eq!(
+        env.svm.get_account(&env.ids.launch_config).unwrap().data,
+        lc_before
+    );
     // Every NFT out is still backed 1:1 and a release still pays exactly N.
     assert_eq!(env.token_amount(&env.ids.vault_tokens), env.ratio_base);
     let before = env.token_amount(&alice.ata);
@@ -1156,8 +1920,16 @@ fn regress_poc11_cherrypick_must_fail() {
     // PoC 11: a bot captured a chosen (rare) NFT. Here: request_capture takes no asset argument, settle
     // only accepts the VRF pick, and pooled assets are owned by the vault PDA.
     let idl = vault_idl();
-    let cap = idl["instructions"].as_array().unwrap().iter().find(|i| i["name"] == "request_capture").unwrap();
-    assert!(cap["args"].as_array().unwrap().is_empty(), "no asset/index argument on capture");
+    let cap = idl["instructions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["name"] == "request_capture")
+        .unwrap();
+    assert!(
+        cap["args"].as_array().unwrap().is_empty(),
+        "no asset/index argument on capture"
+    );
     let mut env = setup(N);
     let bot = env.new_user(USER_TOKENS);
     let rare = 7u32;
@@ -1186,20 +1958,52 @@ fn regress_poc12_token_swap_must_fail() {
     let junk = Keypair::new();
     let creator = env.creator.insecure_clone();
     let rent = env.svm.minimum_balance_for_rent_exemption(82);
-    let mk = system_instruction::create_account(&creator.pubkey(), &junk.pubkey(), rent, 82, &SPL_TOKEN_ID);
-    let init = spl_token::instruction::initialize_mint2(&SPL_TOKEN_ID, &junk.pubkey(), &creator.pubkey(), None, DECIMALS).unwrap();
+    let mk = system_instruction::create_account(
+        &creator.pubkey(),
+        &junk.pubkey(),
+        rent,
+        82,
+        &SPL_TOKEN_ID,
+    );
+    let init = spl_token::instruction::initialize_mint2(
+        &SPL_TOKEN_ID,
+        &junk.pubkey(),
+        &creator.pubkey(),
+        None,
+        DECIMALS,
+    )
+    .unwrap();
     let ata = get_associated_token_address(&alice.kp.pubkey(), &junk.pubkey());
-    let cata = create_associated_token_account(&creator.pubkey(), &alice.kp.pubkey(), &junk.pubkey(), &SPL_TOKEN_ID);
-    let mt = spl_token::instruction::mint_to(&SPL_TOKEN_ID, &junk.pubkey(), &ata, &creator.pubkey(), &[], u64::MAX / 2).unwrap();
+    let cata = create_associated_token_account(
+        &creator.pubkey(),
+        &alice.kp.pubkey(),
+        &junk.pubkey(),
+        &SPL_TOKEN_ID,
+    );
+    let mt = spl_token::instruction::mint_to(
+        &SPL_TOKEN_ID,
+        &junk.pubkey(),
+        &ata,
+        &creator.pubkey(),
+        &[],
+        u64::MAX / 2,
+    )
+    .unwrap();
     env.send(&[mk, init, cata, mt], &[&creator, &junk]).unwrap();
     let r = env.new_randomness();
     let mut a = env.request_capture_ix(&alice, &r);
     a.mint = junk.pubkey();
     a.user_token = ata;
-    expect_vault_err(env.request_capture_with(&alice, a), VaultError::MintMismatch);
+    expect_vault_err(
+        env.request_capture_with(&alice, a),
+        VaultError::MintMismatch,
+    );
     let mut a = env.request_capture_ix(&alice, &r);
     a.user_token = ata;
-    assert!(env.request_capture_with(&alice, a).is_err(), "junk-mint token account refused (token::mint)");
+    assert!(
+        env.request_capture_with(&alice, a).is_err(),
+        "junk-mint token account refused (token::mint)"
+    );
     assert_eq!(env.vault_state().pending_captures, 0);
     env.assert_invariants();
 }
@@ -1218,13 +2022,21 @@ fn attack_prefund_asset_pda_does_not_block_lazy_mint_lamports_go_to_the_user() {
     env.send(&[t], &[&griefer]).unwrap();
     let va0 = env.lamports(&env.ids.vault_authority);
     let u0 = env.lamports(&alice.kp.pubkey());
-    let (req_l, lock_l) = (env.lamports(&env.request_pda(seq)), env.lamports(&env.rand_lock_pda(&env.request_state(seq).randomness)));
+    let (req_l, lock_l) = (
+        env.lamports(&env.request_pda(seq)),
+        env.lamports(&env.rand_lock_pda(&env.request_state(seq).randomness)),
+    );
     let esc_l = env.lamports(&env.escrow_pda(seq));
-    env.settle(seq, val(9)).expect("mint succeeds despite pre-funding");
+    env.settle(seq, val(9))
+        .expect("mint succeeds despite pre-funding");
     assert_eq!(env.asset_owner(pick), alice.kp.pubkey());
     let asset_l = env.lamports(&target);
     assert_eq!(env.lamports(&env.ids.vault_authority), va0);
-    assert_eq!(env.lamports(&alice.kp.pubkey()) - u0, req_l + lock_l + esc_l + 890_880 - asset_l, "drained pre-fund refunded to the user");
+    assert_eq!(
+        env.lamports(&alice.kp.pubkey()) - u0,
+        req_l + lock_l + esc_l + 890_880 - asset_l,
+        "drained pre-fund refunded to the user"
+    );
     env.assert_invariants();
 }
 
@@ -1290,8 +2102,16 @@ fn recommits_are_capped_then_expire_returns_principal_only_fee_kept() {
     env.warp(hybrid_vault::EXPIRE_GRACE_SLOTS + 1);
     let ix = env.expire_ix(seq, s.pubkey(), alice.ata);
     env.send(&[ix], &[&s]).expect("expire");
-    assert_eq!(env.token_amount(&alice.ata), tok0, "principal (exactly N) returned");
-    assert_eq!(env.lamports(&env.ids.fee_recipient) - rec0, FEE, "fee never refunded");
+    assert_eq!(
+        env.token_amount(&alice.ata),
+        tok0,
+        "principal (exactly N) returned"
+    );
+    assert_eq!(
+        env.lamports(&env.ids.fee_recipient) - rec0,
+        FEE,
+        "fee never refunded"
+    );
     assert_eq!(env.vault_state().total_expired, 1);
     env.assert_invariants();
 }
@@ -1323,7 +2143,10 @@ fn attack_expire_impossible_once_revealed() {
     env.warp(hybrid_vault::REVEAL_TIMEOUT_SLOTS + hybrid_vault::EXPIRE_GRACE_SLOTS + 2);
     let s = kp_funded(&mut env);
     let ix = env.expire_ix(seq, s.pubkey(), alice.ata);
-    expect_vault_err(env.send(&[ix], &[&s]), VaultError::RandomnessAlreadyRevealed);
+    expect_vault_err(
+        env.send(&[ix], &[&s]),
+        VaultError::RandomnessAlreadyRevealed,
+    );
     env.settle(seq, val(73)).unwrap();
     env.assert_invariants();
 }
@@ -1360,7 +2183,10 @@ fn first_mint_cost_breakdown_is_exact_and_unspent_deposit_is_refunded() {
     assert!(!env.is_minted(pick));
     let esc = env.lamports(&env.escrow_pda(seq));
     assert_eq!(esc, hybrid_vault::MINT_ESCROW_LAMPORTS);
-    let (req_l, lock_l) = (env.lamports(&env.request_pda(seq)), env.lamports(&env.rand_lock_pda(&env.request_state(seq).randomness)));
+    let (req_l, lock_l) = (
+        env.lamports(&env.request_pda(seq)),
+        env.lamports(&env.rand_lock_pda(&env.request_state(seq).randomness)),
+    );
     let u0 = env.lamports(&alice.kp.pubkey());
     let crank = kp_funded(&mut env);
     let ix = env.settle_ix(seq, env.asset_pda(pick), crank.pubkey());
@@ -1374,9 +2200,16 @@ fn first_mint_cost_breakdown_is_exact_and_unspent_deposit_is_refunded() {
         "FIRST-MINT: req_rent={req_l} lock_rent={lock_l} escrow={esc} asset_len={} rent={rent} core_fee_held_in_asset={core_fee_in_asset} spent={spent} refunded_to_user={refunded}",
         asset.data.len()
     );
-    assert_eq!(spent + refunded, esc, "escrow = mint spend + exact refund; nothing stranded");
+    assert_eq!(
+        spent + refunded,
+        esc,
+        "escrow = mint spend + exact refund; nothing stranded"
+    );
     assert!(core_fee_in_asset == 0 || core_fee_in_asset == hybrid_launch::CORE_CREATE_FEE_LAMPORTS);
-    assert!(rent <= hybrid_launch::CORE_ASSET_RENT_LAMPORTS, "actual asset is no bigger than the escrowed worst case");
+    assert!(
+        rent <= hybrid_launch::CORE_ASSET_RENT_LAMPORTS,
+        "actual asset is no bigger than the escrowed worst case"
+    );
 }
 
 // ---- M-04 batch expire: expire_requests(count) ----
@@ -1385,7 +2218,11 @@ fn first_mint_cost_breakdown_is_exact_and_unspent_deposit_is_refunded() {
 /// Returns [(seq, user, user_token)] in queue order.
 fn stuck_heads(env: &mut Env, k: usize, with_reroll: bool) -> Vec<(u64, User)> {
     let mut out = vec![];
-    let reroller = if with_reroll { Some(env.new_user(USER_TOKENS)) } else { None };
+    let reroller = if with_reroll {
+        Some(env.new_user(USER_TOKENS))
+    } else {
+        None
+    };
     let idx = reroller.as_ref().map(|u| env.capture(u, val(90)));
     for i in 0..k {
         let r = env.new_randomness();
@@ -1414,40 +2251,77 @@ fn stuck_heads(env: &mut Env, k: usize, with_reroll: bool) -> Vec<(u64, User)> {
 fn m04_batch_expire_k_heads_in_one_instruction_refunds_principal_and_escrow_never_fee() {
     let mut env = setup(N);
     let heads = stuck_heads(&mut env, 3, true);
-    let before: Vec<(u64, u64)> = heads.iter().map(|(_, u)| (env.token_amount(&u.ata), env.lamports(&u.kp.pubkey()))).collect();
+    let before: Vec<(u64, u64)> = heads
+        .iter()
+        .map(|(_, u)| (env.token_amount(&u.ata), env.lamports(&u.kp.pubkey())))
+        .collect();
     let owed: Vec<u64> = heads
         .iter()
         .map(|(seq, _)| {
             let r = env.request_state(*seq);
-            env.lamports(&env.request_pda(*seq)) + env.lamports(&env.rand_lock_pda(&r.randomness)) + env.lamports(&env.escrow_pda(*seq))
+            env.lamports(&env.request_pda(*seq))
+                + env.lamports(&env.rand_lock_pda(&r.randomness))
+                + env.lamports(&env.escrow_pda(*seq))
         })
         .collect();
     let handed_in = env.request_state(heads[1].0).handed_in_index;
     let rec0 = env.lamports(&env.ids.fee_recipient);
     let s = kp_funded(&mut env);
-    let ix = env.expire_batch_ix(&heads.iter().map(|(q, u)| (*q, u.ata)).collect::<Vec<_>>(), s.pubkey());
+    let ix = env.expire_batch_ix(
+        &heads.iter().map(|(q, u)| (*q, u.ata)).collect::<Vec<_>>(),
+        s.pubkey(),
+    );
     let legacy = VersionedTransaction::try_new(
-        VersionedMessage::Legacy(Message::new_with_blockhash(&[ix.clone()], Some(&s.pubkey()), &env.svm.latest_blockhash())),
+        VersionedMessage::Legacy(Message::new_with_blockhash(
+            &[ix.clone()],
+            Some(&s.pubkey()),
+            &env.svm.latest_blockhash(),
+        )),
         &[&s],
     )
     .unwrap();
-    assert!(bincode_len(&legacy) <= 1_232, "K = 3 fits a LEGACY tx ({} bytes)", bincode_len(&legacy));
-    let cu = env.send_max_cu(&[ix], &[&s]).expect("expire 3 heads in ONE instruction");
-    eprintln!("BATCH-EXPIRE k=3 legacy (2 captures + 1 re-roll): {cu} CU, {} bytes", bincode_len(&legacy));
+    assert!(
+        bincode_len(&legacy) <= 1_232,
+        "K = 3 fits a LEGACY tx ({} bytes)",
+        bincode_len(&legacy)
+    );
+    let cu = env
+        .send_max_cu(&[ix], &[&s])
+        .expect("expire 3 heads in ONE instruction");
+    eprintln!(
+        "BATCH-EXPIRE k=3 legacy (2 captures + 1 re-roll): {cu} CU, {} bytes",
+        bincode_len(&legacy)
+    );
     let v = env.vault_state();
     assert_eq!(v.total_expired, 3);
     assert_eq!(v.next_settle_seq, heads[2].0 + 1);
-    assert_eq!(env.lamports(&env.ids.fee_recipient), rec0, "no fee refunded or charged");
+    assert_eq!(
+        env.lamports(&env.ids.fee_recipient),
+        rec0,
+        "no fee refunded or charged"
+    );
     for (i, (seq, u)) in heads.iter().enumerate() {
         assert!(!env.exists(&env.request_pda(*seq)), "request closed");
         assert_eq!(env.lamports(&env.escrow_pda(*seq)), 0, "escrow drained");
         if i == 1 {
-            assert_eq!(env.asset_owner(handed_in), u.kp.pubkey(), "handed-in NFT back");
+            assert_eq!(
+                env.asset_owner(handed_in),
+                u.kp.pubkey(),
+                "handed-in NFT back"
+            );
             assert_eq!(env.token_amount(&u.ata), before[i].0);
         } else {
-            assert_eq!(env.token_amount(&u.ata), before[i].0 + env.ratio_base, "exactly N tokens back");
+            assert_eq!(
+                env.token_amount(&u.ata),
+                before[i].0 + env.ratio_base,
+                "exactly N tokens back"
+            );
         }
-        assert_eq!(env.lamports(&u.kp.pubkey()) - before[i].1, owed[i], "rents + FULL escrow back");
+        assert_eq!(
+            env.lamports(&u.kp.pubkey()) - before[i].1,
+            owed[i],
+            "rents + FULL escrow back"
+        );
     }
     env.assert_invariants();
 }
@@ -1458,15 +2332,25 @@ fn m04_batch_expire_max_per_call_fits_compute() {
     let k = hybrid_vault::MAX_EXPIRE_PER_CALL as usize;
     let heads = stuck_heads(&mut env, k, true);
     let s = kp_funded(&mut env);
-    let ix = env.expire_batch_ix(&heads.iter().map(|(q, u)| (*q, u.ata)).collect::<Vec<_>>(), s.pubkey());
+    let ix = env.expire_batch_ix(
+        &heads.iter().map(|(q, u)| (*q, u.ata)).collect::<Vec<_>>(),
+        s.pubkey(),
+    );
     // K > 3 doesn't fit a legacy tx (1,232 bytes), so send it as a real client must: a v0 tx whose
     // non-signer accounts come from an address lookup table.
-    let mut addrs: Vec<Pubkey> = ix.accounts.iter().filter(|m| m.pubkey != s.pubkey()).map(|m| m.pubkey).collect();
+    let mut addrs: Vec<Pubkey> = ix
+        .accounts
+        .iter()
+        .filter(|m| m.pubkey != s.pubkey())
+        .map(|m| m.pubkey)
+        .collect();
     addrs.sort();
     addrs.dedup();
     let alt = env.create_alt(&addrs);
     env.warp(1);
-    let (cu, bytes) = env.send_v0(&[ix], &[&s], alt, addrs).expect("MAX_EXPIRE_PER_CALL heads in one v0 tx");
+    let (cu, bytes) = env
+        .send_v0(&[ix], &[&s], alt, addrs)
+        .expect("MAX_EXPIRE_PER_CALL heads in one v0 tx");
     eprintln!("BATCH-EXPIRE k={k} (v0 + ALT): {cu} CU, {bytes} tx bytes");
     assert!(bytes <= 1_232, "fits a packet with the ALT");
     assert!(cu < 1_400_000);
@@ -1479,7 +2363,10 @@ fn m04_batch_expire_rejects_bad_count_and_account_counts() {
     let mut env = setup(N);
     let heads = stuck_heads(&mut env, 2, false);
     let s = kp_funded(&mut env);
-    let rem: Vec<AccountMeta> = heads.iter().flat_map(|(q, u)| env.expire_group(*q, u.ata)).collect();
+    let rem: Vec<AccountMeta> = heads
+        .iter()
+        .flat_map(|(q, u)| env.expire_group(*q, u.ata))
+        .collect();
     for (count, r) in [
         (0u8, vec![]),
         (hybrid_vault::MAX_EXPIRE_PER_CALL + 1, rem.clone()),
@@ -1498,8 +2385,14 @@ fn m04_batch_expire_is_all_or_nothing_and_fifo_only() {
     let heads = stuck_heads(&mut env, 3, false);
     let s = kp_funded(&mut env);
     // Out of order: second head first.
-    let ix = env.expire_batch_ix(&[(heads[1].0, heads[1].1.ata), (heads[0].0, heads[0].1.ata)], s.pubkey());
-    expect_vault_err(env.send(&[ix], &[&s]), VaultError::ExpireBatchAccountMismatch);
+    let ix = env.expire_batch_ix(
+        &[(heads[1].0, heads[1].1.ata), (heads[0].0, heads[0].1.ata)],
+        s.pubkey(),
+    );
+    expect_vault_err(
+        env.send(&[ix], &[&s]),
+        VaultError::ExpireBatchAccountMismatch,
+    );
     // A fresh request behind the stuck ones isn't expirable: the whole batch fails, nothing changes.
     let late = env.new_user(USER_TOKENS);
     let r = env.new_randomness();
@@ -1509,7 +2402,11 @@ fn m04_batch_expire_is_all_or_nothing_and_fifo_only() {
     all.push((late_seq, late.ata));
     let ix = env.expire_batch_ix(&all, s.pubkey());
     expect_vault_err(env.send(&[ix], &[&s]), VaultError::RecommitsRemaining);
-    assert_eq!(env.vault_state().total_expired, 0, "atomic: nothing expired");
+    assert_eq!(
+        env.vault_state().total_expired,
+        0,
+        "atomic: nothing expired"
+    );
     assert_eq!(env.token_amount(&heads[0].1.ata), tok0);
     // The three stuck heads alone expire fine.
     let ix = env.expire_batch_ix(&all[..3], s.pubkey());
@@ -1524,29 +2421,40 @@ fn m04_batch_expire_rejects_substituted_per_request_accounts() {
     let heads = stuck_heads(&mut env, 2, false);
     let s = kp_funded(&mut env);
     let attacker = env.new_user(USER_TOKENS);
-    let good: Vec<AccountMeta> = heads.iter().flat_map(|(q, u)| env.expire_group(*q, u.ata)).collect();
+    let good: Vec<AccountMeta> = heads
+        .iter()
+        .flat_map(|(q, u)| env.expire_group(*q, u.ata))
+        .collect();
     let other_escrow = env.escrow_pda(heads[1].0);
     let cases: Vec<(usize, Pubkey)> = vec![
         (3, attacker.kp.pubkey()), // user swapped
         (4, attacker.ata),         // refund to the attacker's token account
         (5, other_escrow),         // another request's escrow
-        (1, env.rand_lock_pda(&env.request_state(heads[1].0).randomness)), // wrong rand_lock
+        (
+            1,
+            env.rand_lock_pda(&env.request_state(heads[1].0).randomness),
+        ), // wrong rand_lock
         (0, env.request_pda(heads[1].0)), // wrong request for the head
     ];
     for (pos, sub) in cases {
         let mut rem = good.clone();
         rem[pos].pubkey = sub;
         let ix = env.expire_batch_ix_raw(2, s.pubkey(), rem);
-        assert!(env.send(&[ix], &[&s]).is_err(), "substitution at {pos} must fail");
+        assert!(
+            env.send(&[ix], &[&s]).is_err(),
+            "substitution at {pos} must fail"
+        );
     }
     // Read-only where writable is required.
     let mut rem = good.clone();
     rem[5].is_writable = false;
     let ix = env.expire_batch_ix_raw(2, s.pubkey(), rem);
-    expect_vault_err(env.send(&[ix], &[&s]), VaultError::ExpireBatchAccountMismatch);
+    expect_vault_err(
+        env.send(&[ix], &[&s]),
+        VaultError::ExpireBatchAccountMismatch,
+    );
     assert_eq!(env.vault_state().total_expired, 0);
     let ix = env.expire_batch_ix_raw(2, s.pubkey(), good);
     env.send(&[ix], &[&s]).unwrap();
     env.assert_invariants();
 }
-

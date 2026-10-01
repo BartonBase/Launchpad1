@@ -7,20 +7,28 @@
 pub use {
     anchor_lang::{
         prelude::Pubkey,
-        solana_program::{instruction::{AccountMeta, Instruction}, system_instruction, system_program},
+        solana_program::{
+            instruction::{AccountMeta, Instruction},
+            system_instruction, system_program,
+        },
         AccountDeserialize, InstructionData, ToAccountMetas,
     },
     anchor_spl::{
         associated_token::{
-            get_associated_token_address, spl_associated_token_account::instruction::create_associated_token_account,
+            get_associated_token_address, get_associated_token_address_with_program_id,
+            spl_associated_token_account::instruction::create_associated_token_account,
             ID as ATA_PROGRAM_ID,
         },
         token::{spl_token, Mint, TokenAccount, ID as SPL_TOKEN_ID},
     },
     hybrid_launch::{LaunchParams, PLATFORM_FEE_RECIPIENT},
     hybrid_vault::{
-        asset_source::LeafPreimage, error::VaultError, merkle, pool::{pool_account_size, PoolView}, randomness::RevealArgs, selection, Request, Vault,
-        MPL_CORE_ID, SLOT_HASHES_SYSVAR_ID, SWITCHBOARD_PROGRAM_ID,
+        asset_source::LeafPreimage,
+        error::VaultError,
+        merkle,
+        pool::{pool_account_size, PoolView},
+        randomness::RevealArgs,
+        selection, Request, Vault, MPL_CORE_ID, SLOT_HASHES_SYSVAR_ID, SWITCHBOARD_PROGRAM_ID,
     },
     litesvm::LiteSVM,
     solana_account::Account,
@@ -30,11 +38,15 @@ pub use {
     solana_transaction::versioned::VersionedTransaction,
 };
 
-pub const TOKEN_2022_ID: Pubkey = anchor_lang::prelude::pubkey!("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
+pub const TOKEN_2022_ID: Pubkey =
+    anchor_lang::prelude::pubkey!("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 /// Must match hybrid_vault::graduation::MOCK_GRADUATION_OWNER (only compiled with the TEST feature).
-pub const MOCK_GRADUATION_OWNER: Pubkey = anchor_lang::prelude::pubkey!("grADWKnwMo64gj6DYGQEwuiEv9g5KkofdUT64WtWP2W");
-pub const WRAPPED_SOL_MINT: Pubkey = anchor_lang::prelude::pubkey!("So11111111111111111111111111111111111111112");
-pub const ALT_PROGRAM: Pubkey = anchor_lang::prelude::pubkey!("AddressLookupTab1e1111111111111111111111111");
+pub const MOCK_GRADUATION_OWNER: Pubkey =
+    anchor_lang::prelude::pubkey!("grADWKnwMo64gj6DYGQEwuiEv9g5KkofdUT64WtWP2W");
+pub const WRAPPED_SOL_MINT: Pubkey =
+    anchor_lang::prelude::pubkey!("So11111111111111111111111111111111111111112");
+pub const ALT_PROGRAM: Pubkey =
+    anchor_lang::prelude::pubkey!("AddressLookupTab1e1111111111111111111111111");
 pub const DECIMALS: u8 = 6;
 pub const RATIO_WHOLE: u64 = 1_000_000;
 pub const N: u32 = 100; // hybrid_launch MIN_COLLECTION_SIZE
@@ -66,7 +78,10 @@ pub struct Ids {
 impl Ids {
     pub fn for_mint(mint: Pubkey) -> Self {
         let launch_config = pda(&[b"launch_config", mint.as_ref()], &hybrid_launch::ID);
-        let launch_vault = pda(&[b"launch_vault", mint.as_ref(), launch_config.as_ref()], &hybrid_launch::ID);
+        let launch_vault = pda(
+            &[b"launch_vault", mint.as_ref(), launch_config.as_ref()],
+            &hybrid_launch::ID,
+        );
         let vault = pda(&[b"vault", launch_config.as_ref()], &hybrid_vault::ID);
         Ids {
             mint,
@@ -76,7 +91,10 @@ impl Ids {
             fee_recipient: PLATFORM_FEE_RECIPIENT,
             vault,
             vault_authority: pda(&[b"vault_authority", vault.as_ref()], &hybrid_vault::ID),
-            randomness_authority: pda(&[b"randomness_authority", vault.as_ref()], &hybrid_vault::ID),
+            randomness_authority: pda(
+                &[b"randomness_authority", vault.as_ref()],
+                &hybrid_vault::ID,
+            ),
             vault_tokens: pda(&[b"vault_tokens", vault.as_ref()], &hybrid_vault::ID),
             pool: Pubkey::default(),
             collection: pda(&[b"collection", vault.as_ref()], &hybrid_vault::ID),
@@ -120,7 +138,10 @@ pub struct User {
 }
 impl User {
     pub fn clone_user(&self) -> User {
-        User { kp: self.kp.insecure_clone(), ata: self.ata }
+        User {
+            kp: self.kp.insecure_clone(),
+            ata: self.ata,
+        }
     }
 }
 
@@ -128,8 +149,13 @@ impl Env {
     pub fn send(&mut self, ixs: &[Instruction], signers: &[&Keypair]) -> Result<(), String> {
         let payer = signers[0].pubkey();
         let msg = Message::new_with_blockhash(ixs, Some(&payer), &self.svm.latest_blockhash());
-        let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), signers).map_err(|e| e.to_string())?;
-        let res = self.svm.send_transaction(tx).map(|_| ()).map_err(|e| format!("{:?} logs={:#?}", e.err, e.meta.logs));
+        let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), signers)
+            .map_err(|e| e.to_string())?;
+        let res = self
+            .svm
+            .send_transaction(tx)
+            .map(|_| ())
+            .map_err(|e| format!("{:?} logs={:#?}", e.err, e.meta.logs));
         self.svm.expire_blockhash();
         res
     }
@@ -149,32 +175,62 @@ impl Env {
         self.svm.get_sysvar::<anchor_lang::prelude::Clock>().slot
     }
     pub fn vault_state(&self) -> Vault {
-        Vault::try_deserialize(&mut self.svm.get_account(&self.ids.vault).unwrap().data.as_slice()).unwrap()
+        Vault::try_deserialize(
+            &mut self
+                .svm
+                .get_account(&self.ids.vault)
+                .unwrap()
+                .data
+                .as_slice(),
+        )
+        .unwrap()
     }
     pub fn request_state(&self, seq: u64) -> Request {
         let r = self.request_pda(seq);
         Request::try_deserialize(&mut self.svm.get_account(&r).unwrap().data.as_slice()).unwrap()
     }
     pub fn exists(&self, k: &Pubkey) -> bool {
-        self.svm.get_account(k).map(|a| a.lamports > 0).unwrap_or(false)
+        self.svm
+            .get_account(k)
+            .map(|a| a.lamports > 0)
+            .unwrap_or(false)
     }
     pub fn lamports(&self, k: &Pubkey) -> u64 {
         self.svm.get_account(k).map(|a| a.lamports).unwrap_or(0)
     }
     pub fn token_amount(&self, acct: &Pubkey) -> u64 {
         match self.svm.get_account(acct) {
-            Some(a) if !a.data.is_empty() => TokenAccount::try_deserialize(&mut a.data.as_slice()).unwrap().amount,
+            Some(a) if !a.data.is_empty() => {
+                TokenAccount::try_deserialize(&mut a.data.as_slice())
+                    .unwrap()
+                    .amount
+            }
             _ => 0,
         }
     }
     pub fn supply(&self) -> u64 {
-        Mint::try_deserialize(&mut self.svm.get_account(&self.ids.mint).unwrap().data.as_slice()).unwrap().supply
+        Mint::try_deserialize(
+            &mut self
+                .svm
+                .get_account(&self.ids.mint)
+                .unwrap()
+                .data
+                .as_slice(),
+        )
+        .unwrap()
+        .supply
     }
     pub fn asset_pda(&self, index: u32) -> Pubkey {
-        pda(&[b"asset", self.ids.vault.as_ref(), &index.to_le_bytes()], &hybrid_vault::ID)
+        pda(
+            &[b"asset", self.ids.vault.as_ref(), &index.to_le_bytes()],
+            &hybrid_vault::ID,
+        )
     }
     pub fn request_pda(&self, seq: u64) -> Pubkey {
-        pda(&[b"request", self.ids.vault.as_ref(), &seq.to_le_bytes()], &hybrid_vault::ID)
+        pda(
+            &[b"request", self.ids.vault.as_ref(), &seq.to_le_bytes()],
+            &hybrid_vault::ID,
+        )
     }
     pub fn rand_lock_pda(&self, randomness: &Pubkey) -> Pubkey {
         pda(&[b"rand_lock", randomness.as_ref()], &hybrid_vault::ID)
@@ -183,7 +239,9 @@ impl Env {
     /// Owner of asset `index`, or Pubkey::default() if it hasn't been (lazily) minted yet.
     pub fn asset_owner(&self, index: u32) -> Pubkey {
         match self.svm.get_account(&self.asset_pda(index)) {
-            Some(a) if a.data.len() >= 33 => Pubkey::new_from_array(a.data[1..33].try_into().unwrap()),
+            Some(a) if a.data.len() >= 33 => {
+                Pubkey::new_from_array(a.data[1..33].try_into().unwrap())
+            }
             _ => Pubkey::default(),
         }
     }
@@ -196,16 +254,23 @@ impl Env {
     /// Pool minted bitmap bit for `index` (lazy mint).
     pub fn is_minted(&self, index: u32) -> bool {
         let mut data = self.svm.get_account(&self.ids.pool).unwrap().data;
-        PoolView::load(&mut data, &self.ids.vault).unwrap().is_minted(index)
+        PoolView::load(&mut data, &self.ids.vault)
+            .unwrap()
+            .is_minted(index)
     }
     pub fn minted_popcount(&self) -> u32 {
         let mut data = self.svm.get_account(&self.ids.pool).unwrap().data;
-        PoolView::load(&mut data, &self.ids.vault).unwrap().minted_popcount()
+        PoolView::load(&mut data, &self.ids.vault)
+            .unwrap()
+            .minted_popcount()
     }
 
     /// Lazy-mint args for `index` of the primary launch (committed leaf + proof).
     pub fn mint_args(&self, index: u32) -> hybrid_vault::asset_source::MintArgs {
-        hybrid_vault::asset_source::MintArgs { leaf: self.leaves[index as usize].clone(), proof: self.proofs[index as usize].clone() }
+        hybrid_vault::asset_source::MintArgs {
+            leaf: self.leaves[index as usize].clone(),
+            proof: self.proofs[index as usize].clone(),
+        }
     }
 
     /// Set a classic token account's amount directly (SPL layout: amount at bytes 64..72).
@@ -221,7 +286,12 @@ impl Env {
         let kp = Keypair::new();
         self.svm.airdrop(&kp.pubkey(), 100_000_000_000).unwrap();
         let ata = get_associated_token_address(&kp.pubkey(), &self.ids.mint);
-        let create = create_associated_token_account(&kp.pubkey(), &kp.pubkey(), &self.ids.mint, &SPL_TOKEN_ID);
+        let create = create_associated_token_account(
+            &kp.pubkey(),
+            &kp.pubkey(),
+            &self.ids.mint,
+            &SPL_TOKEN_ID,
+        );
         self.send(&[create], &[&kp]).unwrap();
         if tokens > 0 {
             let src = self.token_amount(&self.ids.launch_destination);
@@ -248,8 +318,14 @@ impl Env {
             // Real Switchboard derivations (switchboard-on-demand 0.13.0): reward escrow = wSOL ATA of the
             // randomness account; LUT signer = PDA ["LutSigner", randomness]; LUT = ALT address(lut_signer, recent_slot).
             let recent_slot = self.slot() - 1;
-            let lut_signer = pda(&[b"LutSigner", randomness.as_ref()], &SWITCHBOARD_PROGRAM_ID);
-            let lut = pda(&[lut_signer.as_ref(), &recent_slot.to_le_bytes()], &ALT_PROGRAM);
+            let lut_signer = pda(
+                &[b"LutSigner", randomness.as_ref()],
+                &SWITCHBOARD_PROGRAM_ID,
+            );
+            let lut = pda(
+                &[lut_signer.as_ref(), &recent_slot.to_le_bytes()],
+                &ALT_PROGRAM,
+            );
             return Instruction::new_with_bytes(
                 hybrid_vault::ID,
                 &hybrid_vault::instruction::InitRandomness { recent_slot }.data(),
@@ -275,7 +351,10 @@ impl Env {
         }
         Instruction::new_with_bytes(
             hybrid_vault::ID,
-            &hybrid_vault::instruction::InitRandomness { recent_slot: self.slot() }.data(),
+            &hybrid_vault::instruction::InitRandomness {
+                recent_slot: self.slot(),
+            }
+            .data(),
             hybrid_vault::accounts::InitRandomness {
                 payer: self.creator.pubkey(),
                 vault: self.ids.vault,
@@ -304,7 +383,18 @@ impl Env {
         data[..8].copy_from_slice(&mock_switchboard::RANDOMNESS_DISCRIMINATOR);
         data[8..40].copy_from_slice(authority.as_ref());
         data[40..72].copy_from_slice(queue.as_ref());
-        self.svm.set_account(k, Account { lamports: 10_000_000, data, owner, executable: false, rent_epoch: 0 }).unwrap();
+        self.svm
+            .set_account(
+                k,
+                Account {
+                    lamports: 10_000_000,
+                    data,
+                    owner,
+                    executable: false,
+                    rent_epoch: 0,
+                },
+            )
+            .unwrap();
         k
     }
 
@@ -312,7 +402,14 @@ impl Env {
         let req = self.request_state(seq);
         Instruction::new_with_bytes(
             hybrid_vault::ID,
-            &hybrid_vault::instruction::RevealRandomness { args: RevealArgs { signature: [7u8; 64], recovery_id: 0, value } }.data(),
+            &hybrid_vault::instruction::RevealRandomness {
+                args: RevealArgs {
+                    signature: [7u8; 64],
+                    recovery_id: 0,
+                    value,
+                },
+            }
+            .data(),
             hybrid_vault::accounts::RevealRandomness {
                 payer,
                 vault: self.ids.vault,
@@ -324,7 +421,13 @@ impl Env {
                 sb_oracle: req.oracles[(req.commits as usize).saturating_sub(1)],
                 sb_queue: self.sb_queue,
                 sb_stats: match &self.real_sb {
-                    Some(_) => pda(&[b"OracleRandomnessStats", req.oracles[(req.commits as usize).saturating_sub(1)].as_ref()], &SWITCHBOARD_PROGRAM_ID),
+                    Some(_) => pda(
+                        &[
+                            b"OracleRandomnessStats",
+                            req.oracles[(req.commits as usize).saturating_sub(1)].as_ref(),
+                        ],
+                        &SWITCHBOARD_PROGRAM_ID,
+                    ),
                     None => Pubkey::new_unique(),
                 },
                 slot_hashes: SLOT_HASHES_SYSVAR_ID,
@@ -335,7 +438,11 @@ impl Env {
                 },
                 token_program: SPL_TOKEN_ID,
                 wrapped_sol_mint: WRAPPED_SOL_MINT,
-                sb_program_state: self.real_sb.as_ref().map(|r| r.state).unwrap_or_else(Pubkey::new_unique),
+                sb_program_state: self
+                    .real_sb
+                    .as_ref()
+                    .map(|r| r.state)
+                    .unwrap_or_else(Pubkey::new_unique),
                 switchboard_program: SWITCHBOARD_PROGRAM_ID,
             }
             .to_account_metas(None),
@@ -360,7 +467,14 @@ impl Env {
     /// Same selection the program makes (hybrid_vault::randomness::select_oracle_in).
     pub fn select_oracle(&self, seq: u64, used: &[Pubkey]) -> Pubkey {
         let q = self.svm.get_account(&self.sb_queue).unwrap();
-        hybrid_vault::randomness::select_oracle_in(&q.data, &self.ids.vault, seq, used, &self.stale_oracles()).unwrap_or_default()
+        hybrid_vault::randomness::select_oracle_in(
+            &q.data,
+            &self.ids.vault,
+            seq,
+            used,
+            &self.stale_oracles(),
+        )
+        .unwrap_or_default()
     }
 
     /// Mock Switchboard queue account with `oracles` in its oracle list (real QueueAccountData layout).
@@ -374,7 +488,18 @@ impl Env {
         data[8 + len_off..8 + len_off + 4].copy_from_slice(&(oracles.len() as u32).to_le_bytes());
         data[8 + curr_off..8 + curr_off + 4].copy_from_slice(&curr_idx.to_le_bytes());
         let q = self.sb_queue;
-        self.svm.set_account(q, Account { lamports: 1_000_000_000, data, owner: SWITCHBOARD_PROGRAM_ID, executable: false, rent_epoch: 0 }).unwrap();
+        self.svm
+            .set_account(
+                q,
+                Account {
+                    lamports: 1_000_000_000,
+                    data,
+                    owner: SWITCHBOARD_PROGRAM_ID,
+                    executable: false,
+                    rent_epoch: 0,
+                },
+            )
+            .unwrap();
         self.sb_oracles = oracles.to_vec();
         let now = self.now();
         for o in oracles {
@@ -383,7 +508,9 @@ impl Env {
     }
 
     pub fn now(&self) -> i64 {
-        self.svm.get_sysvar::<anchor_lang::prelude::Clock>().unix_timestamp
+        self.svm
+            .get_sysvar::<anchor_lang::prelude::Clock>()
+            .unix_timestamp
     }
 
     /// Mock Switchboard oracle account (real OracleAccountData size, discriminator, last_heartbeat).
@@ -393,7 +520,18 @@ impl Env {
         data[..8].copy_from_slice(&hybrid_vault::randomness::ORACLE_ACCOUNT_DISCRIMINATOR);
         data[8 + hb..8 + hb + 8].copy_from_slice(&last_heartbeat.to_le_bytes());
         let lamports = self.svm.minimum_balance_for_rent_exemption(data.len());
-        self.svm.set_account(oracle, Account { lamports, data, owner: SWITCHBOARD_PROGRAM_ID, executable: false, rent_epoch: 0 }).unwrap();
+        self.svm
+            .set_account(
+                oracle,
+                Account {
+                    lamports,
+                    data,
+                    owner: SWITCHBOARD_PROGRAM_ID,
+                    executable: false,
+                    rent_epoch: 0,
+                },
+            )
+            .unwrap();
     }
 
     /// Oracles whose installed heartbeat is stale at the current clock (what a client would pass as proofs).
@@ -405,7 +543,10 @@ impl Env {
             .filter(|o| {
                 self.svm.get_account(o).is_some_and(|a| {
                     a.data.len() >= 8 + hb + 8
-                        && !hybrid_vault::randomness::heartbeat_is_fresh(i64::from_le_bytes(a.data[8 + hb..8 + hb + 8].try_into().unwrap()), now)
+                        && !hybrid_vault::randomness::heartbeat_is_fresh(
+                            i64::from_le_bytes(a.data[8 + hb..8 + hb + 8].try_into().unwrap()),
+                            now,
+                        )
                 })
             })
             .copied()
@@ -414,7 +555,10 @@ impl Env {
 
     /// Stale-proof remaining accounts for a commit.
     pub fn stale_proof_metas(&self) -> Vec<AccountMeta> {
-        self.stale_oracles().into_iter().map(|k| AccountMeta::new_readonly(k, false)).collect()
+        self.stale_oracles()
+            .into_iter()
+            .map(|k| AccountMeta::new_readonly(k, false))
+            .collect()
     }
 
     pub fn recommit_ix_with_oracle(&self, seq: u64, caller: Pubkey, oracle: Pubkey) -> Instruction {
@@ -444,7 +588,11 @@ impl Env {
         self.send(&[ix], &[caller])
     }
 
-    pub fn request_capture_ix(&self, user: &User, randomness: &Pubkey) -> hybrid_vault::accounts::RequestCapture {
+    pub fn request_capture_ix(
+        &self,
+        user: &User,
+        randomness: &Pubkey,
+    ) -> hybrid_vault::accounts::RequestCapture {
         let seq = self.vault_state().next_seq;
         hybrid_vault::accounts::RequestCapture {
             user: user.kp.pubkey(),
@@ -470,16 +618,27 @@ impl Env {
     }
 
     pub fn ix_capture(accts: hybrid_vault::accounts::RequestCapture) -> Instruction {
-        Instruction::new_with_bytes(hybrid_vault::ID, &hybrid_vault::instruction::RequestCapture {}.data(), accts.to_account_metas(None))
+        Instruction::new_with_bytes(
+            hybrid_vault::ID,
+            &hybrid_vault::instruction::RequestCapture {}.data(),
+            accts.to_account_metas(None),
+        )
     }
 
-    pub fn ix_capture_with_proofs(&self, accts: hybrid_vault::accounts::RequestCapture) -> Instruction {
+    pub fn ix_capture_with_proofs(
+        &self,
+        accts: hybrid_vault::accounts::RequestCapture,
+    ) -> Instruction {
         let mut ix = Self::ix_capture(accts);
         ix.accounts.extend(self.stale_proof_metas());
         ix
     }
 
-    pub fn request_capture_with(&mut self, user: &User, accts: hybrid_vault::accounts::RequestCapture) -> Result<u64, String> {
+    pub fn request_capture_with(
+        &mut self,
+        user: &User,
+        accts: hybrid_vault::accounts::RequestCapture,
+    ) -> Result<u64, String> {
         self.warp(1);
         let seq = self.vault_state().next_seq;
         let kp = user.kp.insecure_clone();
@@ -492,7 +651,12 @@ impl Env {
         self.request_capture_with(user, a)
     }
 
-    pub fn request_reroll_accts(&self, user: &User, index: u32, randomness: &Pubkey) -> hybrid_vault::accounts::RequestReroll {
+    pub fn request_reroll_accts(
+        &self,
+        user: &User,
+        index: u32,
+        randomness: &Pubkey,
+    ) -> hybrid_vault::accounts::RequestReroll {
         let seq = self.vault_state().next_seq;
         hybrid_vault::accounts::RequestReroll {
             user: user.kp.pubkey(),
@@ -518,15 +682,32 @@ impl Env {
         }
     }
 
-    pub fn request_reroll_ix(&self, a: hybrid_vault::accounts::RequestReroll, index: u32) -> Instruction {
-        Instruction::new_with_bytes(hybrid_vault::ID, &hybrid_vault::instruction::RequestReroll { index }.data(), a.to_account_metas(None))
+    pub fn request_reroll_ix(
+        &self,
+        a: hybrid_vault::accounts::RequestReroll,
+        index: u32,
+    ) -> Instruction {
+        Instruction::new_with_bytes(
+            hybrid_vault::ID,
+            &hybrid_vault::instruction::RequestReroll { index }.data(),
+            a.to_account_metas(None),
+        )
     }
 
-    pub fn request_reroll(&mut self, user: &User, index: u32, randomness: &Pubkey) -> Result<u64, String> {
+    pub fn request_reroll(
+        &mut self,
+        user: &User,
+        index: u32,
+        randomness: &Pubkey,
+    ) -> Result<u64, String> {
         self.warp(1);
         let seq = self.vault_state().next_seq;
         let a = self.request_reroll_accts(user, index, randomness);
-        let mut ix = Instruction::new_with_bytes(hybrid_vault::ID, &hybrid_vault::instruction::RequestReroll { index }.data(), a.to_account_metas(None));
+        let mut ix = Instruction::new_with_bytes(
+            hybrid_vault::ID,
+            &hybrid_vault::instruction::RequestReroll { index }.data(),
+            a.to_account_metas(None),
+        );
         ix.accounts.extend(self.stale_proof_metas());
         let kp = user.kp.insecure_clone();
         self.send(&[ix], &[&kp]).map(|_| seq)
@@ -544,13 +725,26 @@ impl Env {
     /// Settle ix for `asset`; supplies the committed leaf + proof automatically when `asset` is a
     /// never-minted index of this vault (the lazy-mint path), None otherwise.
     pub fn settle_ix(&self, seq: u64, asset: Pubkey, settler: Pubkey) -> Instruction {
-        let mint = (0..self.n).find(|i| self.asset_pda(*i) == asset).filter(|i| !self.is_minted(*i)).map(|i| self.mint_args(i));
+        let mint = (0..self.n)
+            .find(|i| self.asset_pda(*i) == asset)
+            .filter(|i| !self.is_minted(*i))
+            .map(|i| self.mint_args(i));
         self.settle_ix_with(seq, asset, settler, mint)
     }
 
-    pub fn settle_ix_with(&self, seq: u64, asset: Pubkey, settler: Pubkey, mint: Option<hybrid_vault::asset_source::MintArgs>) -> Instruction {
+    pub fn settle_ix_with(
+        &self,
+        seq: u64,
+        asset: Pubkey,
+        settler: Pubkey,
+        mint: Option<hybrid_vault::asset_source::MintArgs>,
+    ) -> Instruction {
         let req = self.request_state(seq);
-        let data = if req.kind == 0 { hybrid_vault::instruction::SettleCapture { mint }.data() } else { hybrid_vault::instruction::SettleReroll { mint }.data() };
+        let data = if req.kind == 0 {
+            hybrid_vault::instruction::SettleCapture { mint }.data()
+        } else {
+            hybrid_vault::instruction::SettleReroll { mint }.data()
+        };
         Instruction::new_with_bytes(
             hybrid_vault::ID,
             &data,
@@ -609,8 +803,17 @@ impl Env {
         }
     }
 
-    pub fn unwrap_with(&mut self, user: &User, index: u32, a: hybrid_vault::accounts::Unwrap) -> Result<(), String> {
-        let ix = Instruction::new_with_bytes(hybrid_vault::ID, &hybrid_vault::instruction::Unwrap { index }.data(), a.to_account_metas(None));
+    pub fn unwrap_with(
+        &mut self,
+        user: &User,
+        index: u32,
+        a: hybrid_vault::accounts::Unwrap,
+    ) -> Result<(), String> {
+        let ix = Instruction::new_with_bytes(
+            hybrid_vault::ID,
+            &hybrid_vault::instruction::Unwrap { index }.data(),
+            a.to_account_metas(None),
+        );
         let kp = user.kp.insecure_clone();
         self.send(&[ix], &[&kp])
     }
@@ -622,7 +825,11 @@ impl Env {
 
     pub fn expire_ix(&self, seq: u64, caller: Pubkey, user_token: Pubkey) -> Instruction {
         let req = self.request_state(seq);
-        let asset = if req.kind == 0 { self.asset_pda(0) } else { self.asset_pda(req.handed_in_index) };
+        let asset = if req.kind == 0 {
+            self.asset_pda(0)
+        } else {
+            self.asset_pda(req.handed_in_index)
+        };
         Instruction::new_with_bytes(
             hybrid_vault::ID,
             &hybrid_vault::instruction::ExpireRequest {}.data(),
@@ -653,7 +860,11 @@ impl Env {
     /// Per-request remaining accounts for `expire_requests` (stride 7, in queue order).
     pub fn expire_group(&self, seq: u64, user_token: Pubkey) -> Vec<AccountMeta> {
         let req = self.request_state(seq);
-        let asset = if req.kind == 0 { self.asset_pda(0) } else { self.asset_pda(req.handed_in_index) };
+        let asset = if req.kind == 0 {
+            self.asset_pda(0)
+        } else {
+            self.asset_pda(req.handed_in_index)
+        };
         vec![
             AccountMeta::new(self.request_pda(seq), false),
             AccountMeta::new(self.rand_lock_pda(&req.randomness), false),
@@ -665,7 +876,12 @@ impl Env {
         ]
     }
     /// `expire_requests(count)` with explicit remaining accounts.
-    pub fn expire_batch_ix_raw(&self, count: u8, caller: Pubkey, remaining: Vec<AccountMeta>) -> Instruction {
+    pub fn expire_batch_ix_raw(
+        &self,
+        count: u8,
+        caller: Pubkey,
+        remaining: Vec<AccountMeta>,
+    ) -> Instruction {
         let mut metas = hybrid_vault::accounts::ExpireRequests {
             caller,
             vault: self.ids.vault,
@@ -681,15 +897,26 @@ impl Env {
         }
         .to_account_metas(None);
         metas.extend(remaining);
-        Instruction::new_with_bytes(hybrid_vault::ID, &hybrid_vault::instruction::ExpireRequests { count }.data(), metas)
+        Instruction::new_with_bytes(
+            hybrid_vault::ID,
+            &hybrid_vault::instruction::ExpireRequests { count }.data(),
+            metas,
+        )
     }
     /// `expire_requests` over `heads` = [(seq, user_token)] in queue order.
     pub fn expire_batch_ix(&self, heads: &[(u64, Pubkey)], caller: Pubkey) -> Instruction {
-        let rem = heads.iter().flat_map(|(s, t)| self.expire_group(*s, *t)).collect();
+        let rem = heads
+            .iter()
+            .flat_map(|(s, t)| self.expire_group(*s, *t))
+            .collect();
         self.expire_batch_ix_raw(heads.len() as u8, caller, rem)
     }
     /// Send with a 1.4M CU limit; returns compute units consumed.
-    pub fn send_max_cu(&mut self, ixs: &[Instruction], signers: &[&Keypair]) -> Result<u64, String> {
+    pub fn send_max_cu(
+        &mut self,
+        ixs: &[Instruction],
+        signers: &[&Keypair],
+    ) -> Result<u64, String> {
         let mut data = vec![2u8];
         data.extend_from_slice(&1_400_000u32.to_le_bytes());
         let cb = Instruction::new_with_bytes(solana_sdk_ids_compute_budget(), &data, vec![]);
@@ -697,8 +924,13 @@ impl Env {
         all.extend_from_slice(ixs);
         let payer = signers[0].pubkey();
         let msg = Message::new_with_blockhash(&all, Some(&payer), &self.svm.latest_blockhash());
-        let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), signers).map_err(|e| e.to_string())?;
-        let res = self.svm.send_transaction(tx).map(|m| m.compute_units_consumed).map_err(|e| format!("{:?} logs={:#?}", e.err, e.meta.logs));
+        let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), signers)
+            .map_err(|e| e.to_string())?;
+        let res = self
+            .svm
+            .send_transaction(tx)
+            .map(|m| m.compute_units_consumed)
+            .map_err(|e| format!("{:?} logs={:#?}", e.err, e.meta.logs));
         self.svm.expire_blockhash();
         res
     }
@@ -716,24 +948,58 @@ impl Env {
             data.extend_from_slice(a.as_ref());
         }
         let lamports = self.svm.minimum_balance_for_rent_exemption(data.len());
-        let alt_program: Pubkey = "AddressLookupTab1e1111111111111111111111111".parse().unwrap();
+        let alt_program: Pubkey = "AddressLookupTab1e1111111111111111111111111"
+            .parse()
+            .unwrap();
         self.svm
-            .set_account(key, solana_account::Account { lamports, data, owner: alt_program, executable: false, rent_epoch: 0 })
+            .set_account(
+                key,
+                solana_account::Account {
+                    lamports,
+                    data,
+                    owner: alt_program,
+                    executable: false,
+                    rent_epoch: 0,
+                },
+            )
             .unwrap();
         key
     }
     /// Send a v0 transaction using lookup table `alt` (+ a 1.4M CU limit); returns (CU, tx bytes).
-    pub fn send_v0(&mut self, ixs: &[Instruction], signers: &[&Keypair], alt: Pubkey, alt_addrs: Vec<Pubkey>) -> Result<(u64, usize), String> {
+    pub fn send_v0(
+        &mut self,
+        ixs: &[Instruction],
+        signers: &[&Keypair],
+        alt: Pubkey,
+        alt_addrs: Vec<Pubkey>,
+    ) -> Result<(u64, usize), String> {
         let mut data = vec![2u8];
         data.extend_from_slice(&1_400_000u32.to_le_bytes());
-        let mut all = vec![Instruction::new_with_bytes(solana_sdk_ids_compute_budget(), &data, vec![])];
+        let mut all = vec![Instruction::new_with_bytes(
+            solana_sdk_ids_compute_budget(),
+            &data,
+            vec![],
+        )];
         all.extend_from_slice(ixs);
-        let table = solana_message::AddressLookupTableAccount { key: alt, addresses: alt_addrs };
-        let msg = solana_message::v0::Message::try_compile(&signers[0].pubkey(), &all, &[table], self.svm.latest_blockhash())
+        let table = solana_message::AddressLookupTableAccount {
+            key: alt,
+            addresses: alt_addrs,
+        };
+        let msg = solana_message::v0::Message::try_compile(
+            &signers[0].pubkey(),
+            &all,
+            &[table],
+            self.svm.latest_blockhash(),
+        )
+        .map_err(|e| e.to_string())?;
+        let tx = VersionedTransaction::try_new(VersionedMessage::V0(msg), signers)
             .map_err(|e| e.to_string())?;
-        let tx = VersionedTransaction::try_new(VersionedMessage::V0(msg), signers).map_err(|e| e.to_string())?;
         let size = bincode_len(&tx);
-        let res = self.svm.send_transaction(tx).map(|m| (m.compute_units_consumed, size)).map_err(|e| format!("{:?} logs={:#?}", e.err, e.meta.logs));
+        let res = self
+            .svm
+            .send_transaction(tx)
+            .map(|m| (m.compute_units_consumed, size))
+            .map_err(|e| format!("{:?} logs={:#?}", e.err, e.meta.logs));
         self.svm.expire_blockhash();
         res
     }
@@ -744,7 +1010,18 @@ impl Env {
         let mut data = b"MOCKGRAD".to_vec();
         data.extend_from_slice(mint.as_ref());
         data.push(graduated);
-        self.svm.set_account(k, Account { lamports: 1_000_000_000, data, owner, executable: false, rent_epoch: 0 }).unwrap();
+        self.svm
+            .set_account(
+                k,
+                Account {
+                    lamports: 1_000_000_000,
+                    data,
+                    owner,
+                    executable: false,
+                    rent_epoch: 0,
+                },
+            )
+            .unwrap();
         k
     }
 
@@ -782,24 +1059,46 @@ impl Env {
             self.ratio_base * (v.assets_outside + v.pending_captures + v.pending_rerolls),
             "vault tokens == N * (outside + pending captures + pending re-rolls)"
         );
-        assert_eq!(self.supply(), TOTAL_SUPPLY, "supply never changes (no burn)");
+        assert_eq!(
+            self.supply(),
+            TOTAL_SUPPLY,
+            "supply never changes (no burn)"
+        );
         let mut total = vault_bal + self.token_amount(&self.ids.launch_destination);
         for u in &self.users {
             total += self.token_amount(u);
         }
         assert_eq!(total, TOTAL_SUPPLY, "every token accounted for");
         let minted: Vec<u32> = (0..self.n).filter(|i| self.is_minted(*i)).collect();
-        assert_eq!(minted.len() as u32, v.minted_count, "bitmap popcount == minted_count");
+        assert_eq!(
+            minted.len() as u32,
+            v.minted_count,
+            "bitmap popcount == minted_count"
+        );
         assert!(v.minted_count <= self.n, "minted_count <= N");
         for i in 0..self.n {
-            assert_eq!(self.is_minted(i), self.asset_owner(i) != Pubkey::default(), "asset {i} exists iff its bit is set");
+            assert_eq!(
+                self.is_minted(i),
+                self.asset_owner(i) != Pubkey::default(),
+                "asset {i} exists iff its bit is set"
+            );
         }
-        let in_vault = minted.iter().filter(|i| self.asset_owner(**i) == self.ids.vault_authority).count() as u64;
-        assert_eq!(in_vault + v.assets_outside, v.minted_count as u64, "NFT conservation");
+        let in_vault = minted
+            .iter()
+            .filter(|i| self.asset_owner(**i) == self.ids.vault_authority)
+            .count() as u64;
+        assert_eq!(
+            in_vault + v.assets_outside,
+            v.minted_count as u64,
+            "NFT conservation"
+        );
         let mut data = self.svm.get_account(&self.ids.pool).unwrap().data;
         let pool = PoolView::load(&mut data, &self.ids.vault).unwrap();
         assert_eq!(
-            pool.pool_len() as u64 + pool.incoming_len() as u64 + v.pending_rerolls + v.assets_outside,
+            pool.pool_len() as u64
+                + pool.incoming_len() as u64
+                + v.pending_rerolls
+                + v.assets_outside,
             self.n as u64,
             "every index is drawable, returning, held, or outside"
         );
@@ -818,12 +1117,33 @@ pub fn launch_params(n: u64) -> LaunchParams {
 /// LiteSVM with the REAL Switchboard devnet program and its dumped accounts.
 fn new_svm_real_sb() -> (LiteSVM, RealSb, Pubkey, Vec<Pubkey>) {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/switchboard-devnet");
-    let j: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(format!("{dir}/accounts.json")).unwrap()).unwrap();
+    let j: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(format!("{dir}/accounts.json")).unwrap())
+            .unwrap();
     let mut svm = LiteSVM::new();
-    svm.add_program(hybrid_launch::id(), include_bytes!(concat!(env!("CARGO_TARGET_TMPDIR"), "/../deploy/hybrid_launch.so"))).unwrap();
-    svm.add_program(hybrid_vault::id(), include_bytes!(concat!(env!("CARGO_TARGET_TMPDIR"), "/../test-sbf/hybrid_vault.so"))).unwrap();
-    svm.add_program(MPL_CORE_ID, include_bytes!("../fixtures/mpl_core.so")).unwrap();
-    svm.add_program(SWITCHBOARD_PROGRAM_ID, &std::fs::read(format!("{dir}/sb_devnet.so")).unwrap()).unwrap();
+    svm.add_program(
+        hybrid_launch::id(),
+        include_bytes!(concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/../deploy/hybrid_launch.so"
+        )),
+    )
+    .unwrap();
+    svm.add_program(
+        hybrid_vault::id(),
+        include_bytes!(concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/../test-sbf/hybrid_vault.so"
+        )),
+    )
+    .unwrap();
+    svm.add_program(MPL_CORE_ID, include_bytes!("../fixtures/mpl_core.so"))
+        .unwrap();
+    svm.add_program(
+        SWITCHBOARD_PROGRAM_ID,
+        &std::fs::read(format!("{dir}/sb_devnet.so")).unwrap(),
+    )
+    .unwrap();
     for (k, a) in j["accounts"].as_object().unwrap() {
         let acct = Account {
             lamports: a["lamports"].as_u64().unwrap(),
@@ -842,8 +1162,22 @@ fn new_svm_real_sb() -> (LiteSVM, RealSb, Pubkey, Vec<Pubkey>) {
     clock.unix_timestamp = unix_time;
     svm.set_sysvar(&clock);
     let queue: Pubkey = j["queue"].as_str().unwrap().parse().unwrap();
-    let oracles = j["oracles"].as_array().unwrap().iter().map(|o| o.as_str().unwrap().parse().unwrap()).collect();
-    (svm, RealSb { state: j["state"].as_str().unwrap().parse().unwrap(), fetched_slot, unix_time }, queue, oracles)
+    let oracles = j["oracles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|o| o.as_str().unwrap().parse().unwrap())
+        .collect();
+    (
+        svm,
+        RealSb {
+            state: j["state"].as_str().unwrap().parse().unwrap(),
+            fetched_slot,
+            unix_time,
+        },
+        queue,
+        oracles,
+    )
 }
 
 /// LiteSVM doesn't maintain SlotHashes across warps; the real Switchboard (and the ALT program it
@@ -863,9 +1197,21 @@ pub fn refresh_slot_hashes(svm: &mut LiteSVM) {
         data.extend_from_slice(&h);
     }
     data.resize(8 + 40 * 512, 0);
-    let sysvar_owner: Pubkey = "Sysvar1111111111111111111111111111111111111".parse().unwrap();
+    let sysvar_owner: Pubkey = "Sysvar1111111111111111111111111111111111111"
+        .parse()
+        .unwrap();
     let lamports = svm.minimum_balance_for_rent_exemption(data.len());
-    svm.set_account(SLOT_HASHES_SYSVAR_ID, Account { lamports, data, owner: sysvar_owner, executable: false, rent_epoch: 0 }).unwrap();
+    svm.set_account(
+        SLOT_HASHES_SYSVAR_ID,
+        Account {
+            lamports,
+            data,
+            owner: sysvar_owner,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
 }
 
 /// Minimal standard base64 decoder (fixtures only).
@@ -883,7 +1229,9 @@ pub fn b64decode(s: &str) -> Vec<u8> {
     let b: Vec<u8> = s.bytes().filter(|c| !c.is_ascii_whitespace()).collect();
     let mut out = Vec::with_capacity(b.len() * 3 / 4);
     for chunk in b.chunks(4) {
-        let n = chunk.iter().enumerate().fold(0u32, |acc, (i, c)| acc | (if *c == b'=' { 0 } else { val(*c) }) << (18 - 6 * i));
+        let n = chunk.iter().enumerate().fold(0u32, |acc, (i, c)| {
+            acc | (if *c == b'=' { 0 } else { val(*c) }) << (18 - 6 * i)
+        });
         let pad = chunk.iter().filter(|c| **c == b'=').count();
         let bytes = [(n >> 16) as u8, (n >> 8) as u8, n as u8];
         out.extend_from_slice(&bytes[..3 - pad]);
@@ -893,10 +1241,32 @@ pub fn b64decode(s: &str) -> Vec<u8> {
 
 fn new_svm() -> LiteSVM {
     let mut svm = LiteSVM::new();
-    svm.add_program(hybrid_launch::id(), include_bytes!(concat!(env!("CARGO_TARGET_TMPDIR"), "/../deploy/hybrid_launch.so"))).unwrap();
-    svm.add_program(hybrid_vault::id(), include_bytes!(concat!(env!("CARGO_TARGET_TMPDIR"), "/../test-sbf/hybrid_vault.so"))).unwrap();
-    svm.add_program(MPL_CORE_ID, include_bytes!("../fixtures/mpl_core.so")).unwrap();
-    svm.add_program(SWITCHBOARD_PROGRAM_ID, include_bytes!(concat!(env!("CARGO_TARGET_TMPDIR"), "/../test-sbf/mock_switchboard.so"))).unwrap();
+    svm.add_program(
+        hybrid_launch::id(),
+        include_bytes!(concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/../deploy/hybrid_launch.so"
+        )),
+    )
+    .unwrap();
+    svm.add_program(
+        hybrid_vault::id(),
+        include_bytes!(concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/../test-sbf/hybrid_vault.so"
+        )),
+    )
+    .unwrap();
+    svm.add_program(MPL_CORE_ID, include_bytes!("../fixtures/mpl_core.so"))
+        .unwrap();
+    svm.add_program(
+        SWITCHBOARD_PROGRAM_ID,
+        include_bytes!(concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/../test-sbf/mock_switchboard.so"
+        )),
+    )
+    .unwrap();
     svm.warp_to_slot(1_000);
     svm
 }
@@ -908,12 +1278,18 @@ impl Env {
         let ids = Ids::for_mint(mint.pubkey());
         let launch_ix = Instruction::new_with_bytes(
             hybrid_launch::ID,
-            &hybrid_launch::instruction::Launch { params: launch_params(n as u64) }.data(),
+            &hybrid_launch::instruction::Launch {
+                params: launch_params(n as u64),
+            }
+            .data(),
             hybrid_launch::accounts::Launch {
                 creator: self.creator.pubkey(),
                 mint: mint.pubkey(),
                 launch_config: ids.launch_config,
-                mint_authority: pda(&[b"mint_authority", ids.launch_config.as_ref()], &hybrid_launch::ID),
+                mint_authority: pda(
+                    &[b"mint_authority", ids.launch_config.as_ref()],
+                    &hybrid_launch::ID,
+                ),
                 launch_vault: ids.launch_vault,
                 launch_destination: ids.launch_destination,
                 fee_recipient: PLATFORM_FEE_RECIPIENT,
@@ -926,6 +1302,421 @@ impl Env {
         let creator = self.creator.insecure_clone();
         self.send(&[launch_ix], &[&creator, &mint])?;
         self.init_vault_for(ids, n)
+    }
+
+    /// Mode 3 native launch + permanent vault. Overwrites this env's committed leaves.
+    pub fn launch_permanent(&mut self, n: u32) -> Result<Ids, String> {
+        let mint = Keypair::new();
+        let ids = Ids::for_mint(mint.pubkey());
+        let launch_ix = Instruction::new_with_bytes(
+            hybrid_launch::ID,
+            &hybrid_launch::instruction::LaunchBurn {
+                params: launch_params(n as u64),
+            }
+            .data(),
+            hybrid_launch::accounts::LaunchBurn {
+                creator: self.creator.pubkey(),
+                mint: mint.pubkey(),
+                launch_config: ids.launch_config,
+                mint_authority: pda(
+                    &[b"mint_authority", ids.launch_config.as_ref()],
+                    &hybrid_launch::ID,
+                ),
+                launch_vault: ids.launch_vault,
+                launch_destination: ids.launch_destination,
+                fee_recipient: PLATFORM_FEE_RECIPIENT,
+                token_program: SPL_TOKEN_ID,
+                associated_token_program: ATA_PROGRAM_ID,
+                system_program: system_program::ID,
+            }
+            .to_account_metas(None),
+        );
+        let creator = self.creator.insecure_clone();
+        self.send(&[launch_ix], &[&creator, &mint])?;
+        let (leaves, root, proofs) = build_leaves(&ids, n, &self.schema_hash);
+        (self.leaves, self.root, self.proofs) = (leaves, root, proofs);
+        let init = self.init_permanent_ix(&ids, root);
+        self.send(&[init], &[&creator])?;
+        Ok(ids)
+    }
+
+    pub fn init_permanent_ix(&self, ids: &Ids, root: [u8; 32]) -> Instruction {
+        Instruction::new_with_bytes(
+            hybrid_vault::ID,
+            &hybrid_vault::instruction::InitPermanentVault {
+                params: hybrid_vault::PermanentInitParams {
+                    trait_root: root,
+                    trait_schema_hash: self.schema_hash,
+                    collection_name: "Test Collection".into(),
+                    collection_uri: "ipfs://bafycollection".into(),
+                },
+            }
+            .data(),
+            hybrid_vault::accounts::InitPermanentVault {
+                creator: self.creator.pubkey(),
+                launch_config: ids.launch_config,
+                mint: ids.mint,
+                vault: ids.vault,
+                vault_authority: ids.vault_authority,
+                collection: ids.collection,
+                mpl_core_program: MPL_CORE_ID,
+                system_program: system_program::ID,
+            }
+            .to_account_metas(None),
+        )
+    }
+
+    pub fn open_permanent(&mut self, proof: Pubkey) -> Result<(), String> {
+        let anyone = Keypair::new();
+        self.svm.airdrop(&anyone.pubkey(), 1_000_000_000).unwrap();
+        let ix = Instruction::new_with_bytes(
+            hybrid_vault::ID,
+            &hybrid_vault::instruction::OpenPermanentVault {}.data(),
+            hybrid_vault::accounts::OpenPermanentVault {
+                caller: anyone.pubkey(),
+                vault: self.ids.vault,
+                launch_config: self.ids.launch_config,
+                collection: self.ids.collection,
+                graduation_proof: proof,
+            }
+            .to_account_metas(None),
+        );
+        self.send(&[ix], &[&anyone])
+    }
+
+    pub fn wrap_permanent(&mut self, user: &User, index: u32) -> Result<(), String> {
+        let kp = user.kp.insecure_clone();
+        let ix = Instruction::new_with_bytes(
+            hybrid_vault::ID,
+            &hybrid_vault::instruction::WrapPermanent {
+                args: self.mint_args(index),
+            }
+            .data(),
+            hybrid_vault::accounts::WrapPermanent {
+                user: kp.pubkey(),
+                vault: self.ids.vault,
+                launch_config: self.ids.launch_config,
+                mint: self.ids.mint,
+                user_token: user.ata,
+                fee_recipient: self.ids.fee_recipient,
+                vault_authority: self.ids.vault_authority,
+                collection: self.ids.collection,
+                asset: self.asset_pda(index),
+                mpl_core_program: MPL_CORE_ID,
+                token_program: SPL_TOKEN_ID,
+                system_program: system_program::ID,
+            }
+            .to_account_metas(None),
+        );
+        self.send(&[ix], &[&kp])
+    }
+
+    pub fn launch_token22(&mut self, n: u32, tax_bps: u16) -> Result<Ids, String> {
+        self.launch_tax(n, tax_bps, false)
+    }
+
+    pub fn launch_raffle(&mut self, n: u32, tax_bps: u16) -> Result<Ids, String> {
+        self.launch_tax(n, tax_bps, true)
+    }
+
+    fn launch_tax(&mut self, n: u32, tax_bps: u16, raffle: bool) -> Result<Ids, String> {
+        let mint = Keypair::new();
+        let mut ids = Ids::for_mint(mint.pubkey());
+        ids.launch_destination = get_associated_token_address_with_program_id(
+            &ids.launch_vault,
+            &mint.pubkey(),
+            &TOKEN_2022_ID,
+        );
+        let params = hybrid_launch::TaxLaunchParams {
+            decimals: DECIMALS,
+            ratio_whole_tokens: RATIO_WHOLE,
+            collection_size: n as u64,
+            graduation_threshold_lamports: hybrid_launch::DEFAULT_GRADUATION_THRESHOLD_LAMPORTS,
+            tax_bps,
+            buyback_lamports_per_whole: 1_000_000,
+        };
+        let launch_data = if raffle {
+            hybrid_launch::instruction::LaunchRaffle { params }.data()
+        } else {
+            hybrid_launch::instruction::LaunchToken22 { params }.data()
+        };
+        let launch_ix = Instruction::new_with_bytes(
+            hybrid_launch::ID,
+            &launch_data,
+            hybrid_launch::accounts::LaunchToken22 {
+                creator: self.creator.pubkey(),
+                mint: mint.pubkey(),
+                launch_config: ids.launch_config,
+                mint_authority: pda(
+                    &[b"mint_authority", ids.launch_config.as_ref()],
+                    &hybrid_launch::ID,
+                ),
+                launch_vault: ids.launch_vault,
+                launch_destination: ids.launch_destination,
+                fee_recipient: PLATFORM_FEE_RECIPIENT,
+                token_program: TOKEN_2022_ID,
+                associated_token_program: ATA_PROGRAM_ID,
+                system_program: system_program::ID,
+            }
+            .to_account_metas(None),
+        );
+        let creator = self.creator.insecure_clone();
+        self.send(&[launch_ix], &[&creator, &mint])?;
+        let (leaves, root, proofs) = build_leaves(&ids, n, &self.schema_hash);
+        (self.leaves, self.root, self.proofs) = (leaves, root, proofs);
+        let (tax_authority, _) =
+            Pubkey::find_program_address(&[b"tax_authority", ids.mint.as_ref()], &hybrid_vault::ID);
+        let lock = get_associated_token_address_with_program_id(
+            &ids.vault_authority,
+            &ids.mint,
+            &TOKEN_2022_ID,
+        );
+        let treasury =
+            get_associated_token_address_with_program_id(&tax_authority, &ids.mint, &TOKEN_2022_ID);
+        let init = if raffle {
+            Instruction::new_with_bytes(
+                hybrid_vault::ID,
+                &hybrid_vault::instruction::InitRaffleVault {
+                    params: hybrid_vault::RaffleInitParams {
+                        trait_root: root,
+                        trait_schema_hash: self.schema_hash,
+                        collection_name: "Test Collection".into(),
+                        collection_uri: "ipfs://bafycollection".into(),
+                        sb_queue: self.sb_queue,
+                    },
+                }
+                .data(),
+                hybrid_vault::accounts::InitRaffleVault {
+                    creator: creator.pubkey(),
+                    launch_config: ids.launch_config,
+                    mint: ids.mint,
+                    vault: ids.vault,
+                    vault_authority: ids.vault_authority,
+                    randomness_authority: ids.randomness_authority,
+                    tax_authority,
+                    lock_tokens: lock,
+                    treasury,
+                    collection: ids.collection,
+                    sb_queue: self.sb_queue,
+                    mpl_core_program: MPL_CORE_ID,
+                    token_program: TOKEN_2022_ID,
+                    associated_token_program: ATA_PROGRAM_ID,
+                    system_program: system_program::ID,
+                }
+                .to_account_metas(None),
+            )
+        } else {
+            Instruction::new_with_bytes(
+                hybrid_vault::ID,
+                &hybrid_vault::instruction::InitToken22Vault {
+                    params: hybrid_vault::Token22InitParams {
+                        trait_root: root,
+                        trait_schema_hash: self.schema_hash,
+                        collection_name: "Test Collection".into(),
+                        collection_uri: "ipfs://bafycollection".into(),
+                    },
+                }
+                .data(),
+                hybrid_vault::accounts::InitToken22Vault {
+                    creator: creator.pubkey(),
+                    launch_config: ids.launch_config,
+                    mint: ids.mint,
+                    vault: ids.vault,
+                    vault_authority: ids.vault_authority,
+                    tax_authority,
+                    lock_tokens: lock,
+                    treasury,
+                    collection: ids.collection,
+                    mpl_core_program: MPL_CORE_ID,
+                    token_program: TOKEN_2022_ID,
+                    associated_token_program: ATA_PROGRAM_ID,
+                    system_program: system_program::ID,
+                }
+                .to_account_metas(None),
+            )
+        };
+        self.send(&[init], &[&creator])?;
+        Ok(ids)
+    }
+
+    pub fn new_t22_user(&mut self, tokens: u64) -> User {
+        let kp = Keypair::new();
+        self.svm.airdrop(&kp.pubkey(), 100_000_000_000).unwrap();
+        let ata = get_associated_token_address_with_program_id(
+            &kp.pubkey(),
+            &self.ids.mint,
+            &TOKEN_2022_ID,
+        );
+        let create = create_associated_token_account(
+            &kp.pubkey(),
+            &kp.pubkey(),
+            &self.ids.mint,
+            &TOKEN_2022_ID,
+        );
+        self.send(&[create], &[&kp]).unwrap();
+        if tokens > 0 {
+            let src = self.raw_amount(&self.ids.launch_destination);
+            let dest = self.ids.launch_destination;
+            self.set_token_amount(&dest, src.checked_sub(tokens).unwrap());
+            self.set_token_amount(&ata, tokens);
+        }
+        self.users.push(ata);
+        User { kp, ata }
+    }
+
+    pub fn raw_amount(&self, acct: &Pubkey) -> u64 {
+        let a = self.svm.get_account(acct).unwrap();
+        u64::from_le_bytes(a.data[64..72].try_into().unwrap())
+    }
+
+    pub fn raw_supply(&self) -> u64 {
+        let a = self.svm.get_account(&self.ids.mint).unwrap();
+        u64::from_le_bytes(a.data[36..44].try_into().unwrap())
+    }
+
+    pub fn wrap_token22(&mut self, user: &User, index: u32) -> Result<(), String> {
+        let kp = user.kp.insecure_clone();
+        let lock = get_associated_token_address_with_program_id(
+            &self.ids.vault_authority,
+            &self.ids.mint,
+            &TOKEN_2022_ID,
+        );
+        let asset = self.asset_pda(index);
+        let tax_share = pda(
+            &[b"tax_share", self.ids.vault.as_ref(), asset.as_ref()],
+            &hybrid_vault::ID,
+        );
+        let ix = Instruction::new_with_bytes(
+            hybrid_vault::ID,
+            &hybrid_vault::instruction::WrapToken22 {
+                args: self.mint_args(index),
+            }
+            .data(),
+            hybrid_vault::accounts::WrapToken22 {
+                user: kp.pubkey(),
+                vault: self.ids.vault,
+                launch_config: self.ids.launch_config,
+                mint: self.ids.mint,
+                user_token: user.ata,
+                lock_tokens: lock,
+                fee_recipient: self.ids.fee_recipient,
+                vault_authority: self.ids.vault_authority,
+                collection: self.ids.collection,
+                asset,
+                tax_share,
+                mpl_core_program: MPL_CORE_ID,
+                token_program: TOKEN_2022_ID,
+                system_program: system_program::ID,
+            }
+            .to_account_metas(None),
+        );
+        self.send(&[ix], &[&kp])
+    }
+
+    pub fn harvest_tax(&mut self) -> Result<(), String> {
+        let (tax_authority, _) = Pubkey::find_program_address(
+            &[b"tax_authority", self.ids.mint.as_ref()],
+            &hybrid_vault::ID,
+        );
+        let lock = get_associated_token_address_with_program_id(
+            &self.ids.vault_authority,
+            &self.ids.mint,
+            &TOKEN_2022_ID,
+        );
+        let treasury = get_associated_token_address_with_program_id(
+            &tax_authority,
+            &self.ids.mint,
+            &TOKEN_2022_ID,
+        );
+        let payer = Keypair::new();
+        self.svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
+        let ix = Instruction::new_with_bytes(
+            hybrid_vault::ID,
+            &hybrid_vault::instruction::HarvestTax {}.data(),
+            hybrid_vault::accounts::HarvestTax {
+                vault: self.ids.vault,
+                mint: self.ids.mint,
+                treasury,
+                tax_authority,
+                source: lock,
+                token_program: TOKEN_2022_ID,
+            }
+            .to_account_metas(None),
+        );
+        self.send(&[ix], &[&payer])
+    }
+
+    pub fn buyback(&mut self) -> Result<(), String> {
+        let (tax_authority, _) = Pubkey::find_program_address(
+            &[b"tax_authority", self.ids.mint.as_ref()],
+            &hybrid_vault::ID,
+        );
+        let treasury = get_associated_token_address_with_program_id(
+            &tax_authority,
+            &self.ids.mint,
+            &TOKEN_2022_ID,
+        );
+        let payer = Keypair::new();
+        self.svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
+        let ix = Instruction::new_with_bytes(
+            hybrid_vault::ID,
+            &hybrid_vault::instruction::Buyback {}.data(),
+            hybrid_vault::accounts::Buyback {
+                vault: self.ids.vault,
+                launch_config: self.ids.launch_config,
+                mint: self.ids.mint,
+                launch_vault: self.ids.launch_vault,
+                launch_destination: self.ids.launch_destination,
+                treasury,
+                tax_authority,
+                token_program: TOKEN_2022_ID,
+                system_program: system_program::ID,
+                launch_program: hybrid_launch::ID,
+            }
+            .to_account_metas(None),
+        );
+        self.send(&[ix], &[&payer])
+    }
+
+    pub fn claim_tax(&mut self, holder: &Pubkey, index: u32) -> Result<(), String> {
+        let (tax_authority, _) = Pubkey::find_program_address(
+            &[b"tax_authority", self.ids.mint.as_ref()],
+            &hybrid_vault::ID,
+        );
+        let asset = self.asset_pda(index);
+        let tax_share = pda(
+            &[b"tax_share", self.ids.vault.as_ref(), asset.as_ref()],
+            &hybrid_vault::ID,
+        );
+        let treasury = get_associated_token_address_with_program_id(
+            &tax_authority,
+            &self.ids.mint,
+            &TOKEN_2022_ID,
+        );
+        let holder_token =
+            get_associated_token_address_with_program_id(holder, &self.ids.mint, &TOKEN_2022_ID);
+        let payer = Keypair::new();
+        self.svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
+        let ix = Instruction::new_with_bytes(
+            hybrid_vault::ID,
+            &hybrid_vault::instruction::ClaimTax {}.data(),
+            hybrid_vault::accounts::ClaimTax {
+                payer: payer.pubkey(),
+                holder: *holder,
+                vault: self.ids.vault,
+                mint: self.ids.mint,
+                tax_share,
+                asset,
+                treasury,
+                holder_token,
+                tax_authority,
+                token_program: TOKEN_2022_ID,
+                associated_token_program: ATA_PROGRAM_ID,
+                system_program: system_program::ID,
+            }
+            .to_account_metas(None),
+        );
+        self.send(&[ix], &[&payer])
     }
 
     /// Pool account + init_vault for an existing LaunchConfig (native `launch` or `register_dbc_launch`).
@@ -942,12 +1733,23 @@ impl Env {
         if self.prefund_collection > 0 {
             let griefer = Keypair::new();
             self.svm.airdrop(&griefer.pubkey(), 1_000_000_000).unwrap();
-            let t = system_instruction::transfer(&griefer.pubkey(), &ids.collection, self.prefund_collection);
-            self.send(&[t], &[&griefer]).expect("pre-fund collection PDA");
+            let t = system_instruction::transfer(
+                &griefer.pubkey(),
+                &ids.collection,
+                self.prefund_collection,
+            );
+            self.send(&[t], &[&griefer])
+                .expect("pre-fund collection PDA");
         }
         let size = pool_account_size(n);
         let lamports = self.svm.minimum_balance_for_rent_exemption(size);
-        let create_pool = system_instruction::create_account(&creator.pubkey(), &pool_kp.pubkey(), lamports, size as u64, &hybrid_vault::ID);
+        let create_pool = system_instruction::create_account(
+            &creator.pubkey(),
+            &pool_kp.pubkey(),
+            lamports,
+            size as u64,
+            &hybrid_vault::ID,
+        );
         self.send(&[create_pool, init], &[&creator, &pool_kp])?;
         Ok(ids)
     }
@@ -981,6 +1783,191 @@ impl Env {
             }
             .to_account_metas(None),
         )
+    }
+
+    pub fn tax_vault(&self) -> hybrid_vault::TaxVault {
+        hybrid_vault::TaxVault::try_deserialize(
+            &mut self
+                .svm
+                .get_account(&self.ids.vault)
+                .unwrap()
+                .data
+                .as_slice(),
+        )
+        .unwrap()
+    }
+
+    pub fn snapshot_raffle(&mut self, holder: &Pubkey, index: u32) -> Result<(), String> {
+        let round = self.tax_vault().round_id;
+        let asset = self.asset_pda(index);
+        let seat = pda(
+            &[
+                b"raffle_seat",
+                self.ids.vault.as_ref(),
+                &round.to_le_bytes(),
+                &index.to_le_bytes(),
+            ],
+            &hybrid_vault::ID,
+        );
+        let payer = Keypair::new();
+        self.svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
+        let ix = Instruction::new_with_bytes(
+            hybrid_vault::ID,
+            &hybrid_vault::instruction::SnapshotRaffle {}.data(),
+            hybrid_vault::accounts::SnapshotRaffle {
+                payer: payer.pubkey(),
+                holder: *holder,
+                vault: self.ids.vault,
+                seat,
+                asset,
+                system_program: system_program::ID,
+            }
+            .to_account_metas(None),
+        );
+        self.send(&[ix], &[&payer])
+    }
+
+    pub fn init_raffle_randomness(&mut self) -> Pubkey {
+        let kp = Keypair::new();
+        let ix = Instruction::new_with_bytes(
+            hybrid_vault::ID,
+            &hybrid_vault::instruction::InitRaffleRandomness {
+                recent_slot: self.slot(),
+            }
+            .data(),
+            hybrid_vault::accounts::InitRaffleRandomness {
+                payer: self.creator.pubkey(),
+                vault: self.ids.vault,
+                randomness: kp.pubkey(),
+                randomness_authority: self.ids.randomness_authority,
+                sb_reward_escrow: Pubkey::new_unique(),
+                sb_queue: self.sb_queue,
+                system_program: system_program::ID,
+                token_program: SPL_TOKEN_ID,
+                associated_token_program: ATA_PROGRAM_ID,
+                wrapped_sol_mint: WRAPPED_SOL_MINT,
+                sb_program_state: Pubkey::new_unique(),
+                sb_lut_signer: Pubkey::new_unique(),
+                sb_lut: Pubkey::new_unique(),
+                address_lookup_table_program: ALT_PROGRAM,
+                switchboard_program: SWITCHBOARD_PROGRAM_ID,
+            }
+            .to_account_metas(None),
+        );
+        let c = self.creator.insecure_clone();
+        self.send(&[ix], &[&c, &kp])
+            .expect("init raffle randomness");
+        kp.pubkey()
+    }
+
+    pub fn commit_raffle(&mut self, randomness: &Pubkey) -> Result<(), String> {
+        self.warp(1);
+        let round = self.tax_vault().round_id;
+        let oracle = self.select_oracle(round, &[]);
+        let payer = Keypair::new();
+        self.svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
+        let mut ix = Instruction::new_with_bytes(
+            hybrid_vault::ID,
+            &hybrid_vault::instruction::CommitRaffle {}.data(),
+            hybrid_vault::accounts::CommitRaffle {
+                payer: payer.pubkey(),
+                vault: self.ids.vault,
+                rand_lock: self.rand_lock_pda(randomness),
+                randomness: *randomness,
+                randomness_authority: self.ids.randomness_authority,
+                sb_queue: self.sb_queue,
+                sb_oracle: oracle,
+                slot_hashes: SLOT_HASHES_SYSVAR_ID,
+                switchboard_program: SWITCHBOARD_PROGRAM_ID,
+                system_program: system_program::ID,
+            }
+            .to_account_metas(None),
+        );
+        ix.accounts.extend(self.stale_proof_metas());
+        self.send(&[ix], &[&payer])
+    }
+
+    pub fn reveal_raffle(&mut self, value: [u8; 32]) -> Result<(), String> {
+        self.warp(1);
+        let v = self.tax_vault();
+        let crank = Keypair::new();
+        self.svm.airdrop(&crank.pubkey(), 1_000_000_000).unwrap();
+        let ix = Instruction::new_with_bytes(
+            hybrid_vault::ID,
+            &hybrid_vault::instruction::RevealRaffle {
+                args: hybrid_vault::randomness::RevealArgs {
+                    signature: [7u8; 64],
+                    recovery_id: 0,
+                    value,
+                },
+            }
+            .data(),
+            hybrid_vault::accounts::RevealRaffle {
+                payer: crank.pubkey(),
+                vault: self.ids.vault,
+                rand_lock: self.rand_lock_pda(&v.randomness),
+                randomness: v.randomness,
+                randomness_authority: self.ids.randomness_authority,
+                sb_oracle: v.raffle_oracle,
+                sb_queue: self.sb_queue,
+                sb_stats: Pubkey::new_unique(),
+                slot_hashes: SLOT_HASHES_SYSVAR_ID,
+                system_program: system_program::ID,
+                sb_reward_escrow: Pubkey::new_unique(),
+                token_program: SPL_TOKEN_ID,
+                wrapped_sol_mint: WRAPPED_SOL_MINT,
+                sb_program_state: Pubkey::new_unique(),
+                switchboard_program: SWITCHBOARD_PROGRAM_ID,
+            }
+            .to_account_metas(None),
+        );
+        self.send(&[ix], &[&crank])
+    }
+
+    pub fn settle_raffle(&mut self, holder: &Pubkey, index: u32) -> Result<(), String> {
+        let round = self.tax_vault().round_id;
+        let (tax_authority, _) = Pubkey::find_program_address(
+            &[b"tax_authority", self.ids.mint.as_ref()],
+            &hybrid_vault::ID,
+        );
+        let seat = pda(
+            &[
+                b"raffle_seat",
+                self.ids.vault.as_ref(),
+                &round.to_le_bytes(),
+                &index.to_le_bytes(),
+            ],
+            &hybrid_vault::ID,
+        );
+        let treasury = get_associated_token_address_with_program_id(
+            &tax_authority,
+            &self.ids.mint,
+            &TOKEN_2022_ID,
+        );
+        let holder_token =
+            get_associated_token_address_with_program_id(holder, &self.ids.mint, &TOKEN_2022_ID);
+        let payer = Keypair::new();
+        self.svm.airdrop(&payer.pubkey(), 1_000_000_000).unwrap();
+        let ix = Instruction::new_with_bytes(
+            hybrid_vault::ID,
+            &hybrid_vault::instruction::SettleRaffle {}.data(),
+            hybrid_vault::accounts::SettleRaffle {
+                payer: payer.pubkey(),
+                holder: *holder,
+                vault: self.ids.vault,
+                mint: self.ids.mint,
+                seat,
+                treasury,
+                holder_token,
+                tax_authority,
+                randomness: self.tax_vault().randomness,
+                token_program: TOKEN_2022_ID,
+                associated_token_program: ATA_PROGRAM_ID,
+                system_program: system_program::ID,
+            }
+            .to_account_metas(None),
+        );
+        self.send(&[ix], &[&payer])
     }
 }
 
@@ -1030,7 +2017,9 @@ fn setup_closed_inner(n: u32, prefund_collection: u64, real: bool) -> Env {
         creator: creator.insecure_clone(),
         real_sb,
     };
-    env.svm.airdrop(&creator.pubkey(), 1_000_000_000_000).unwrap();
+    env.svm
+        .airdrop(&creator.pubkey(), 1_000_000_000_000)
+        .unwrap();
     env.prefund_collection = prefund_collection;
     env.ids = env.launch_and_init(n).expect("launch + init_vault");
     env.prefund_collection = 0;
@@ -1049,6 +2038,28 @@ pub fn setup(n: u32) -> Env {
     let p = env.graduation_proof;
     env.open(p).expect("open_vault");
     assert!(env.vault_state().open);
+    env
+}
+
+/// Mode 4 tax vault. Also leaves a throwaway Mode 2 launch in the same SVM.
+pub fn setup_token22(n: u32, tax_bps: u16) -> Env {
+    let mut env = setup_closed(n);
+    env.ids = env
+        .launch_token22(n, tax_bps)
+        .expect("launch_token22 + init");
+    env
+}
+
+pub fn setup_raffle(n: u32, tax_bps: u16) -> Env {
+    let mut env = setup_closed(n);
+    env.ids = env.launch_raffle(n, tax_bps).expect("launch_raffle");
+    env
+}
+pub fn setup_permanent_closed(n: u32) -> Env {
+    let mut env = setup_closed(n);
+    env.ids = env
+        .launch_permanent(n)
+        .expect("launch_burn + init_permanent_vault");
     env
 }
 
@@ -1073,16 +2084,27 @@ pub fn leaf_of(ids: &Ids, i: u32, l: &LeafPreimage, schema: &[u8; 32]) -> [u8; 3
     merkle::leaf_hash(&ids.launch_config.to_bytes(), i, &th, &ah)
 }
 
-pub fn build_leaves(ids: &Ids, n: u32, schema: &[u8; 32]) -> (Vec<LeafPreimage>, [u8; 32], Vec<Vec<[u8; 32]>>) {
+pub fn build_leaves(
+    ids: &Ids,
+    n: u32,
+    schema: &[u8; 32],
+) -> (Vec<LeafPreimage>, [u8; 32], Vec<Vec<[u8; 32]>>) {
     let pre: Vec<LeafPreimage> = (0..n).map(leaf_preimage).collect();
-    let hashes: Vec<[u8; 32]> = pre.iter().enumerate().map(|(i, l)| leaf_of(ids, i as u32, l, schema)).collect();
+    let hashes: Vec<[u8; 32]> = pre
+        .iter()
+        .enumerate()
+        .map(|(i, l)| leaf_of(ids, i as u32, l, schema))
+        .collect();
     let (root, proofs) = merkle::build(&hashes);
     (pre, root, proofs)
 }
 
 pub fn expect_code(res: Result<impl std::fmt::Debug, String>, code: u32) {
     let err = res.expect_err("transaction must fail");
-    assert!(err.contains(&format!("Custom({code})")), "expected Custom({code}), got: {err}");
+    assert!(
+        err.contains(&format!("Custom({code})")),
+        "expected Custom({code}), got: {err}"
+    );
 }
 pub fn expect_vault_err(res: Result<impl std::fmt::Debug, String>, e: VaultError) {
     expect_code(res, 6000 + e as u32);
@@ -1097,7 +2119,9 @@ pub fn val(seed: u8) -> [u8; 32] {
 }
 
 pub fn solana_sdk_ids_compute_budget() -> Pubkey {
-    "ComputeBudget111111111111111111111111111111".parse().unwrap()
+    "ComputeBudget111111111111111111111111111111"
+        .parse()
+        .unwrap()
 }
 
 /// Wire size of a versioned transaction (signatures + message), without a bincode dependency.
@@ -1107,7 +2131,6 @@ pub fn bincode_len(tx: &VersionedTransaction) -> usize {
     short_vec + 64 * n + tx.message.serialize().len()
 }
 
-
 // ---------------------------------------------------------------------------------------------------
 // Meteora DBC (ADR-014): the REAL DBC program (mainnet dump) + Token Metadata on LiteSVM, with a real
 // devnet PoolConfig as the template (fixtures/dbc). DBC itself creates the pool, the mint and the
@@ -1115,7 +2138,8 @@ pub fn bincode_len(tx: &VersionedTransaction) -> usize {
 // ---------------------------------------------------------------------------------------------------
 
 pub const DBC_ID: Pubkey = hybrid_launch::dbc::DBC_PROGRAM_ID;
-pub const TOKEN_METADATA_ID: Pubkey = anchor_lang::prelude::pubkey!("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
+pub const TOKEN_METADATA_ID: Pubkey =
+    anchor_lang::prelude::pubkey!("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 /// Real third-party devnet DBC config (SOL quote, SPL, 6 decimals, fixed 1B supply with pre == post,
 /// Immutable). Used only as the byte TEMPLATE for `dbc_config_account`; it is NOT on the allowlist.
 pub const DBC_TEMPLATE_CONFIG: &str = "5L1MfYm4yqPySiVddKugruYoGyN6an6viSkHzL7MK1Y";
@@ -1140,7 +2164,10 @@ pub struct DbcIds {
 
 pub fn dbc_fixture_account(key: &str) -> Account {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/dbc");
-    let j: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(format!("{dir}/devnet_samples.json")).unwrap()).unwrap();
+    let j: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(format!("{dir}/devnet_samples.json")).unwrap(),
+    )
+    .unwrap();
     let a = &j[key];
     Account {
         lamports: a["lamports"].as_u64().unwrap(),
@@ -1156,8 +2183,10 @@ pub fn dbc_fixture_account(key: &str) -> Account {
 pub fn dbc_config_account(leftover_receiver: Pubkey, threshold: u64) -> Account {
     use hybrid_launch::dbc::*;
     let mut a = dbc_fixture_account(DBC_TEMPLATE_CONFIG);
-    a.data[CFG_OFF_LEFTOVER_RECEIVER..CFG_OFF_LEFTOVER_RECEIVER + 32].copy_from_slice(leftover_receiver.as_ref());
-    a.data[CFG_OFF_MIGRATION_QUOTE_THRESHOLD..CFG_OFF_MIGRATION_QUOTE_THRESHOLD + 8].copy_from_slice(&threshold.to_le_bytes());
+    a.data[CFG_OFF_LEFTOVER_RECEIVER..CFG_OFF_LEFTOVER_RECEIVER + 32]
+        .copy_from_slice(leftover_receiver.as_ref());
+    a.data[CFG_OFF_MIGRATION_QUOTE_THRESHOLD..CFG_OFF_MIGRATION_QUOTE_THRESHOLD + 8]
+        .copy_from_slice(&threshold.to_le_bytes());
     a
 }
 
@@ -1169,32 +2198,77 @@ pub fn buffer_authority() -> Pubkey {
 pub fn new_svm_dbc() -> LiteSVM {
     use anchor_lang::solana_program::program_pack::Pack;
     let mut svm = new_svm();
-    svm.add_program(DBC_ID, include_bytes!("../fixtures/dbc/dbc_mainnet.so")).unwrap();
-    svm.add_program(TOKEN_METADATA_ID, include_bytes!("../fixtures/dbc/token_metadata_mainnet.so")).unwrap();
+    svm.add_program(DBC_ID, include_bytes!("../fixtures/dbc/dbc_mainnet.so"))
+        .unwrap();
+    svm.add_program(
+        TOKEN_METADATA_ID,
+        include_bytes!("../fixtures/dbc/token_metadata_mainnet.so"),
+    )
+    .unwrap();
     let mut data = vec![0u8; spl_token::state::Mint::LEN];
-    spl_token::state::Mint { mint_authority: None.into(), supply: 0, decimals: 9, is_initialized: true, freeze_authority: None.into() }
-        .pack_into_slice(&mut data);
+    spl_token::state::Mint {
+        mint_authority: None.into(),
+        supply: 0,
+        decimals: 9,
+        is_initialized: true,
+        freeze_authority: None.into(),
+    }
+    .pack_into_slice(&mut data);
     let lamports = svm.minimum_balance_for_rent_exemption(data.len());
-    svm.set_account(WRAPPED_SOL_MINT, Account { lamports, data, owner: SPL_TOKEN_ID, executable: false, rent_epoch: 0 }).unwrap();
+    svm.set_account(
+        WRAPPED_SOL_MINT,
+        Account {
+            lamports,
+            data,
+            owner: SPL_TOKEN_ID,
+            executable: false,
+            rent_epoch: 0,
+        },
+    )
+    .unwrap();
     svm
 }
 
 impl Env {
     /// Install a DBC config (at `config`) and have the REAL DBC program create a pool + mint for `creator`.
-    pub fn dbc_create_pool(&mut self, config: Pubkey, creator: &Keypair, mint: &Keypair) -> Result<DbcIds, String> {
+    pub fn dbc_create_pool(
+        &mut self,
+        config: Pubkey,
+        creator: &Keypair,
+        mint: &Keypair,
+    ) -> Result<DbcIds, String> {
         let base = mint.pubkey();
-        let (hi, lo) = if base > WRAPPED_SOL_MINT { (base, WRAPPED_SOL_MINT) } else { (WRAPPED_SOL_MINT, base) };
-        let pool = pda(&[b"pool", config.as_ref(), hi.as_ref(), lo.as_ref()], &DBC_ID);
+        let (hi, lo) = if base > WRAPPED_SOL_MINT {
+            (base, WRAPPED_SOL_MINT)
+        } else {
+            (WRAPPED_SOL_MINT, base)
+        };
+        let pool = pda(
+            &[b"pool", config.as_ref(), hi.as_ref(), lo.as_ref()],
+            &DBC_ID,
+        );
         let base_vault = pda(&[b"token_vault", base.as_ref(), pool.as_ref()], &DBC_ID);
-        let quote_vault = pda(&[b"token_vault", WRAPPED_SOL_MINT.as_ref(), pool.as_ref()], &DBC_ID);
-        let metadata = pda(&[b"metadata", TOKEN_METADATA_ID.as_ref(), base.as_ref()], &TOKEN_METADATA_ID);
+        let quote_vault = pda(
+            &[b"token_vault", WRAPPED_SOL_MINT.as_ref(), pool.as_ref()],
+            &DBC_ID,
+        );
+        let metadata = pda(
+            &[b"metadata", TOKEN_METADATA_ID.as_ref(), base.as_ref()],
+            &TOKEN_METADATA_ID,
+        );
         let event_authority = pda(&[b"__event_authority"], &DBC_ID);
         let mut data = vec![140, 85, 215, 176, 102, 54, 104, 79];
         for s in ["Hybrid Test", "HYB", "ipfs://bafytoken"] {
             data.extend_from_slice(&(s.len() as u32).to_le_bytes());
             data.extend_from_slice(s.as_bytes());
         }
-        let m = |k: Pubkey, w: bool, sig: bool| if w { AccountMeta::new(k, sig) } else { AccountMeta::new_readonly(k, sig) };
+        let m = |k: Pubkey, w: bool, sig: bool| {
+            if w {
+                AccountMeta::new(k, sig)
+            } else {
+                AccountMeta::new_readonly(k, sig)
+            }
+        };
         let ix = Instruction {
             program_id: DBC_ID,
             accounts: vec![
@@ -1230,11 +2304,21 @@ impl Env {
         })
     }
 
-    pub fn register_dbc_ix(&self, signer: Pubkey, mint: Pubkey, d: &DbcIds, ratio_whole_tokens: u64, collection_size: u64) -> Instruction {
+    pub fn register_dbc_ix(
+        &self,
+        signer: Pubkey,
+        mint: Pubkey,
+        d: &DbcIds,
+        ratio_whole_tokens: u64,
+        collection_size: u64,
+    ) -> Instruction {
         Instruction::new_with_bytes(
             hybrid_launch::ID,
             &hybrid_launch::instruction::RegisterDbcLaunch {
-                params: hybrid_launch::RegisterDbcParams { ratio_whole_tokens, collection_size },
+                params: hybrid_launch::RegisterDbcParams {
+                    ratio_whole_tokens,
+                    collection_size,
+                },
             }
             .data(),
             hybrid_launch::accounts::RegisterDbcLaunch {
@@ -1246,6 +2330,26 @@ impl Env {
                 buffer_authority: d.buffer_authority,
                 buffer_tokens: d.buffer_tokens,
                 fee_recipient: PLATFORM_FEE_RECIPIENT,
+                token_program: SPL_TOKEN_ID,
+                associated_token_program: ATA_PROGRAM_ID,
+                system_program: system_program::ID,
+            }
+            .to_account_metas(None),
+        )
+    }
+
+    pub fn register_plain_dbc_ix(&self, signer: Pubkey, mint: Pubkey, d: &DbcIds) -> Instruction {
+        Instruction::new_with_bytes(
+            hybrid_launch::ID,
+            &hybrid_launch::instruction::RegisterPlainDbc {}.data(),
+            hybrid_launch::accounts::RegisterPlainDbc {
+                creator: signer,
+                mint,
+                dbc_config: d.config,
+                dbc_pool: d.pool,
+                launch_config: pda(&[b"launch_config", mint.as_ref()], &hybrid_launch::ID),
+                buffer_authority: d.buffer_authority,
+                buffer_tokens: d.buffer_tokens,
                 token_program: SPL_TOKEN_ID,
                 associated_token_program: ATA_PROGRAM_ID,
                 system_program: system_program::ID,
@@ -1267,7 +2371,13 @@ impl Env {
 
     /// DBC's permissionless `withdraw_leftover`: sends the pool's leftover base tokens to
     /// ATA(config.leftover_receiver, mint).
-    pub fn dbc_withdraw_leftover_ix(&self, d: &DbcIds, mint: Pubkey, receiver: Pubkey, receiver_ata: Pubkey) -> Instruction {
+    pub fn dbc_withdraw_leftover_ix(
+        &self,
+        d: &DbcIds,
+        mint: Pubkey,
+        receiver: Pubkey,
+        receiver_ata: Pubkey,
+    ) -> Instruction {
         let event_authority = pda(&[b"__event_authority"], &DBC_ID);
         Instruction {
             program_id: DBC_ID,
@@ -1311,19 +2421,31 @@ pub fn setup_dbc_closed(n: u32) -> (Env, DbcIds) {
         creator: creator.insecure_clone(),
         real_sb: None,
     };
-    env.svm.airdrop(&creator.pubkey(), 1_000_000_000_000).unwrap();
+    env.svm
+        .airdrop(&creator.pubkey(), 1_000_000_000_000)
+        .unwrap();
     let config: Pubkey = DBC_DEVNET_CONFIG.parse().unwrap();
     env.svm
-        .set_account(config, dbc_config_account(buffer_authority(), hybrid_launch::DEFAULT_GRADUATION_THRESHOLD_LAMPORTS))
+        .set_account(
+            config,
+            dbc_config_account(
+                buffer_authority(),
+                hybrid_launch::DEFAULT_GRADUATION_THRESHOLD_LAMPORTS,
+            ),
+        )
         .unwrap();
     let mint = Keypair::new();
-    let d = env.dbc_create_pool(config, &creator, &mint).expect("real DBC initialize_virtual_pool_with_spl_token");
+    let d = env
+        .dbc_create_pool(config, &creator, &mint)
+        .expect("real DBC initialize_virtual_pool_with_spl_token");
     let reg = env.register_dbc_ix(creator.pubkey(), mint.pubkey(), &d, RATIO_WHOLE, n as u64);
     env.send(&[reg], &[&creator]).expect("register_dbc_launch");
     let mut ids = Ids::for_mint(mint.pubkey());
     // Tokens for test users are moved out of DBC's base vault (stands in for buying on the curve).
     ids.launch_destination = d.base_vault;
-    env.ids = env.init_vault_for(ids, n).expect("init_vault on a DBC launch");
+    env.ids = env
+        .init_vault_for(ids, n)
+        .expect("init_vault on a DBC launch");
     env.graduation_proof = d.pool;
     let oracles: Vec<Pubkey> = (0..6).map(|_| Pubkey::new_unique()).collect();
     env.install_queue(&oracles, 3);
@@ -1339,5 +2461,8 @@ pub fn target_artifact(rel: &str) -> String {
 /// hybrid_vault IDL from the production build (`scripts/build.sh` writes `<target>/idl`).
 pub fn vault_idl() -> serde_json::Value {
     let p = target_artifact("idl/hybrid_vault.json");
-    serde_json::from_str(&std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("{p}: {e} (run scripts/build.sh)"))).unwrap()
+    serde_json::from_str(
+        &std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("{p}: {e} (run scripts/build.sh)")),
+    )
+    .unwrap()
 }

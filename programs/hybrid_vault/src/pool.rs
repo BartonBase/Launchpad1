@@ -46,7 +46,10 @@ fn wr_u64(d: &mut [u8], o: usize, v: u64) {
 
 /// Initialise a zeroed, correctly-sized buffer.
 pub fn init(d: &mut [u8], vault: &Pubkey, capacity: u32) -> Result<()> {
-    require!(d.len() == pool_account_size(capacity), VaultError::InvalidPoolAccount);
+    require!(
+        d.len() == pool_account_size(capacity),
+        VaultError::InvalidPoolAccount
+    );
     require!(d[..8] == [0u8; 8], VaultError::InvalidPoolAccount);
     d[..8].copy_from_slice(&POOL_DISCRIMINATOR);
     d[8..40].copy_from_slice(vault.as_ref());
@@ -70,7 +73,10 @@ impl<'a> PoolView<'a> {
         require!(d[..8] == POOL_DISCRIMINATOR, VaultError::InvalidPoolAccount);
         require!(&d[8..40] == vault.as_ref(), VaultError::PoolMismatch);
         let cap = rd_u32(d, 40);
-        require!(d.len() == pool_account_size(cap), VaultError::InvalidPoolAccount);
+        require!(
+            d.len() == pool_account_size(cap),
+            VaultError::InvalidPoolAccount
+        );
         Ok(Self { d, cap })
     }
     pub fn capacity(&self) -> u32 {
@@ -92,7 +98,9 @@ impl<'a> PoolView<'a> {
         POOL_HEADER + 4 * self.cap as usize + INCOMING_ENTRY * ring_i as usize
     }
     fn total(&self) -> Result<u32> {
-        self.pool_len().checked_add(self.incoming_len()).ok_or_else(|| error!(VaultError::MathOverflow))
+        self.pool_len()
+            .checked_add(self.incoming_len())
+            .ok_or_else(|| error!(VaultError::MathOverflow))
     }
 
     pub fn pool_get(&self, i: u32) -> u32 {
@@ -110,7 +118,8 @@ impl<'a> PoolView<'a> {
         POOL_HEADER + 16 * self.cap as usize
     }
     pub fn is_minted(&self, index: u32) -> bool {
-        index < self.cap && self.d[self.bitmap_off() + (index / 8) as usize] & (1 << (index % 8)) != 0
+        index < self.cap
+            && self.d[self.bitmap_off() + (index / 8) as usize] & (1 << (index % 8)) != 0
     }
     /// Set the minted bit for `index`; errors if it was already set (each index is minted at most once).
     pub fn mark_minted(&mut self, index: u32) -> Result<()> {
@@ -123,7 +132,10 @@ impl<'a> PoolView<'a> {
     /// Population count of the bitmap (tests / off-chain audits; O(N/8)).
     pub fn minted_popcount(&self) -> u32 {
         let o = self.bitmap_off();
-        self.d[o..o + (self.cap as usize).div_ceil(8)].iter().map(|b| b.count_ones()).sum()
+        self.d[o..o + (self.cap as usize).div_ceil(8)]
+            .iter()
+            .map(|b| b.count_ones())
+            .sum()
     }
 
     pub fn pool_push(&mut self, asset_index: u32) -> Result<()> {
@@ -217,7 +229,9 @@ mod tests {
         let mut seen = vec![false; cap as usize];
         let mut x: u64 = 7;
         while p.pool_len() > 0 {
-            x = x.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            x = x
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let i = ((x >> 33) % p.pool_len() as u64) as u32;
             let idx = p.pool_swap_remove(i).unwrap();
             assert!(!seen[idx as usize], "index {idx} drawn twice");
@@ -276,7 +290,10 @@ mod tests {
         p.pool_push(0).unwrap();
         p.pool_push(1).unwrap();
         p.incoming_push(2, 99).unwrap();
-        assert!(p.pool_push(0).is_err(), "4th entry in a 3-capacity pool must fail");
+        assert!(
+            p.pool_push(0).is_err(),
+            "4th entry in a 3-capacity pool must fail"
+        );
     }
 
     #[test]

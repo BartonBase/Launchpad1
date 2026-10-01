@@ -1,7 +1,41 @@
 # STATUS: Track A hybrid launch + vault (engineering handoff)
 
-Updated 2026-09-25 (MT). Branch `wip/hybrid-vault`, mirrored to `onchain/hybrid-launch`. The baseline tag
-`audit-baseline-r1` = `a1cfa8f`. **Not audited.** Deployed to **devnet only** (2026-09-25); not on mainnet.
+Updated 2026-10-01. Branch `onchain/hybrid-launch`. **Not audited.** Devnet only. Not mainnet.
+
+## Mode 1 (plain SPL) — 2026-10-01
+
+`hybrid_launch::launch_plain` and `hybrid_launch::register_plain_dbc` write `PlainLaunchConfig`
+(not `LaunchConfig`). Classic SPL, fixed 1B, mint and freeze revoked, no update. The curve path
+accepts only `APPROVED_DBC_CONFIGS`. No ratio, collection, fee transfer, wrap, unwrap, or NFT.
+`hybrid_vault::init_vault` still loads `LaunchConfig` only, so a plain mint cannot open a vault.
+Mode 2 instruction arguments and `LaunchConfig` layout are unchanged. Mode 3 is local-only in this tree
+(`launch_burn`, `register_burn_dbc`, `init_permanent_vault`, `open_permanent_vault`, `wrap_permanent`).
+Wrap burns exactly the ratio and mints the next committed NFT in the same instruction. No release.
+The index is sequential, not a Switchboard draw. Mode 2 unwrap still returns the NFT to inventory.
+Mode 4 is local-only and does not burn. `launch_token22` creates a Token-2022 mint whose only
+extension is a transfer tax of 1..=1000 bps, chosen at launch, with the fee-config authority left
+unset so the rate cannot change. Withheld tax is withdrawn by the vault tax PDA (`harvest_tax`)
+and the program then pays that frozen share itself, NFT 0 then 1 then 2, only to the current
+owner of each. A round does not open until the pot, valued at the locked buyback price, reaches
+the Stonk-style market-cap tier ($50, $200, $250, then 0.1% of market cap, capped at $50,000,
+at 1 SOL = $100). There is no $20 holder minimum and no live price the caller can set. A wallet
+with 10 NFTs that were minted before the freeze receives 10 times one share. An NFT minted after
+the freeze gets none of that round. The crank cannot pick the NFT,
+the amount, the order, or the destination, and there is no admin who can. `buyback` spends
+SOL already on that same PDA to buy tokens from the launch inventory at `buyback_lamports_per_whole`
+(1 lamport to 1 SOL per whole token, also chosen at launch and not updatable). Bought tokens accrue
+to those NFT holders only. `wrap_token22` locks the ratio and mints the NFT; supply does not
+decrease. There is no external DEX swap: the buy is from this launch's own inventory. No Token-2022
+curve register. Mode 5 is a separate launch (`launch_raffle`, `init_raffle_vault`). Same locked
+tax and locked buyback price. When the pot clears the same market-cap tier, the program freezes
+the NFTs that already exist and records each owner before Switchboard is asked for a number.
+One of those NFTs wins the whole pot. Ten NFTs is ten chances, not ten payouts. Buying the
+winning NFT after the number is public does not move the prize. The program picks the oracle,
+accepts only that randomness account, and will not draw again because someone dislikes the
+result. Mode 4 still splits the pot across every minted NFT. Upgrade authority is still the throwaway deployer,
+not the Squads timelock. Not deployed. Local LiteSVM on this tree: launch 30, vault 83, dbc
+graduation 16, real Switchboard 4. Host units: hybrid_launch 19, hybrid_vault 15.
+`qa_launch` and `qa_regression` stay commented out; those files are not on this branch.
 
 ## Done (on top of the baseline)
 - **Economics docs:** ADR-018 records QA-FEE-04 (first-mint cost comes from the escrow; M-06 holds on average). It

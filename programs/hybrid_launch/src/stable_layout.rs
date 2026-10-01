@@ -67,7 +67,10 @@ mod tests {
         assert_eq!(u64_at(LC_OFF_RATIO_BASE), c.ratio_base);
         assert_eq!(u64_at(LC_OFF_COLLECTION_SIZE), c.collection_size);
         assert_eq!(u64_at(LC_OFF_FEE_LAMPORTS), c.fee_lamports);
-        assert_eq!(&buf[LC_OFF_FEE_RECIPIENT..LC_OFF_FEE_RECIPIENT + 32], c.fee_recipient.as_ref());
+        assert_eq!(
+            &buf[LC_OFF_FEE_RECIPIENT..LC_OFF_FEE_RECIPIENT + 32],
+            c.fee_recipient.as_ref()
+        );
         assert_eq!(LC_OFF_FEE_RECIPIENT + 32, LC_STABLE_PREFIX_LEN);
         assert!(buf.len() >= LC_STABLE_PREFIX_LEN);
     }

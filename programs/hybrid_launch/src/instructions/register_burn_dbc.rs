@@ -1,7 +1,7 @@
-//! `register_dbc_launch` (ADR-014): the Meteora DBC curve path. DBC creates the mint itself
+//! `register_burn_dbc` (Mode 3) (ADR-014): the Meteora DBC curve path. DBC creates the mint itself
 //! (`initialize_virtual_pool_with_spl_token` needs `base_mint` as a signer of that transaction: a keypair,
 //! or a PDA of a program that CPIs into DBC). We don't create or own the mint. Instead we VERIFY what DBC
-//! created and bind it to an immutable LaunchConfig:
+//! created and bind it to an immutable BurnLaunchConfig:
 //!
 //! - pool: owner DBC, VirtualPool discriminator + length, `base_mint == mint`, `config == dbc_config`,
 //!   SPL pool type, NOT yet migrated (registration happens before graduation, so the supply check below
@@ -14,7 +14,7 @@
 //! - creates ATA(buffer PDA, mint): DBC's permissionless `withdraw_leftover` sends the unsold buffer there,
 //!   and no instruction can ever sign for it (T-GRAD-03).
 //!
-//! The LaunchConfig PDA is `init` (one registration per mint, and a mint made by native `launch` can't be
+//! The BurnLaunchConfig PDA is `init` (one registration per mint, and a mint made by native `launch` can't be
 //! registered again). `launch_destination` = DBC's base vault and `launch_vault` = DBC's pool authority.
 
 use anchor_lang::{prelude::*, system_program};
@@ -30,18 +30,13 @@ use crate::{
         WRAPPED_SOL_MINT,
     },
     error::LaunchError,
-    state::LaunchConfig,
+    instructions::register_dbc::RegisterDbcParams,
+    state::BurnLaunchConfig,
     validation::{validate, LaunchParams},
 };
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct RegisterDbcParams {
-    pub ratio_whole_tokens: u64,
-    pub collection_size: u64,
-}
-
 #[derive(Accounts)]
-pub struct RegisterDbcLaunch<'info> {
+pub struct RegisterBurnDbc<'info> {
     /// Pays rent; must be the DBC pool's `creator`. Holds no powers afterwards.
     #[account(mut)]
     pub creator: Signer<'info>,
@@ -58,11 +53,11 @@ pub struct RegisterDbcLaunch<'info> {
     #[account(
         init,
         payer = creator,
-        space = 8 + LaunchConfig::INIT_SPACE,
+        space = 8 + BurnLaunchConfig::INIT_SPACE,
         seeds = [LAUNCH_CONFIG_SEED, mint.key().as_ref()],
         bump
     )]
-    pub launch_config: Box<Account<'info, LaunchConfig>>,
+    pub launch_config: Box<Account<'info, BurnLaunchConfig>>,
 
     /// CHECK: data-less PDA `["dbc_buffer"]` (canonical bump). No instruction signs with it.
     #[account(seeds = [DBC_BUFFER_SEED], bump)]
@@ -81,8 +76,8 @@ pub struct RegisterDbcLaunch<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handle_register_dbc_launch(
-    ctx: Context<RegisterDbcLaunch>,
+pub fn handle_register_burn_dbc(
+    ctx: Context<RegisterBurnDbc>,
     params: RegisterDbcParams,
 ) -> Result<()> {
     let a = &ctx.accounts;
@@ -193,10 +188,11 @@ pub fn handle_register_dbc_launch(
         crate::validation::is_exact_tier_fee(amounts.fee_lamports, params.ratio_whole_tokens),
         LaunchError::FeeNotTier
     );
-    ctx.accounts.launch_config.set_inner(LaunchConfig {
-        version: LAUNCH_CONFIG_VERSION,
+    ctx.accounts.launch_config.set_inner(BurnLaunchConfig {
+        version: BURN_LAUNCH_CONFIG_VERSION,
         bump,
         mint_authority_bump: 0,
+        launch_mode: LAUNCH_MODE_BURN,
         creator,
         mint: mint_key,
         launch_destination: pool.base_vault,
@@ -217,7 +213,7 @@ pub fn handle_register_dbc_launch(
         dbc_pool: pool_key,
     });
     msg!(
-        "hybrid_launch: registered DBC pool {} mint {} ratio {} size {}",
+        "hybrid_launch: burn-registered DBC pool {} mint {} ratio {} size {}",
         pool_key,
         mint_key,
         params.ratio_whole_tokens,

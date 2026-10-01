@@ -1,10 +1,12 @@
-//! `launch`: create a Track A classic SPL Token mint with a fixed 1B supply and
-//! an immutable LaunchConfig, in ONE instruction:
+//! `launch_token22` (Mode 4): Token-2022 mint with a transfer tax, fixed 1B supply, in ONE instruction.
+//! The tax rate is chosen here and the fee-config authority is None, so nobody can change it.
+//! The withdraw authority is the vault program's tax PDA. This path does not burn.
+//! an immutable T22BurnLaunchConfig, in ONE instruction:
 //! 1. validate params (ratio set, 100 <= collection_size, collection_size * ratio <= 1B via
 //!    checked_mul, collection_size <= MAX_COLLECTION_SIZE; the flat SOL fee is looked up from the
 //!    ratio tier table, never supplied; there is no token fee, ADR-013);
-//! 2. create the 82-byte mint account owned by the CLASSIC Token program
-//!    (`token_program: Program<Token>` rejects Token-2022: INV-13). Pre-funded
+//! 2. create the base-length mint account owned by the Token-2022 program.
+//!    No extension account is initialized. `Program<Token2022>` rejects classic SPL. Pre-funded
 //!    but empty system accounts are tolerated like the ATA program does
 //!    (transfer top-up + allocate + assign), so 1 lamport can't grief a launch
 //!    (QA-HL-01). Anything with data or a non-system owner is rejected;
@@ -13,7 +15,8 @@
 //!    owner is NOT caller-chosen and no instruction signs for it (QA-HL-02);
 //! 5. mint exactly 1_000_000_000 * 10^decimals;
 //! 6. SetAuthority(MintTokens -> None);
-//! 7. re-read the mint and assert supply/authorities; write LaunchConfig.
+//! 7. re-read the mint and assert supply/authorities; write T22BurnLaunchConfig.
+//! No transfer fee, freeze, permanent delegate, or transfer hook. Modes 1-3 are unchanged.
 
 use anchor_lang::{
     prelude::*,
@@ -21,21 +24,32 @@ use anchor_lang::{
 };
 use anchor_spl::{
     associated_token::{self, get_associated_token_address_with_program_id, AssociatedToken},
-    token::{
-        self, spl_token::instruction::AuthorityType, InitializeMint2, Mint, MintTo, SetAuthority,
-        Token,
+    token_2022::{
+        self as token_2022, spl_token_2022, InitializeMint2, MintTo, SetAuthority, Token2022,
     },
 };
 
 use crate::{
     constants::*,
     error::LaunchError,
-    state::LaunchConfig,
+    state::T22BurnLaunchConfig,
     validation::{validate, LaunchParams},
 };
 
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
+pub struct TaxLaunchParams {
+    pub decimals: u8,
+    pub ratio_whole_tokens: u64,
+    pub collection_size: u64,
+    pub graduation_threshold_lamports: u64,
+    /// Transfer tax in basis points. 1..=1000. Locked by a None config authority.
+    pub tax_bps: u16,
+    /// Lamports per whole token for the inventory buyback. 1..=1 SOL. Locked at launch.
+    pub buyback_lamports_per_whole: u64,
+}
+
 #[derive(Accounts)]
-pub struct Launch<'info> {
+pub struct LaunchToken22<'info> {
     /// Pays rent. Recorded as `creator`; holds no powers.
     #[account(mut)]
     pub creator: Signer<'info>,
@@ -50,11 +64,11 @@ pub struct Launch<'info> {
     #[account(
         init,
         payer = creator,
-        space = 8 + LaunchConfig::INIT_SPACE,
+        space = 8 + T22BurnLaunchConfig::INIT_SPACE,
         seeds = [LAUNCH_CONFIG_SEED, mint.key().as_ref()],
         bump
     )]
-    pub launch_config: Account<'info, LaunchConfig>,
+    pub launch_config: Account<'info, T22BurnLaunchConfig>,
 
     /// CHECK: data-less PDA (canonical bump verified); temporary mint authority.
     #[account(seeds = [MINT_AUTHORITY_SEED, launch_config.key().as_ref()], bump)]
@@ -75,13 +89,40 @@ pub struct Launch<'info> {
     #[account(address = PLATFORM_FEE_RECIPIENT @ LaunchError::FeeRecipientInvalid)]
     pub fee_recipient: UncheckedAccount<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Program<'info, Token2022>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
 }
 
-pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
-    let amounts = validate(&params)?;
+pub fn handle_launch_token22(ctx: Context<LaunchToken22>, params: TaxLaunchParams) -> Result<()> {
+    handle_launch_tax(ctx, params, LAUNCH_MODE_TOKEN22)
+}
+
+pub fn handle_launch_tax(
+    ctx: Context<LaunchToken22>,
+    params: TaxLaunchParams,
+    launch_mode: u8,
+) -> Result<()> {
+    require!(
+        launch_mode == LAUNCH_MODE_TOKEN22 || launch_mode == LAUNCH_MODE_RAFFLE,
+        LaunchError::PostLaunchCheckFailed
+    );
+    require!(
+        (MIN_TAX_BPS..=MAX_TAX_BPS).contains(&params.tax_bps),
+        LaunchError::TaxBpsNotAllowed
+    );
+    require!(
+        (MIN_BUYBACK_LAMPORTS_PER_WHOLE..=MAX_BUYBACK_LAMPORTS_PER_WHOLE)
+            .contains(&params.buyback_lamports_per_whole),
+        LaunchError::BuybackPriceNotAllowed
+    );
+    let lp = LaunchParams {
+        decimals: params.decimals,
+        ratio_whole_tokens: params.ratio_whole_tokens,
+        collection_size: params.collection_size,
+        graduation_threshold_lamports: params.graduation_threshold_lamports,
+    };
+    let amounts = validate(&lp)?;
     {
         let r = ctx.accounts.fee_recipient.to_account_info();
         require_keys_eq!(
@@ -114,12 +155,27 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
         LaunchError::InvalidLaunchDestination
     );
 
-    // 2. Classic SPL mint account (82 bytes).
-    let space = <anchor_spl::token::spl_token::state::Mint as anchor_lang::solana_program::program_pack::Pack>::LEN;
-    create_mint_account(&ctx, space, &token_program_id)?;
+    // Token-2022 mint sized for TransferFeeConfig only.
+    let space = crate::t22::tax_mint_len();
+    create_token22_mint_account(&ctx, space, &token_program_id)?;
 
-    // 3. Freeze authority is never set.
-    token::initialize_mint2(
+    let (tax_authority, _) =
+        Pubkey::find_program_address(&[TAX_AUTHORITY_SEED, mint_key.as_ref()], &HYBRID_VAULT_ID);
+    let init_fee = anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::instruction::initialize_transfer_fee_config(
+        &token_program_id,
+        &mint_key,
+        None,
+        Some(&tax_authority),
+        params.tax_bps,
+        amounts.total_supply_base,
+    )?;
+    anchor_lang::solana_program::program::invoke(
+        &init_fee,
+        &[ctx.accounts.mint.to_account_info()],
+    )?;
+
+    // Freeze authority is never set. Fee-config authority was never set, so the rate is locked.
+    token_2022::initialize_mint2(
         CpiContext::new(
             token_program_id,
             InitializeMint2 {
@@ -148,7 +204,7 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
     let bump = ctx.bumps.mint_authority;
     let seeds: &[&[u8]] = &[MINT_AUTHORITY_SEED, config_key.as_ref(), &[bump]];
     let signer = &[seeds];
-    token::mint_to(
+    token_2022::mint_to(
         CpiContext::new_with_signer(
             token_program_id,
             MintTo {
@@ -160,7 +216,7 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
         ),
         amounts.total_supply_base,
     )?;
-    token::set_authority(
+    token_2022::set_authority(
         CpiContext::new_with_signer(
             token_program_id,
             SetAuthority {
@@ -169,7 +225,7 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
             },
             signer,
         ),
-        AuthorityType::MintTokens,
+        spl_token_2022::instruction::AuthorityType::MintTokens,
         None,
     )?;
 
@@ -178,32 +234,35 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
         let info = ctx.accounts.mint.to_account_info();
         require_keys_eq!(
             *info.owner,
-            SPL_TOKEN_PROGRAM_ID,
+            spl_token_2022::ID,
             LaunchError::PostLaunchCheckFailed
         );
         let data = info.try_borrow_data()?;
-        let mint = Mint::try_deserialize(&mut &data[..])?;
+        let mint = crate::t22::read_tax_mint(&data)?;
         require!(
             mint.supply == amounts.total_supply_base
                 && mint.decimals == params.decimals
-                && mint.mint_authority.is_none()
-                && mint.freeze_authority.is_none(),
+                && mint.mint_authority_none
+                && mint.freeze_authority_none
+                && mint.config_authority_none
+                && mint.tax_bps == params.tax_bps
+                && mint.maximum_fee == amounts.total_supply_base
+                && mint.withdraw_authority == tax_authority,
             LaunchError::PostLaunchCheckFailed
         );
         let dest = ctx.accounts.launch_destination.to_account_info();
         require_keys_eq!(
             *dest.owner,
-            SPL_TOKEN_PROGRAM_ID,
+            spl_token_2022::ID,
             LaunchError::PostLaunchCheckFailed
         );
-        let d =
-            anchor_spl::token::TokenAccount::try_deserialize(&mut &dest.try_borrow_data()?[..])?;
+        let d = crate::t22::read_token_account(&dest.try_borrow_data()?)?;
         require!(
             d.owner == ctx.accounts.launch_vault.key()
                 && d.mint == mint_key
                 && d.amount == amounts.total_supply_base
-                && d.delegate.is_none()
-                && d.close_authority.is_none(),
+                && d.delegate_none
+                && d.close_none,
             LaunchError::PostLaunchCheckFailed
         );
     }
@@ -213,10 +272,11 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
         crate::validation::is_exact_tier_fee(amounts.fee_lamports, params.ratio_whole_tokens),
         LaunchError::FeeNotTier
     );
-    ctx.accounts.launch_config.set_inner(LaunchConfig {
-        version: LAUNCH_CONFIG_VERSION,
+    ctx.accounts.launch_config.set_inner(T22BurnLaunchConfig {
+        version: T22_BURN_LAUNCH_CONFIG_VERSION,
         bump: ctx.bumps.launch_config,
         mint_authority_bump: bump,
+        launch_mode,
         creator: ctx.accounts.creator.key(),
         mint: mint_key,
         launch_destination: ctx.accounts.launch_destination.key(),
@@ -235,14 +295,16 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
         launched_at: Clock::get()?.unix_timestamp,
         dbc_config: Pubkey::default(),
         dbc_pool: Pubkey::default(),
+        tax_bps: params.tax_bps,
+        tax_authority,
+        buyback_lamports_per_whole: params.buyback_lamports_per_whole,
     });
 
     msg!(
-        "hybrid_launch: mint {} supply {} ratio {} size {}",
+        "hybrid_launch: token22 mint {} tax {}bps supply {}",
         mint_key,
-        amounts.total_supply_base,
-        params.ratio_whole_tokens,
-        params.collection_size
+        params.tax_bps,
+        amounts.total_supply_base
     );
     Ok(())
 }
@@ -252,8 +314,8 @@ pub fn handle_launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
 /// lamports is topped up to rent-exempt, allocated and assigned (the mint
 /// keypair signs the tx, so allocate/assign are authorised). Otherwise a plain
 /// `create_account`. An account with data or any non-system owner is rejected.
-fn create_mint_account(
-    ctx: &Context<Launch>,
+fn create_token22_mint_account(
+    ctx: &Context<LaunchToken22>,
     space: usize,
     token_program_id: &Pubkey,
 ) -> Result<()> {
@@ -315,6 +377,131 @@ fn create_mint_account(
             },
         ),
         token_program_id,
+    )?;
+    Ok(())
+}
+
+/// Spend SOL already on the tax PDA to buy tokens from this launch's inventory.
+/// Destination is the tax treasury ATA only. Price is the value stored at launch.
+#[derive(Accounts)]
+pub struct BuyInventory<'info> {
+    #[account(
+        mut,
+        seeds = [LAUNCH_CONFIG_SEED, mint.key().as_ref()],
+        bump = launch_config.bump,
+        has_one = mint,
+        has_one = launch_vault,
+        has_one = launch_destination,
+        has_one = tax_authority,
+    )]
+    pub launch_config: Box<Account<'info, T22BurnLaunchConfig>>,
+
+    /// CHECK: Token-2022 mint created by this launch.
+    pub mint: UncheckedAccount<'info>,
+
+    /// CHECK: inventory owner. Signs the token sale only, and only to the tax treasury.
+    #[account(
+        mut,
+        seeds = [LAUNCH_VAULT_SEED, mint.key().as_ref(), launch_config.key().as_ref()],
+        bump = launch_config.launch_vault_bump
+    )]
+    pub launch_vault: UncheckedAccount<'info>,
+
+    /// CHECK: launch inventory ATA.
+    #[account(mut)]
+    pub launch_destination: UncheckedAccount<'info>,
+
+    /// CHECK: ATA(tax_authority, mint). Not caller-chosen.
+    #[account(mut)]
+    pub treasury: UncheckedAccount<'info>,
+
+    /// Vault tax PDA. Must sign. Only hybrid_vault can. Writable because it pays the SOL.
+    #[account(mut)]
+    pub tax_authority: Signer<'info>,
+
+    pub token_program: Program<'info, Token2022>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn handle_buy_inventory(ctx: Context<BuyInventory>, sol_amount: u64) -> Result<()> {
+    let cfg = &ctx.accounts.launch_config;
+    require!(
+        cfg.launch_mode == LAUNCH_MODE_TOKEN22 || cfg.launch_mode == LAUNCH_MODE_RAFFLE,
+        LaunchError::PostLaunchCheckFailed
+    );
+    let price = cfg.buyback_lamports_per_whole;
+    require!(price > 0, LaunchError::BuybackPriceNotAllowed);
+    let token_program_id = ctx.accounts.token_program.key();
+    require_keys_eq!(
+        ctx.accounts.treasury.key(),
+        get_associated_token_address_with_program_id(
+            &ctx.accounts.tax_authority.key(),
+            &ctx.accounts.mint.key(),
+            &token_program_id
+        ),
+        LaunchError::InvalidLaunchDestination
+    );
+    let inventory =
+        crate::t22::read_token_account(&ctx.accounts.launch_destination.try_borrow_data()?)
+            .map_err(|_| error!(LaunchError::ExtensionsNotAllowed))?;
+    require!(
+        inventory.owner == cfg.launch_vault && inventory.mint == cfg.mint,
+        LaunchError::PostLaunchCheckFailed
+    );
+    let unit = 10u64
+        .checked_pow(cfg.decimals as u32)
+        .ok_or(LaunchError::MathOverflow)?;
+    let whole_cap = inventory.amount / unit;
+    let whole = sol_amount
+        .checked_div(price)
+        .ok_or(LaunchError::MathOverflow)?;
+    let whole = whole.min(whole_cap);
+    if whole == 0 {
+        return Ok(());
+    }
+    let base = whole.checked_mul(unit).ok_or(LaunchError::MathOverflow)?;
+    let sol_spent = whole.checked_mul(price).ok_or(LaunchError::MathOverflow)?;
+    let epoch = Clock::get()?.epoch;
+    let fee = crate::t22::transfer_fee(&ctx.accounts.mint.try_borrow_data()?, epoch, base)?;
+    system_program::transfer(
+        CpiContext::new(
+            ctx.accounts.system_program.key(),
+            Transfer {
+                from: ctx.accounts.tax_authority.to_account_info(),
+                to: ctx.accounts.launch_vault.to_account_info(),
+            },
+        ),
+        sol_spent,
+    )?;
+    let bump = cfg.launch_vault_bump;
+    let mint_key = ctx.accounts.mint.key();
+    let config_key = ctx.accounts.launch_config.key();
+    let seeds: &[&[u8]] = &[
+        LAUNCH_VAULT_SEED,
+        mint_key.as_ref(),
+        config_key.as_ref(),
+        &[bump],
+    ];
+    let ix = spl_token_2022::extension::transfer_fee::instruction::transfer_checked_with_fee(
+        &token_program_id,
+        &ctx.accounts.launch_destination.key(),
+        &mint_key,
+        &ctx.accounts.treasury.key(),
+        &ctx.accounts.launch_vault.key(),
+        &[],
+        base,
+        cfg.decimals,
+        fee,
+    )?;
+    anchor_lang::solana_program::program::invoke_signed(
+        &ix,
+        &[
+            ctx.accounts.launch_destination.to_account_info(),
+            ctx.accounts.mint.to_account_info(),
+            ctx.accounts.treasury.to_account_info(),
+            ctx.accounts.launch_vault.to_account_info(),
+        ],
+        &[seeds],
     )?;
     Ok(())
 }

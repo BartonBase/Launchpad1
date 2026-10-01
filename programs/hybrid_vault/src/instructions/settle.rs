@@ -8,7 +8,12 @@
 //! No tokens move here: the ratio and fee were paid at request time (ADR-013); there is no burn (A-07).
 
 use crate::{
-    asset_source, config, constants::*, error::VaultError, invariants, pool::PoolView, selection,
+    asset_source, config,
+    constants::*,
+    error::VaultError,
+    invariants,
+    pool::PoolView,
+    selection,
     state::{RandLock, Request, Vault},
 };
 use anchor_lang::prelude::*;
@@ -78,12 +83,22 @@ pub struct Settle<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handle_settle(ctx: Context<Settle>, expected_kind: u8, mint: Option<asset_source::MintArgs>) -> Result<()> {
+pub fn handle_settle(
+    ctx: Context<Settle>,
+    expected_kind: u8,
+    mint: Option<asset_source::MintArgs>,
+) -> Result<()> {
     let vault_key = ctx.accounts.vault.key();
     let req = &ctx.accounts.request;
     require!(req.kind == expected_kind, VaultError::WrongRequestKind);
-    require!(req.seq == ctx.accounts.vault.next_settle_seq, VaultError::OutOfOrder);
-    require!(ctx.accounts.rand_lock.seq == req.seq && ctx.accounts.rand_lock.vault == vault_key, VaultError::RandomnessMismatch);
+    require!(
+        req.seq == ctx.accounts.vault.next_settle_seq,
+        VaultError::OutOfOrder
+    );
+    require!(
+        ctx.accounts.rand_lock.seq == req.seq && ctx.accounts.rand_lock.vault == vault_key,
+        VaultError::RandomnessMismatch
+    );
     require!(req.revealed, VaultError::RandomnessNotRevealed);
     let value = req.value;
     let econ = config::exit_view(&ctx.accounts.launch_config.to_account_info())?;
@@ -109,7 +124,11 @@ pub fn handle_settle(ctx: Context<Settle>, expected_kind: u8, mint: Option<asset
         picked
     };
     let (expected_asset, _) = asset_source::asset_address(&vault_key, picked_index);
-    require_keys_eq!(ctx.accounts.asset.key(), expected_asset, VaultError::WrongAsset);
+    require_keys_eq!(
+        ctx.accounts.asset.key(),
+        expected_asset,
+        VaultError::WrongAsset
+    );
 
     let already_minted = {
         let mut data = ctx.accounts.pool.try_borrow_mut_data()?;
@@ -130,9 +149,22 @@ pub fn handle_settle(ctx: Context<Settle>, expected_kind: u8, mint: Option<asset
         )?;
     } else {
         let m = mint.ok_or_else(|| error!(VaultError::MintArgsMissing))?;
-        asset_source::check_leaf(&a.vault.trait_root, &a.vault.trait_schema_hash, &a.vault.launch_config, econ.collection_size, picked_index, &m.leaf, &m.proof)?;
+        asset_source::check_leaf(
+            &a.vault.trait_root,
+            &a.vault.trait_schema_hash,
+            &a.vault.launch_config,
+            econ.collection_size,
+            picked_index,
+            &m.leaf,
+            &m.proof,
+        )?;
         let seq_le = seq.to_le_bytes();
-        let escrow_seeds: &[&[u8]] = &[MINT_ESCROW_SEED, vault_key.as_ref(), &seq_le, &[ctx.bumps.mint_escrow]];
+        let escrow_seeds: &[&[u8]] = &[
+            MINT_ESCROW_SEED,
+            vault_key.as_ref(),
+            &seq_le,
+            &[ctx.bumps.mint_escrow],
+        ];
         asset_source::mint_to_user(
             &a.mpl_core_program.to_account_info(),
             &a.asset.to_account_info(),
@@ -152,30 +184,66 @@ pub fn handle_settle(ctx: Context<Settle>, expected_kind: u8, mint: Option<asset
         let mut data = ctx.accounts.pool.try_borrow_mut_data()?;
         PoolView::load(&mut data, &vault_key)?.mark_minted(picked_index)?;
         let v = &mut ctx.accounts.vault;
-        v.minted_count = v.minted_count.checked_add(1).ok_or_else(|| error!(VaultError::MathOverflow))?;
+        v.minted_count = v
+            .minted_count
+            .checked_add(1)
+            .ok_or_else(|| error!(VaultError::MathOverflow))?;
     }
 
     {
         // Whatever the escrow still holds (all of it on the transfer path) goes back to the user.
         let a = &ctx.accounts;
         let seq_le = seq.to_le_bytes();
-        let escrow_seeds: &[&[u8]] = &[MINT_ESCROW_SEED, vault_key.as_ref(), &seq_le, &[ctx.bumps.mint_escrow]];
-        asset_source::refund_escrow(&a.mint_escrow.to_account_info(), &a.user.to_account_info(), &a.system_program.to_account_info(), escrow_seeds)?;
+        let escrow_seeds: &[&[u8]] = &[
+            MINT_ESCROW_SEED,
+            vault_key.as_ref(),
+            &seq_le,
+            &[ctx.bumps.mint_escrow],
+        ];
+        asset_source::refund_escrow(
+            &a.mint_escrow.to_account_info(),
+            &a.user.to_account_info(),
+            &a.system_program.to_account_info(),
+            escrow_seeds,
+        )?;
     }
     ctx.accounts.request.mint_escrow_lamports = 0;
 
     let v = &mut ctx.accounts.vault;
-    v.next_settle_seq = seq.checked_add(1).ok_or_else(|| error!(VaultError::MathOverflow))?;
-    v.assets_outside = v.assets_outside.checked_add(1).ok_or_else(|| error!(VaultError::MathOverflow))?;
+    v.next_settle_seq = seq
+        .checked_add(1)
+        .ok_or_else(|| error!(VaultError::MathOverflow))?;
+    v.assets_outside = v
+        .assets_outside
+        .checked_add(1)
+        .ok_or_else(|| error!(VaultError::MathOverflow))?;
     if expected_kind == REQUEST_KIND_CAPTURE {
-        v.pending_captures = v.pending_captures.checked_sub(1).ok_or_else(|| error!(VaultError::MathOverflow))?;
-        v.total_captures = v.total_captures.checked_add(1).ok_or_else(|| error!(VaultError::MathOverflow))?;
+        v.pending_captures = v
+            .pending_captures
+            .checked_sub(1)
+            .ok_or_else(|| error!(VaultError::MathOverflow))?;
+        v.total_captures = v
+            .total_captures
+            .checked_add(1)
+            .ok_or_else(|| error!(VaultError::MathOverflow))?;
     } else {
-        v.pending_rerolls = v.pending_rerolls.checked_sub(1).ok_or_else(|| error!(VaultError::MathOverflow))?;
-        v.total_rerolls = v.total_rerolls.checked_add(1).ok_or_else(|| error!(VaultError::MathOverflow))?;
+        v.pending_rerolls = v
+            .pending_rerolls
+            .checked_sub(1)
+            .ok_or_else(|| error!(VaultError::MathOverflow))?;
+        v.total_rerolls = v
+            .total_rerolls
+            .checked_add(1)
+            .ok_or_else(|| error!(VaultError::MathOverflow))?;
     }
 
     let mut data = ctx.accounts.pool.try_borrow_mut_data()?;
     let pool = PoolView::load(&mut data, &vault_key)?;
-    invariants::check(&ctx.accounts.vault, econ.ratio_base, econ.collection_size, &pool, ctx.accounts.vault_tokens.amount)
+    invariants::check(
+        &ctx.accounts.vault,
+        econ.ratio_base,
+        econ.collection_size,
+        &pool,
+        ctx.accounts.vault_tokens.amount,
+    )
 }

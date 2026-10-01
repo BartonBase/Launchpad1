@@ -13,7 +13,9 @@
 //!   deadline. No fee is refunded; see `expire_request` for the principal-only last resort.
 
 use crate::{
-    constants::*, error::VaultError, randomness::{self, RevealArgs},
+    constants::*,
+    error::VaultError,
+    randomness::{self, RevealArgs},
     state::{RandLock, Request, Vault},
 };
 use anchor_lang::prelude::*;
@@ -63,7 +65,11 @@ pub struct InitRandomness<'info> {
 
 pub fn handle_init_randomness(ctx: Context<InitRandomness>, recent_slot: u64) -> Result<()> {
     let vault_key = ctx.accounts.vault.key();
-    let seeds: &[&[u8]] = &[RANDOMNESS_AUTHORITY_SEED, vault_key.as_ref(), &[ctx.accounts.vault.randomness_authority_bump]];
+    let seeds: &[&[u8]] = &[
+        RANDOMNESS_AUTHORITY_SEED,
+        vault_key.as_ref(),
+        &[ctx.accounts.vault.randomness_authority_bump],
+    ];
     let a = &ctx.accounts;
     let accounts = [
         a.randomness.to_account_info(),
@@ -80,7 +86,12 @@ pub fn handle_init_randomness(ctx: Context<InitRandomness>, recent_slot: u64) ->
         a.sb_lut.to_account_info(),
         a.address_lookup_table_program.to_account_info(),
     ];
-    randomness::init_account(&accounts, recent_slot, &a.switchboard_program.to_account_info(), seeds)
+    randomness::init_account(
+        &accounts,
+        recent_slot,
+        &a.switchboard_program.to_account_info(),
+        seeds,
+    )
 }
 
 #[derive(Accounts)]
@@ -130,13 +141,23 @@ pub struct RevealRandomness<'info> {
 pub fn handle_reveal_randomness(ctx: Context<RevealRandomness>, args: RevealArgs) -> Result<()> {
     let vault_key = ctx.accounts.vault.key();
     let seed_slot = ctx.accounts.request.seed_slot;
-    require!(!ctx.accounts.request.revealed, VaultError::RandomnessAlreadyRevealed);
+    require!(
+        !ctx.accounts.request.revealed,
+        VaultError::RandomnessAlreadyRevealed
+    );
     {
         let snap = randomness::read(&ctx.accounts.randomness)?;
         require!(snap.seed_slot == seed_slot, VaultError::RandomnessMismatch);
-        require!(!randomness::is_revealed(&snap, seed_slot), VaultError::RandomnessAlreadyRevealed);
+        require!(
+            !randomness::is_revealed(&snap, seed_slot),
+            VaultError::RandomnessAlreadyRevealed
+        );
     }
-    let seeds: &[&[u8]] = &[RANDOMNESS_AUTHORITY_SEED, vault_key.as_ref(), &[ctx.accounts.vault.randomness_authority_bump]];
+    let seeds: &[&[u8]] = &[
+        RANDOMNESS_AUTHORITY_SEED,
+        vault_key.as_ref(),
+        &[ctx.accounts.vault.randomness_authority_bump],
+    ];
     let a = &ctx.accounts;
     let accounts = [
         a.randomness.to_account_info(),
@@ -152,9 +173,17 @@ pub fn handle_reveal_randomness(ctx: Context<RevealRandomness>, args: RevealArgs
         a.wrapped_sol_mint.to_account_info(),
         a.sb_program_state.to_account_info(),
     ];
-    randomness::reveal(&accounts, &args, &a.switchboard_program.to_account_info(), seeds)?;
+    randomness::reveal(
+        &accounts,
+        &args,
+        &a.switchboard_program.to_account_info(),
+        seeds,
+    )?;
     let snap = randomness::read(&a.randomness)?;
-    require!(randomness::is_revealed(&snap, seed_slot), VaultError::RandomnessNotRevealed);
+    require!(
+        randomness::is_revealed(&snap, seed_slot),
+        VaultError::RandomnessNotRevealed
+    );
     let r = &mut ctx.accounts.request;
     r.revealed = true;
     r.value = snap.value;
@@ -194,14 +223,27 @@ pub fn handle_recommit_randomness(ctx: Context<RecommitRandomness>) -> Result<()
     require!(slot > req.deadline_slot, VaultError::DeadlineNotReached);
     require!(req.commits <= MAX_RECOMMITS, VaultError::RecommitsExhausted);
     let oracle = ctx.accounts.sb_oracle.key();
-    require!(!req.oracles[..req.commits as usize].contains(&oracle), VaultError::OracleReused);
+    require!(
+        !req.oracles[..req.commits as usize].contains(&oracle),
+        VaultError::OracleReused
+    );
     {
         let snap = randomness::read(&ctx.accounts.randomness)?;
-        require!(snap.seed_slot == req.seed_slot, VaultError::RandomnessMismatch);
-        require!(!randomness::is_revealed(&snap, req.seed_slot), VaultError::RandomnessAlreadyRevealed);
+        require!(
+            snap.seed_slot == req.seed_slot,
+            VaultError::RandomnessMismatch
+        );
+        require!(
+            !randomness::is_revealed(&snap, req.seed_slot),
+            VaultError::RandomnessAlreadyRevealed
+        );
     }
     let vault_key = ctx.accounts.vault.key();
-    let seeds: &[&[u8]] = &[RANDOMNESS_AUTHORITY_SEED, vault_key.as_ref(), &[ctx.accounts.vault.randomness_authority_bump]];
+    let seeds: &[&[u8]] = &[
+        RANDOMNESS_AUTHORITY_SEED,
+        vault_key.as_ref(),
+        &[ctx.accounts.vault.randomness_authority_bump],
+    ];
     let a = &ctx.accounts;
     let used: Vec<Pubkey> = a.request.oracles[..a.request.commits as usize].to_vec();
     let seed_slot = randomness::commit_for_request(
@@ -220,11 +262,19 @@ pub fn handle_recommit_randomness(ctx: Context<RecommitRandomness>) -> Result<()
     )?;
     let r = &mut ctx.accounts.request;
     r.seed_slot = seed_slot;
-    r.deadline_slot = slot.checked_add(REVEAL_TIMEOUT_SLOTS).ok_or_else(|| error!(VaultError::MathOverflow))?;
+    r.deadline_slot = slot
+        .checked_add(REVEAL_TIMEOUT_SLOTS)
+        .ok_or_else(|| error!(VaultError::MathOverflow))?;
     let k = r.commits as usize;
     r.oracles[k] = oracle;
-    r.commits = r.commits.checked_add(1).ok_or_else(|| error!(VaultError::MathOverflow))?;
+    r.commits = r
+        .commits
+        .checked_add(1)
+        .ok_or_else(|| error!(VaultError::MathOverflow))?;
     let v = &mut ctx.accounts.vault;
-    v.total_recommits = v.total_recommits.checked_add(1).ok_or_else(|| error!(VaultError::MathOverflow))?;
+    v.total_recommits = v
+        .total_recommits
+        .checked_add(1)
+        .ok_or_else(|| error!(VaultError::MathOverflow))?;
     Ok(())
 }
