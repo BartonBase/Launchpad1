@@ -9,11 +9,14 @@ export async function StatsStrip() {
   const [launches, plains] = await Promise.all([cachedRead("launches", 30_000, fetchLaunches), cachedRead("plain-launches", 20_000, fetchPlainLaunches)]);
   const hy = launches.ok ? launches.value.filter(isHybridListed) : null;
   const pl = plains.ok ? plains.value.filter((p) => isListed(p.name, p.mint)) : null;
-  const pools = [...(hy ?? []).map((l) => l.dbcPool), ...(pl ?? []).map((p) => p.curve.pool)].filter((p): p is string => !!p);
+  const pools = [
+    ...(hy ?? []).filter((l) => l.dbcPool).map((l) => ({ pool: l.dbcPool!, hybrid: true, vaultOpen: l.vaultOpen })),
+    ...(pl ?? []).map((p) => ({ pool: p.curve.pool, hybrid: false, vaultOpen: false })),
+  ];
   const trades = hy && pl ? await cachedRead(`curve-trades:${pools.length}`, 300_000, (c) => countCurveTrades(c, pools)) : null;
   const items: [string, string, string][] = [
     ["Tokens launched", hy && pl ? String(hy.length + pl.length) : "—", "Launch and Hybrid tokens listed on Armory"],
-    ["Curve trades", trades?.ok ? String(trades.value) : "—", "Buys and sells on the bonding curves, read from chain"],
+    ["Curve trades", trades?.ok ? String(trades.value) : "—", "Buys and sells on the bonding curves after launch, read from chain"],
     ["NFTs captured", hy ? String(hy.reduce((n, l) => n + Number(l.totalCaptures), 0)) : "—", "Captures recorded by the Hybrid vaults"],
   ];
   return (

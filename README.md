@@ -5,7 +5,7 @@
 <h1 align="center">Armory</h1>
 
 <p align="center">
-  <strong>Launch a Solana meme coin on a fair bonding curve, then graduate it to a locked Meteora pool.</strong>
+  <strong>Launch a Solana meme coin on a fair Meteora bonding curve, with an NFT collection built in if you want one.</strong>
 </p>
 
 <p align="center">
@@ -36,8 +36,14 @@ transaction. The coin trades on a **Meteora Dynamic Bonding Curve (DBC)**, where
 the curve raises its SOL target, the coin **graduates**: its liquidity moves into a **Meteora DAMM v2** pool with the
 LP permanently locked, and trading carries on from the same trade panel.
 
-Next on the roadmap is **Hybrid**: a coin with an NFT collection built in, where a fixed number of tokens converts
-into one NFT and the NFT always converts back into exactly that many tokens.
+**Hybrid** launches are live on devnet too: the coin comes with an NFT collection built in. After graduation, a
+fixed number of tokens (say 1,000,000) converts into one random NFT from the collection, and that NFT always converts
+back into exactly the same number of tokens. Randomness comes from Switchboard, so nobody can pick the rare pieces.
+
+**Try it:** open the two demo collections on the live site, [Forge Gems](https://armory-ten.vercel.app/t/PyngwuDKX8ZDfsY91wVXgX78fFmz4w9F6Zc7tjBdMMU)
+(GEMS) and [Shieldwall](https://armory-ten.vercel.app/t/5VVsjp6oKi3mcSKb5YnvQ1MWZBPejqC57RLTqSy33ryE) (SHLD). Both
+graduated on devnet and have minted NFTs. Connect a devnet wallet, buy some tokens, convert 1,000,000 of them into an
+NFT, re-roll it, or release it back to tokens.
 
 ## Features
 
@@ -47,6 +53,9 @@ into one NFT and the NFT always converts back into exactly that many tokens.
   and Meteora's protocol fee are all shown before you sign. The panel switches from the curve to the DAMM v2 pool
   automatically.
 - **Live progress.** A progress bar shows SOL raised against the curve's graduation target, then the migrated pool.
+- **Hybrid: coin and NFT, both ways.** Capture (tokens → a random NFT), re-roll (swap your NFT for another random
+  one) and release (NFT → exactly the ratio in tokens). NFTs are Metaplex Core and are minted only when first captured.
+  Art and metadata are uploaded from the browser to Irys.
 - **Explore and portfolio.** Browse every launch read from chain, search by name or mint, and see your holdings.
 - **Transaction safety pipeline.** Every transaction goes through a program allowlist, a simulation and a readable
   preview before an explicit confirm. Only then does your wallet sign. The app never holds private keys.
@@ -82,6 +91,9 @@ flowchart LR
    the config. (On mainnet Meteora's keepers do this automatically; on devnet we call the permissionless migration
    ourselves.)
 4. **Trade after graduation.** The trade panel switches to the DAMM v2 pool with its own quotes and price impact.
+5. **Hybrid NFTs (Hybrid launches only).** Armory's vault opens only after it checks on-chain that the curve really
+   migrated. Then anyone can lock the ratio of tokens to get a random NFT (Switchboard randomness), re-roll it for a
+   small flat fee, or release it for exactly the ratio back. The vault holds the locked tokens; there is no admin withdraw, only release by an NFT holder.
 
 Every address, the live config values and the exact code paths are on the in-app **How it works** page
 ([`/meteora`](https://armory-ten.vercel.app/meteora)). The full devnet proof (launch, buys, sells, graduation and
@@ -157,10 +169,12 @@ variables and the transaction safety pipeline. To build and test the on-chain pr
 | --- | --- |
 | **Launch**: coin on a Meteora DBC curve, graduating to DAMM v2 | ✅ Live on devnet |
 | Trading on the curve and on DAMM v2 after graduation | ✅ Live on devnet |
-| **Hybrid**: coin plus an NFT collection that converts both ways | 🔜 Coming soon (devnet preview) |
+| **Hybrid**: coin plus an NFT collection that converts both ways | ✅ Live on devnet |
 | Independent third-party audit of the Hybrid programs | 🔜 Planned before mainnet |
-| Mainnet | ⏸ On hold until Hybrid is ready |
-| Burn, Tax split and Raffle launch types | 💤 Later |
+| **Burn**: burn tokens to mint an NFT (one-way) | 🔜 Coming soon: needs a fair random pick and a review ([proposal](docs/burn-mode-blind-assignment.md)) |
+| **Tax split**: a fixed transfer tax shared with NFT holders | 🗺 Planned after Oct 12 ([roadmap](docs/tax-mode-design.md)) |
+| Raffle launch type | 💤 Later |
+| Mainnet | ⏸ After the audit |
 
 ## Security
 

@@ -1,47 +1,65 @@
 /**
  * Public stats for the home page, computed from chain data the app already reads:
  * - launches: listed Launch + Hybrid tokens (same list as Explore);
- * - curveTrades: swap transactions on each launch's bonding-curve pool (logs contain "Instruction: Swap");
+ * - curveTrades: successful transactions on each bonding-curve pool, minus the lifecycle steps that
+ *   also touch the pool (launch, Hybrid register, migration, leftover, surplus / migration-fee
+ *   withdrawals, opening the NFT vault), all known from the pool and vault state. The launch
+ *   transaction is not counted, so a dev buy isn't either. One signature list per pool; no per-
+ *   transaction reads (the public devnet RPC rate-limits those);
  * - captures: total captures recorded by each Hybrid vault (on-chain counter).
- * Each transaction is classified once and remembered, so later refreshes only read new signatures.
  */
 import { PublicKey, type Connection } from "@solana/web3.js";
+import { dbcClient, platformDbcConfig } from "@/lib/meteora/dbc";
 
-const seen = new Map<string, boolean>(); // signature -> is a swap
+export interface PoolFlags {
+  readonly hybrid: boolean;
+  readonly vaultOpen: boolean;
+  readonly isMigrated: boolean;
+  readonly isWithdrawLeftover: boolean;
+  readonly surplusWithdrawals: number;
+  readonly migrationFeeWithdrawStatus: number;
+}
 
-export const isSwapLog = (logs: readonly string[] | null | undefined): boolean =>
-  !!logs?.some((l) => /^Program log: Instruction: Swap2?$/.test(l));
+/** Non-trade transactions that touch a DBC pool, from its state. */
+export function lifecycleTxCount(f: PoolFlags): number {
+  let bits = 0;
+  for (let s = f.migrationFeeWithdrawStatus; s; s >>= 1) bits += s & 1;
+  return 1 + (f.hybrid ? 1 : 0) + (f.isMigrated ? 1 : 0) + (f.isWithdrawLeftover ? 1 : 0) + (f.vaultOpen ? 1 : 0) + f.surplusWithdrawals + bits;
+}
 
-async function withRetry<T>(fn: () => Promise<T>, tries = 4): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
   for (let n = 0; ; n++) {
     try {
       return await fn();
     } catch (e) {
       if (n + 1 >= tries) throw e;
-      await new Promise((r) => setTimeout(r, 700 * 2 ** n));
+      await new Promise((r) => setTimeout(r, 800 * 2 ** n));
     }
   }
 }
 
-export async function countCurveTrades(conn: Connection, pools: readonly string[]): Promise<number> {
+export async function countCurveTrades(conn: Connection, pools: readonly { pool: string; hybrid: boolean; vaultOpen: boolean }[]): Promise<number> {
+  const cfg = platformDbcConfig();
+  if (!cfg || pools.length === 0) return 0;
+  const states = new Map((await withRetry(() => dbcClient(conn).state.getPoolsByConfig(cfg))).map((p) => [p.publicKey.toBase58(), p.account.poolState] as const));
   let total = 0;
-  for (const pool of pools) {
-    const sigs = (await withRetry(() => conn.getSignaturesForAddress(new PublicKey(pool), { limit: 1000 }))).filter((s) => !s.err).map((s) => s.signature);
-    const fresh = sigs.filter((s) => !seen.has(s));
-    for (let i = 0; i < fresh.length; i += 10) {
-      const chunk = fresh.slice(i, i + 10);
-      const txs = await withRetry(() => conn.getTransactions(chunk, { maxSupportedTransactionVersion: 0, commitment: "confirmed" }));
-      txs.forEach((t, k) => {
-        if (t) seen.set(chunk[k]!, isSwapLog(t.meta?.logMessages));
-      });
-    }
-    total += sigs.filter((s) => seen.get(s)).length;
+  for (const p of pools) {
+    const st = states.get(p.pool);
+    if (!st) continue;
+    const sigs = (await withRetry(() => conn.getSignaturesForAddress(new PublicKey(p.pool), { limit: 1000 }))).filter((s) => !s.err).length;
+    const n = (b: unknown) => (Number(b) ? 1 : 0);
+    total += Math.max(
+      0,
+      sigs -
+        lifecycleTxCount({
+          hybrid: p.hybrid,
+          vaultOpen: p.vaultOpen,
+          isMigrated: !!n(st.isMigrated),
+          isWithdrawLeftover: !!n(st.isWithdrawLeftover),
+          surplusWithdrawals: n(st.isPartnerWithdrawSurplus) + n(st.isProtocolWithdrawSurplus) + n(st.isCreatorWithdrawSurplus),
+          migrationFeeWithdrawStatus: Number(st.migrationFeeWithdrawStatus ?? 0),
+        }),
+    );
   }
   return total;
-}
-
-export interface HomeStats {
-  readonly launches: number;
-  readonly curveTrades: number | null;
-  readonly captures: number;
 }

@@ -120,13 +120,13 @@ describe("Core asset uri + public listing", () => {
 });
 
 describe("home stats", () => {
-  it("counts only swap instructions as trades", async () => {
-    const { isSwapLog } = await import("@/lib/armory/stats");
-    expect(isSwapLog(["Program log: Instruction: Swap2"])).toBe(true);
-    expect(isSwapLog(["Program log: Instruction: InitializeVirtualPoolWithSplToken", "Program log: Instruction: Swap"])).toBe(true);
-    expect(isSwapLog(["Program log: Instruction: MigrationDammV2"])).toBe(false);
-    expect(isSwapLog(["Program log: Instruction: WithdrawLeftover", "Program log: Instruction: OpenVault"])).toBe(false);
-    expect(isSwapLog(null)).toBe(false);
+  it("subtracts the pool's lifecycle transactions from its signature count", async () => {
+    const { lifecycleTxCount } = await import("@/lib/armory/stats");
+    const base = { hybrid: false, vaultOpen: false, isMigrated: false, isWithdrawLeftover: false, surplusWithdrawals: 0, migrationFeeWithdrawStatus: 0 };
+    expect(lifecycleTxCount(base)).toBe(1); // launch only
+    // Forge Gems on devnet: launch, register, migrate, leftover, open vault (4 trades among 9 signatures)
+    expect(lifecycleTxCount({ ...base, hybrid: true, vaultOpen: true, isMigrated: true, isWithdrawLeftover: true })).toBe(5);
+    expect(lifecycleTxCount({ ...base, isMigrated: true, surplusWithdrawals: 2, migrationFeeWithdrawStatus: 0b11 })).toBe(6);
   });
 });
 

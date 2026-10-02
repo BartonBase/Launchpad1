@@ -1,7 +1,25 @@
 # Armory: Meteora DBC hackathon submission
 
 **Track:** Best use of Meteora DBC (Superteam Earn). **Status:** working demo on Solana **devnet**,
-**unaudited**. Test SOL only, nothing here has real value.
+**unaudited**. Test SOL only, nothing here has real value. **Live site:** https://armory-ten.vercel.app
+
+**Both launch types are live on devnet: Launch (just the coin) and Hybrid (coin + NFT collection).**
+
+## What to try (5 minutes)
+
+1. Open the home page. The strip under the hero shows tokens launched, curve trades and NFTs captured,
+   read from chain.
+2. Open a demo collection: **[Forge Gems](https://armory-ten.vercel.app/t/PyngwuDKX8ZDfsY91wVXgX78fFmz4w9F6Zc7tjBdMMU)** (GEMS)
+   or **[Shieldwall](https://armory-ten.vercel.app/t/5VVsjp6oKi3mcSKb5YnvQ1MWZBPejqC57RLTqSy33ryE)** (SHLD). Both
+   graduated from their Meteora curve to a DAMM v2 pool, and have NFTs minted.
+3. Connect a wallet set to devnet (Phantom, Solflare or Backpack, with SOL from faucet.solana.com) and
+   **buy** some tokens in the trade panel. After graduation the panel trades on the DAMM v2 pool.
+4. **Capture**: convert 1,000,000 tokens into one random NFT. Switchboard picks it; press Reveal and
+   then Settle when the buttons appear (a few seconds each on devnet).
+5. **Re-roll** your NFT for another random one, or **release** it back for exactly 1,000,000 tokens.
+6. **Launch your own**: Launch → pick Launch or Hybrid, add a dev buy if you like. Hybrid needs 1–50
+   images; they're resized in your browser and uploaded to Irys devnet.
+7. Read **How it works** (`/meteora`, in the footer) for the Meteora flow and every address.
 
 ## What Armory is
 
@@ -16,7 +34,7 @@ launch types:
   number of tokens converts into one random Metaplex Core NFT, and the NFT converts back for exactly
   those tokens. The NFT vault only opens once Armory's program has checked **on-chain** that the
   DBC pool really migrated. Burn, Tax and Raffle launch types are shown as "Coming soon" and can't
-  be selected.
+  be selected (see the roadmap below).
 
 ## How it uses Meteora
 
@@ -56,6 +74,32 @@ Read from chain with the SDK:
 | Armory `hybrid_vault` program | `BEfL9dccCUtgBVfLmJieeSr3ju29fpVqLM3NgttxqXqG` |
 
 ### Devnet proof (explorer: `https://explorer.solana.com/tx/<signature>?cluster=devnet`)
+
+**Demo collections (Hybrid, made in the web app UI on armory-ten.vercel.app).** The art is
+comic-book style made for these demos: 12 gems and 12 shields, each under 100 KB on Irys devnet.
+Each collection has 100 NFTs (the program minimum) that share the 12 images in turn.
+
+| | Forge Gems (GEMS) | Shieldwall (SHLD) |
+| --- | --- | --- |
+| Mint | `PyngwuDKX8ZDfsY91wVXgX78fFmz4w9F6Zc7tjBdMMU` | `5VVsjp6oKi3mcSKb5YnvQ1MWZBPejqC57RLTqSy33ryE` |
+| Launch on DBC + 0.02 SOL dev buy (**UI**) | `59jrh7M8Kgs5t9rFe8CcwBxjpnBHjoXtruZZo9mPcFVyWsW4LAiKRxNmNxwTFCAAyXgva5KwiXAKfz5eMgJmDSaH` | `4PAnGr8XXjvALaySVJnQEnPGyu2FWEip9LL2ChdieyxuJn2xy1j62HA4vjzu4VGjVHsUaV47uBaAJMj8hohudEfq` |
+| `register_dbc_launch` + `init_vault` (**UI**) | `4k52LLBe3xDrhvnFE5GzV9JwDaTwstZVtG9tgKGRC3d838pv9UfwEETL9NdgHeU7JNdezRLZStxVMyFmidA2h3rt` | `48xqnHYDvT9G82vyepuCQkJ4UG8wXfUjbDozAqkmSXfGF9gTRnqoMA59fRe3JKU6SYc5A7FiuzMBcaArNh95ak1N` |
+| Curve buys / sells from two other wallets (SDK script) | `5cLft8zYh7C63qVJRZVUfGzccuJjgpTtLMj1govZB43gDZ1ULMM62h2VMqoDMz8JrzKqApe9Pe1GXrcnNZWr47Jr`, `3moashhnTctG6nHGpdavZeNGRKy6jL3Vv4cdMshV8v1vLpCxhWGBAFY75Pyb6n25H7b5dQZaBRxniNtB4ivdsgaZ`, sell `4iaHKBD8kxWtc6YCteB4P7LzLyFE8rASksNjcBgRBiW41V9BSnF1FexgmS3MjmVGpudWt3PKzDpPd2CB8pCig5jd` | `aEboGUGVo3npDxugMb7LXwxhmtPNW9R3fEkRRUP8GzpR7PMgzo2a5Z3FQg9eSuMfN6jLr9dVbcYePqDNvnYUN5i`, `3pg3jCpCpUntT2qzwzaFZqS43Mw3ZRMoA4867sif1MegDVo387pQFfheh3wkhVL9L8edgXqxqqZcdaT7cuSc82eR`, sell `2Piobwm7sZ45J37nvjmxJebAipj8EfH9frFTnDRHtNgYH724j5cbp37W8HF4vgME6XPxxpgSntxmna1LCCW3yuZ` |
+| Buy that fills the curve (SDK script) | `5SiBEDDNN1wCTCMUyEcbmDTzvRTXVqN9Bn7EYgmMz2MjTs54jUAch5widVBWHxX6wLTAZg6toRu3yiZX6nVdPaGN` | `52guzTJhurrpvk2YyfGzo1EmbMSr8aab7fqaVykQxwRFBZstVSoT7119rtKe29FoS2iZTvyzQpFktJnXSw3J6DYu` |
+| Graduate to DAMM v2 (**UI**) | `2ZakBwshjHEGhRhH99TPPDnhxNxdLRhkY6bA4L1V8e6gnurxJbnaXkRsNrLLn1K4F6BFH5wLsJmTTQ6Fa2EsWc82` | `UQ62aAcg28gvVHDvPipSfp1NRn8YFHC9bmW7QxSVRB7Sr13i1CVYfs16AfmaQdrDMQpG3PkWNFpCXUv6UwtZ664` |
+| Unsold tokens to the locked buffer (**UI**) | `3ZwsM8kw9PrPuhmq1xcBXCAkYUn6cSaSePh6LPhbbhA2C2xTbWJds5suFPyBbB9Ge7uvgKLHfGW8YMo8XhsHFU4Y` | `2PToUPNTFP4gZuFC1LXdZEHJkuCvhxS2DoKsPEdUcyTEcYXujVnfjUEezrjpc9EkCN1ozt9jLAguzdaAQkF53WG1` |
+| Open the NFT vault (**UI**) | `2q4HN774huck7iY58VRVUuWafihWZ2ZHsG4mT9FpV4GfPUKcoL3rbfjYZM8JLTY3PdYB5cN4vzFbhUQWF4fMHMut` | `4VboTrRV7MKqv1hBh69VgEx93vQvaGxmycQncPCZyuK6EkDTQi8nMEc5ukgntCbXT6Pph1yCMuDHgokbJnF38Vwd` |
+| Capture 1: request / reveal / settle (**UI**) | `CuhHxnDfQVKi8kVuFBBtMZkhvZDoE5y5BVS3VGVAS5tihdmwsiSsuo3yN7z2C4CiZdWFMLQkk9mqMKeTVwEZrt8`, `3D7LoemBB6bmQoiqjns9HrRKtySZgMBegX49Q7NJBAnW7cYjeuJFd5d6nDxN7uABwfwDAT9NHtWxUCJzceDNLbaz`, `61HHJuzqcKdztrjNGmWnHgHQQwARmaP6kHrXok1tEoMK1zjy1ir5f6Pn9LmaqweXT8uNvQ6K4STpmpTuPyC5iH2A` | `JGmUfgbCSTK94fnRgncvrzqc8ZG3ZQES243N8hyQVQxhjTJPGYr4XqUzLZy7QDrn9zjR4DnpguDdtoqvUgxYCM5`, `2FZWDGUshdw2EXpP1ocQB2maM6RwbYyJZ7tar4dCPUUtTuBq1bdWUzcoS6cnyyTA9xx9WYoFw5Hx1vJZHXQhRXxs`, `25ARqBUmpp8Qfe6VW5K9UTEYTPYWosKx2P8NKEPX6ZHGnGw1kKBTx4L5Pvi3XDTWF13LeaR1LNih4Yh2obWaiBCH` |
+| Capture 2 (**UI**) | `4Uf3cFTR31iNfLginA2SCgzqaYYy28ttumWhYM8AAhpAL2aCMUtrrB5NTd5wGEoibtsBxnQi6aRj4AwVv4mDutnE`, `5892uPGogsXnsUwNmUvdF9pnKefvjjESfvB2fqLmXM2kWWFgP9bDL74n69bLWbY2ahaCHbyESkCPFUCZ92rvnUJm`, `32J6VdKu6CZ9RKoG3KmqNikNAX8qTiVCZr16PVmZsHCj3cvktHqRdBZz5toP2M7NXm45PQFH6FeMQLXsirztUNQS` | `2pwBjZTN9Xx3RUS9rgyNEZ2xtcZn9msHnEnkyPcyYb7rJzYDwS55fzq4rYdjQNa14bGYErbNsJi7L82KAS5CANMw`, `4kujDtdJx3eh6nUKWaNoYA2WSax1S16KPwVoPd8tJBKGy7zCfM2FtGLupmBcB2rShY47ZdHmBeunVoJz5M2ArrFV`, `3WoNMCvLSQ13oPhzn6A41eSiJEkXnebQNk8SjbxVjoofuMsrVV2XXry3nQ5gwi5BUHchSXERmWJP3kEPeUmrgN6G` |
+| Capture 3 (**UI**) | `5kJgrt966V893uXUJfVi8v2ahBT3njvC8ojfegWnb1AwBkVqWEbmuBusRM7c8YHdUYtrVQXd7KLJBvDhy4YXos93`, `3bLSUKDQrSKphLoY2Zoon2w4UQZN8199kXYRcWMWpnkAubb3PgMXNibC4Y5LYsPTRWtuK7m4YqU3fDaxrawtHThS`, `3azQmEtjk9bxbcaF6inxWo7NJ1i1TL2BBQ4K1Yw13NSQTHCXSDt6URXyaVe5rQPTJHF4nXHakQpUGkqDAPR4QSpR` | `5cDB1GXAZhA4vC8D1sxD8d17RuYgtD37capAPW8MC6vZrk1ywtmFWMUMep3AJHStteqwTrZmeFwgLh64qPfdTakF`, `iZp53m67QD5hypcC3hs5qunahRWPJyikLb3eyyk4RHQj6L3kJb4P4ckPjWp3UGNZWf35aJ6VV5Vcy18PvqZzqr1`, `3sBdJzrNHSMqqUAfSFJ9AsjBkhiq7QH3TpPHcNrr6UhjiMvVxjRPWqqoRp2eyV5LfHaAi8EeLfuwqAQQRoBr4DPR` |
+| Re-roll NFT #61: request / reveal / settle (**UI**) | | `3psAQYVVCwMEhTmTdmRTmsq7mEw2JoMubfo6u4Tz2QsoyHivhqCrmfvTvqijmbT34v2rnEikGBFDxBEThxP7GtMR`, `3vzHNT3vVRA6gfdcf9MxZ8bQ6rGzxhCiJe1f6bFqhsqWPWAtvdfPziZyMwmqWjnJYFyk21hDrkvDrETdm6Qqw2fx`, `3PPuBxQGxRD3dXj9QzT5hKU7iEoux2QjDjRpx1nHrowUfBehfhRycPgwCxyoiKhBeuzkBjQok2FnBdVxrN9ZhyEz` |
+| Trades on DAMM v2 after graduation (**UI**, other wallets) | buy `2JFA2w9VC9dfgU18pnJMrRyfxT5wQbzd8g56Zk56MqnvpHtHaVotNx1e3mFkR3t9veQ4Gj2VijVP4WDZDThvfNwV` | buy `eq7LBbqee3epvUjsonS2H9bAJavjfbapYrJ6HDJBvVG1V4doNjTEG9XxbEFp9KvX9tQjrzHYULdJn6531gFry2B`, sell `4hAuKs1VdUgb5Wvcu6uU1SVJ5nLzVPimfKrG3h794njFVFHjDWYr1PwzeESE8PryVQfg1hwF7eEyC1thgsZRGEiS` |
+
+Each capture and the re-roll paid the 0.01 SOL platform fee to the fee wallet
+`BVKxZMjuXryATqCeifPgh6Ee9H93BH5UGv8eML66yT3j`, which went from 0.04 to **0.11 SOL** (7 × 0.01).
+
+Older test launches (APLN, AHACK, ARMT, AHYB, AHLIVE) are hidden from Home and Explore but still open by
+address; their proof is below.
 
 **Plain launch made in the web app UI** ("Armory Hackathon Plain", AHACK, still on its curve):
 
@@ -126,6 +170,19 @@ collection "Armory Live Knights", mint `CzDzhYGoCP5BDc2gYmNnwd3s7gW5MWnK8VD7TrbC
 | Second capture / reveal / settle (mints #59) | **web app UI** | `4C6AfPRCUhBxnDUFw2mpq1Rg4U4G8RHTusRKEcPfEqH8Peu1HoQFZ55Xiex3kTnuWhQcj6nPW2kTofVyANwTsCei`, `5g8Zw8AgUUBJo3hEMxYDXtf36W4s5mryck8YUkv3cTfqoGw1BC9yN7uWUnEx5u1Amfgxc4QMGpxNURMzXE8NnPTU`, `3o4m24eAKiZCTFGzNK9JReNpNyiMYwYmSd3JXKdo3mnSiQPtF4JE1YbiVU6yN6idQ8DvxxXjTrVSbeVNFNfpCBNx` |
 | Release NFT #59 (holdings refresh on their own) | **web app UI** | `VEB6eX4a46Sw3ivUWGwhDYMC8ZcT61VY4YpCPiMREk3TpAcEqo21rkMJMt83W1uMiq5RhJtJTfoUGBvi3MhTF9x` |
 
+## Roadmap
+
+- **Burn** (burn tokens to mint an NFT, one-way): coming soon. It was built, then held back because
+  its NFTs came out in a public order, so rare pieces could be sniped. The fix (the same Switchboard
+  blind pick as Hybrid) is a vault change that needs review first:
+  [docs/burn-mode-blind-assignment.md](docs/burn-mode-blind-assignment.md).
+- **Tax split** (a fixed Token-2022 transfer tax shared with NFT holders, in a locked DAMM v2 pool):
+  full build planned after Oct 12. Design, security and legal notes:
+  [docs/tax-mode-design.md](docs/tax-mode-design.md).
+- **Raffle**: later.
+- **Mainnet**: after an independent audit of the Hybrid programs, with upgrades behind a multisig
+  and timelock.
+
 ## Where the integration lives
 
 Web app (`app/`, Next.js 16 + TypeScript):
@@ -173,7 +230,8 @@ faucet.solana.com. Try this:
 
 1. Launch, pick "Launch" (just the coin), fill in name and symbol, launch.
 2. On the token page, buy and sell on the curve and watch the progress bar.
-3. Open the APLN or ARMT page to trade on a DAMM v2 pool after graduation.
+3. Open the Forge Gems or Shieldwall page to trade on a DAMM v2 pool after graduation and to capture,
+   re-roll and release NFTs.
 4. Open `/meteora` ("How it works" in the footer) for the integration overview.
 
 **Hosting (Vercel/Netlify):** root directory `app/`, build `npm run build`, and set the
@@ -191,6 +249,12 @@ Details are in `app/README.md`.
   wizard resizes images in the browser) and not permanent. Mainnet needs a funded upload.
 - The devnet curve config has no anti-snipe schedule, so a dev buy pays the flat 1% trade fee.
 - Burn, Tax and Raffle are "Coming soon".
+- Each Hybrid collection has at least 100 NFTs (a program rule); the wizard takes up to 50 images and
+  the NFTs share them in turn.
+- NFT metadata is stored as `ar://<id>` on chain. On devnet the app reads those items from the Irys
+  devnet node; wallets and marketplaces that resolve `ar://` through arweave.net won't find devnet items.
+- The home stats strip counts curve trades from each pool's transaction list minus its launch and
+  graduation steps; trades on the DAMM v2 pool after graduation aren't included.
 - The price chart is a placeholder.
 - The public devnet RPC is rate limited. Under load some live numbers may not load, and a reload
   fixes it.
