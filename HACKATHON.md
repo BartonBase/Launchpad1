@@ -122,6 +122,9 @@ collection "Armory Live Knights", mint `CzDzhYGoCP5BDc2gYmNnwd3s7gW5MWnK8VD7TrbC
 | Capture (0.01 SOL fee to the fee wallet) | **web app UI** | `622QDh83RTGVC3j3gv95cbL5xVPSGC2HGHufyVdd8UMS7gZa6EryDRMUCc89zJb3bCjGa4CTBbPebww1DzqqRhQj` |
 | Reveal | **web app UI** | `4akcWBhu6XuzNWSPHZSeBbSLR1nA9Y8WdpjohSGb4dpqtRWGs8b79kkdb3uq6uSY8v5tnfU9ecTeacF7RdaSRUhz` |
 | Settle, lazy-mints the NFT from the published manifest | **web app UI** | `5PFgBmvUkYxNpsQDoujUZqWanGksmg9U5AXmfbGjyhti8X3mfwktQLC1TBqTX84bAmZ3fWqibfH6NyVZPKWVnkMD` |
+| Release NFT #53 back to 1,000,000 AHLIVE | **web app UI** | `4JCLNRK25Kxa24PsKogicF136MK69QN9GmabE786rP8ja97xoezUawSAfUYPFEc7wywqEFZS3mBnWa6r2Bt6j4bc` |
+| Second capture / reveal / settle (mints #59) | **web app UI** | `4C6AfPRCUhBxnDUFw2mpq1Rg4U4G8RHTusRKEcPfEqH8Peu1HoQFZ55Xiex3kTnuWhQcj6nPW2kTofVyANwTsCei`, `5g8Zw8AgUUBJo3hEMxYDXtf36W4s5mryck8YUkv3cTfqoGw1BC9yN7uWUnEx5u1Amfgxc4QMGpxNURMzXE8NnPTU`, `3o4m24eAKiZCTFGzNK9JReNpNyiMYwYmSd3JXKdo3mnSiQPtF4JE1YbiVU6yN6idQ8DvxxXjTrVSbeVNFNfpCBNx` |
+| Release NFT #59 (holdings refresh on their own) | **web app UI** | `VEB6eX4a46Sw3ivUWGwhDYMC8ZcT61VY4YpCPiMREk3TpAcEqo21rkMJMt83W1uMiq5RhJtJTfoUGBvi3MhTF9x` |
 
 ## Where the integration lives
 
