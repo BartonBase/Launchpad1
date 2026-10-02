@@ -6,7 +6,7 @@ import Image from "next/image";
  * next/image so each slot gets a right-sized WebP/AVIF. Never animated (motion is zero).
  *
  * Where each one is used:
- *   B (steel + orange, round medallion): home hero, header/footer helmet logo, favicon, OG image
+ *   B (steel + orange, round medallion): home hero, header/footer bust logo, favicon/app icons, OG image
  *   C (grey steel, orange accents):      "How it works" page, launch success
  *   A (black armor, copper shield):      Portfolio and Explore empty states
  *   D (black armor, orange crest):       404 page
@@ -56,11 +56,11 @@ export function Knight({
   );
 }
 
-/** Small helmet mark next to the wordmark (header, footer). */
-export function HelmetMark({ size = 30, className = "" }: { size?: number; className?: string }) {
+/** Head-and-shoulders bust of knight B (plume, helmet, shoulders) next to the wordmark (header, footer). */
+export function HelmetMark({ size = 38, className = "" }: { size?: number; className?: string }) {
   return (
     <Image
-      src="/brand/knights/helmet-96.webp"
+      src="/brand/knights/knight-b-bust-128.webp"
       width={size}
       height={size}
       alt=""

@@ -283,10 +283,10 @@ constants. MPL-Hybrid was removed.
 - Tokens: `../design/system/tokens.json` -> `npm run tokens` -> `src/styles/tokens.css`, mapped
   to Tailwind utilities in `globals.css`. Accent Ember `#FF6A2B`, `#120805` text on Ember.
 - Layouts follow `../design/directions/a-obsidian/` (NOTE.md). **Armory** wordmark (Bricolage
-  Grotesque 800) with the knight-helmet mark beside it.
+  Grotesque 800) with the knight-B head-and-shoulders bust mark beside it.
 - Mascot: the official knight art (four knights, A-D). Transparent PNG + WebP cut-outs in
   `public/brand/knights/`, originals in `../design/mascot/knights/`. Rendered through
-  `src/components/armory/Knight.tsx` (next/image). Hero, header/footer helmet, favicon/app icons
+  `src/components/armory/Knight.tsx` (next/image). Hero, header/footer bust mark, favicon/app icons
   (`src/app/favicon.ico`, `icon1.png`, `icon2.png`, `apple-icon.png`) and the OG image
   (`src/app/opengraph-image.png`) use knight B; "How it works" and launch success use C;
   Portfolio/Explore empty states use A; the 404 page uses D.

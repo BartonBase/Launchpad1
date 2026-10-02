@@ -1,6 +1,6 @@
 /**
  * Official knight mascot art (Barton, 2026-10-02): the placeholder knight is gone, the header shows
- * the helmet mark next to the wordmark, every knight slot points at a real, size-budgeted WebP, and
+ * the knight bust mark next to the wordmark, every knight slot points at a real, size-budgeted WebP, and
  * the favicon/app icons and OG image exist as Next file-convention assets.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -24,9 +24,9 @@ describe("brand art", () => {
     expect(existsSync(join(APP, "public", "mascot"))).toBe(false);
   });
 
-  it("shows the helmet mark beside the wordmark in the header", () => {
+  it("shows the knight bust mark (36-40px) beside the wordmark in the header", () => {
     const header = readFileSync(join(SRC, "components", "SiteHeader.tsx"), "utf8");
-    expect(header).toMatch(/<HelmetMark size=\{(2[8-9]|3[0-2])\} \/>\s*\{BRAND\.name\}/);
+    expect(header).toMatch(/<HelmetMark size=\{(3[6-9]|40)\} \/>\s*\{BRAND\.name\}/);
   });
 
   it("serves each knight as a size-budgeted WebP with its PNG cut-out alongside", () => {
@@ -37,7 +37,7 @@ describe("brand art", () => {
       expect(existsSync(webp.replace(/\.webp$/, ".png"))).toBe(true);
       expect(k.alt.length).toBeGreaterThan(10);
     }
-    expect(statSync(join(APP, "public", "brand", "knights", "helmet-96.webp")).size).toBeLessThan(20_000);
+    expect(statSync(join(APP, "public", "brand", "knights", "knight-b-bust-128.webp")).size).toBeLessThan(20_000);
   });
 
   it("ships favicon, app icons and the social share image", () => {

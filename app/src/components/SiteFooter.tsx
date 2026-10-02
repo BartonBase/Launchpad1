@@ -8,7 +8,7 @@ export function SiteFooter() {
       <div className="mx-auto grid max-w-(--container-site) gap-6 px-4 py-10 text-sm md:grid-cols-[2fr_1fr_1fr]">
         <div className="space-y-2">
           <p className="wordmark text-fg flex items-center gap-2">
-            <HelmetMark size={26} />
+            <HelmetMark size={32} />
             {BRAND.name}
           </p>
           <p className="max-w-md">
