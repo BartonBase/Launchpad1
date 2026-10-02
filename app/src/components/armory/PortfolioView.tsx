@@ -7,6 +7,8 @@ import { fetchHoldings, fetchLaunches, fetchUserRequests } from "@/lib/armory/re
 import { formatSol, formatTokens, shortAddr } from "@/lib/armory/format";
 import { StateTag } from "./LaunchCard";
 import { TypeIcon } from "./TypeIcon";
+import { EmptyState } from "./EmptyState";
+import { Knight } from "./Knight";
 
 /** Portfolio per design/system portfolio.html (lean): summary, positions, NFTs, history. */
 export function PortfolioView() {
@@ -20,7 +22,12 @@ export function PortfolioView() {
     return { rows, sol: BigInt(sol), requests };
   });
 
-  if (!user) return <p className="text-muted" data-testid="portfolio-connect">Connect a wallet to see your tokens, NFTs and pending requests.</p>;
+  if (!user)
+    return (
+      <EmptyState k="a" title="Connect a wallet" testId="portfolio-connect">
+        <p>Connect a wallet to see your tokens, NFTs and pending requests.</p>
+      </EmptyState>
+    );
   if (data.loading) return <p className="text-muted" role="status">Loading from chain…</p>;
   if (data.error) return <p role="alert" className="text-warning">Couldn&apos;t load your portfolio: {data.error}</p>;
   const d = data.data!;
@@ -37,7 +44,10 @@ export function PortfolioView() {
       <section className="card overflow-x-auto" aria-labelledby="pos-h">
         <h2 id="pos-h" className="border-border border-b p-4 font-semibold">Positions</h2>
         {d.rows.length === 0 ? (
-          <p className="text-muted p-4">No Armory tokens or NFTs in this wallet yet. <Link href="/explore" className="text-accent-text">Explore launches</Link>.</p>
+          <div className="flex items-end gap-4 px-4 pt-2" data-testid="portfolio-empty">
+            <Knight k="a" sizes="96px" className="w-[84px] shrink-0 sm:w-[96px]" />
+            <p className="text-muted pb-5">No Armory tokens or NFTs in this wallet yet. <Link href="/explore" className="text-accent-text">Explore launches</Link>.</p>
+          </div>
         ) : (
           <table className="w-full text-sm" data-testid="positions">
             <thead className="text-muted text-left text-xs">

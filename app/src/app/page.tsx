@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MascotPlaceholder } from "@/components/armory/MascotPlaceholder";
+import { Knight } from "@/components/armory/Knight";
 import { LaunchCard } from "@/components/armory/LaunchCard";
 import { LaunchTypes } from "@/components/armory/LaunchTypes";
 import { ReadError } from "@/components/armory/ReadError";
@@ -23,17 +23,14 @@ export default async function HomePage() {
   const hybrids = launches.ok ? launches.value.filter((l) => isListed(l.collectionName)) : [];
   return (
     <div className="mx-auto max-w-(--container-site) space-y-20 px-4 py-10 md:py-16">
-      <section className="grid items-center gap-10 lg:grid-cols-[1.1fr_1fr]">
+      <section className="grid items-center gap-8 lg:grid-cols-[1.05fr_1fr] lg:gap-6">
         <div className="space-y-6">
           <span className="tag tag-accent">Coins and collections on Solana</span>
-          <div className="flex items-start justify-between gap-3 md:gap-6">
-            <h1 className="hd text-[34px] sm:text-6xl lg:text-7xl">
-              Trade the meme.
-              <br />
-              <span className="text-muted">Collect the art.</span>
-            </h1>
-            <MascotPlaceholder className="w-[76px]! md:w-[168px]!" size={168} />
-          </div>
+          <h1 className="hd text-[40px] leading-[1.02] sm:text-6xl lg:text-7xl">
+            Trade the meme.
+            <br />
+            <span className="text-muted">Collect the art.</span>
+          </h1>
           <p className="text-muted max-w-xl text-base">
             Launch a Solana meme coin on a bonding curve, on its own or with an NFT collection built in. With a{" "}
             <strong className="text-fg">Hybrid</strong> launch the coin is also an NFT: once it graduates, a fixed number
@@ -48,25 +45,35 @@ export default async function HomePage() {
             </Link>
           </div>
         </div>
-        <div className="card bg-glass shadow-float space-y-4 p-5" aria-label="How converting works">
-          <div className="flex items-center justify-between">
-            <p className="eyebrow">Switch any time</p>
-          </div>
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-            <div className="bg-surface-2 rounded-panel border-border border p-4">
-              <p className="text-muted text-xs">Tokens</p>
-              <p className="num text-xl font-semibold">1,000,000</p>
+        <div className="relative lg:min-h-[700px]">
+          <Knight
+            k="b"
+            glow
+            priority
+            decorative={false}
+            sizes="(min-width: 1024px) 470px, (min-width: 640px) 380px, 280px"
+            className="mx-auto w-[280px] sm:w-[380px] lg:mr-0 lg:ml-auto lg:w-[470px]"
+          />
+          <div className="card bg-glass shadow-float relative z-10 -mt-24 space-y-4 p-5 sm:-mt-32 lg:absolute lg:bottom-0 lg:-left-4 lg:mt-0 lg:w-[22rem]" aria-label="How converting works">
+            <div className="flex items-center justify-between">
+              <p className="eyebrow">Switch any time</p>
             </div>
-            <span aria-hidden="true" className="text-accent-text text-xl">⇄</span>
-            <div className="bg-surface-2 rounded-panel border-border border p-4">
-              <p className="text-muted text-xs">NFTs</p>
-              <p className="num text-xl font-semibold">1 NFT</p>
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+              <div className="bg-surface-2 rounded-panel border-border border p-4">
+                <p className="text-muted text-xs">Tokens</p>
+                <p className="num text-xl font-semibold">1,000,000</p>
+              </div>
+              <span aria-hidden="true" className="text-accent-text text-xl">⇄</span>
+              <div className="bg-surface-2 rounded-panel border-border border p-4">
+                <p className="text-muted text-xs">NFTs</p>
+                <p className="num text-xl font-semibold">1 NFT</p>
+              </div>
             </div>
+            <p className="text-muted text-sm">
+              Exact both ways, no tokens taken. Capturing costs a flat platform fee (0.002–0.01 SOL by ratio). {mintDepositText()}.
+              Releasing back has no platform fee. Opens when a token graduates on its bonding curve.
+            </p>
           </div>
-          <p className="text-muted text-sm">
-            Exact both ways, no tokens taken. Capturing costs a flat platform fee (0.002–0.01 SOL by ratio). {mintDepositText()}.
-            Releasing back has no platform fee. Opens when a token graduates on its bonding curve.
-          </p>
         </div>
       </section>
 

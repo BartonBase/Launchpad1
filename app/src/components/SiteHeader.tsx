@@ -3,6 +3,7 @@ import { BRAND } from "@/config/armory";
 import { ClusterBadge } from "./ClusterBadge";
 import { WalletButton } from "./WalletButton";
 import { MobileMenu } from "./MobileMenu";
+import { HelmetMark } from "./armory/Knight";
 
 const NAV = [
   { href: "/explore", label: "Explore" },
@@ -16,7 +17,8 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40">
       <div className="border-border bg-nav relative border-b backdrop-blur">
         <div className="mx-auto flex max-w-(--container-site) items-center gap-3 px-4 py-2.5 md:gap-6">
-          <Link href="/" className="wordmark text-fg flex items-center gap-2" aria-label={`${BRAND.name} home`} data-testid="wordmark">
+          <Link href="/" className="wordmark text-fg flex shrink-0 items-center gap-2" aria-label={`${BRAND.name} home`} data-testid="wordmark">
+            <HelmetMark size={30} />
             {BRAND.name}
           </Link>
           <nav aria-label="Main" className="hidden min-w-0 flex-1 gap-1 text-sm md:flex">

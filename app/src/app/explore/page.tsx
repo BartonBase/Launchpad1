@@ -10,6 +10,7 @@ import { fetchLaunches } from "@/lib/armory/reads";
 import { fetchPlainLaunches } from "@/lib/meteora/plain";
 import { isListed } from "@/lib/armory/listing";
 import { PlainCard } from "@/components/meteora/PlainCard";
+import { EmptyState } from "@/components/armory/EmptyState";
 
 export const metadata: Metadata = { title: "Explore", description: "Every Armory launch with its type, phase and market." };
 
@@ -109,10 +110,10 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
           <p className="text-sm">Burn launches open soon. <Link href="/launch" className="text-accent-text">Start a launch</Link> in the meantime.</p>
         </div>
       ) : list.length + plainList.length === 0 ? (
-        <div className="text-muted space-y-2" data-testid="explore-empty">
-          <p>{phase === "near" ? `Nothing is near graduation (${NEAR_PCT}%+ of its curve target) right now.` : "Nothing matches."}</p>
+        <EmptyState k="a" title={q ? "No launches match your search" : "Nothing here yet"} testId="explore-empty">
+          <p>{phase === "near" ? `Nothing is near graduation (${NEAR_PCT}%+ of its curve target) right now.` : q ? "Try another name, symbol or token address." : "Nothing matches."}</p>
           {type === "plain" && <p><Link href="/launch?type=plain" className="text-accent-text">Start a launch</Link>: one transaction, and your coin is trading.</p>}
-        </div>
+        </EmptyState>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="explore-grid">
           {plainList.map((p) => <PlainCard key={p.mint} p={p} />)}

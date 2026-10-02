@@ -380,10 +380,41 @@ body {
   .num {
     font-variant-numeric: tabular-nums;
   }
-  .mascot img {
+  /* Official knight art (components/armory/Knight.tsx). No animation; hover states only. */
+  .knight {
+    position: relative;
+    isolation: isolate;
+  }
+  .knight img {
     display: block;
     width: 100%;
     height: auto;
+    user-select: none;
+  }
+  /* Soften the art's cropped bottom and side edges into the page. */
+  .knight-fade {
+    -webkit-mask-image: linear-gradient(to bottom, #000 58%, transparent 96%), linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(to bottom, #000 58%, transparent 96%), linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%);
+    mask-composite: intersect;
+  }
+  /* Ember radial glow behind the knight + a faint rim light on its silhouette. */
+  .knight-glow::before {
+    content: "";
+    position: absolute;
+    inset: 4% -6% 14% -6%;
+    z-index: -1;
+    background:
+      radial-gradient(closest-side at 50% 42%, rgb(255 106 43 / 0.34), rgb(255 106 43 / 0.12) 52%, transparent 78%),
+      radial-gradient(closest-side at 50% 60%, rgb(255 106 43 / 0.08), transparent 70%);
+    filter: blur(6px);
+  }
+  /* On the wrapper (not the img) so the glow isn't clipped by the img's fade mask box. */
+  .knight-glow {
+    filter: drop-shadow(0 0 1px rgb(255 106 43 / 0.45)) drop-shadow(0 0 22px rgb(255 106 43 / 0.16));
+  }
+  .helmet-mark {
+    filter: drop-shadow(0 0 6px rgb(255 106 43 / 0.25));
   }
   .progress {
     position: relative;

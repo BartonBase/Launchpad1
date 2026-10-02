@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { BRAND } from "@/config/armory";
+import { HelmetMark } from "./armory/Knight";
 
 export function SiteFooter() {
   return (
     <footer className="border-border text-muted mt-16 border-t">
       <div className="mx-auto grid max-w-(--container-site) gap-6 px-4 py-10 text-sm md:grid-cols-[2fr_1fr_1fr]">
         <div className="space-y-2">
-          <p className="wordmark text-fg">{BRAND.name}</p>
+          <p className="wordmark text-fg flex items-center gap-2">
+            <HelmetMark size={26} />
+            {BRAND.name}
+          </p>
           <p className="max-w-md">
             Launch a Solana meme coin on its own, or with an NFT collection built in. Not financial advice.
           </p>

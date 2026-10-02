@@ -7,7 +7,6 @@ import { explorerAddressUrl } from "@/config/cluster";
 import { formatSol, formatUnits, shortAddr } from "@/lib/armory/format";
 import type { Phase, TokenType } from "@/lib/armory/tokenPanels";
 import { NO_CURVE_MESSAGE } from "@/lib/armory/errors";
-import { MascotPlaceholder } from "./MascotPlaceholder";
 import { TypeIcon } from "./TypeIcon";
 
 export interface TokenView {
@@ -136,7 +135,6 @@ export function PhaseCard({ v }: { v: TokenView }) {
                 : `When the curve reaches ${formatSol(v.graduationLamports, 2)}, liquidity moves to a locked pool${v.type === "plain" ? " and nothing else changes" : `, and ${verb(v.type).toLowerCase()} opens`}.`}
           </p>
         </div>
-        {v.phase !== "native" && <MascotPlaceholder size={88} className="hidden sm:block" />}
       </div>
       {v.phase !== "native" && (
         <ol className="grid gap-2 sm:grid-cols-3">

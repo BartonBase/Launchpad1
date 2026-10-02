@@ -13,6 +13,7 @@ import { dbcClient } from "@/lib/meteora/dbc";
 import { fetchPlainLaunches } from "@/lib/meteora/plain";
 import { fetchLaunches } from "@/lib/armory/reads";
 import { formatSol, shortAddr } from "@/lib/armory/format";
+import { Knight } from "@/components/armory/Knight";
 
 export const metadata: Metadata = { title: "How it works", description: "The technology behind Armory launches: bonding curve, graduation into a locked pool, and the NFT layer on top." };
 
@@ -90,14 +91,17 @@ export default async function MeteoraPage() {
   const curveHybrids = hybrids.ok ? hybrids.value.filter((l) => l.dbcPool) : [];
   return (
     <div className="mx-auto max-w-(--container-site) space-y-12 px-4 py-10 md:py-14">
-      <section className="max-w-3xl space-y-4">
-        <p className="eyebrow">Technology</p>
-        <h1 className="hd text-3xl md:text-4xl">How it works</h1>
-        <p className="text-muted text-base">
-          Armory launches trade on Meteora&apos;s <strong className="text-fg">Dynamic Bonding Curve</strong> and graduate into a locked{" "}
-          <strong className="text-fg">DAMM v2</strong> pool. Armory adds one thing on top: a Hybrid launch&apos;s token can be converted into a random NFT
-          from its collection, and back, at a fixed rate.
-        </p>
+      <section className="grid items-center gap-6 md:grid-cols-[1fr_auto]">
+        <div className="max-w-3xl space-y-4">
+          <p className="eyebrow">Technology</p>
+          <h1 className="hd text-3xl md:text-4xl">How it works</h1>
+          <p className="text-muted text-base">
+            Armory launches trade on Meteora&apos;s <strong className="text-fg">Dynamic Bonding Curve</strong> and graduate into a locked{" "}
+            <strong className="text-fg">DAMM v2</strong> pool. Armory adds one thing on top: a Hybrid launch&apos;s token can be converted into a random NFT
+            from its collection, and back, at a fixed rate.
+          </p>
+        </div>
+        <Knight k="c" glow sizes="190px" className="hidden w-[190px] md:block lg:mr-6" />
       </section>
 
       <section className="space-y-4" aria-labelledby="flow-h">
@@ -107,7 +111,7 @@ export default async function MeteoraPage() {
             <li key={n} className="card space-y-2 p-4">
               <p className="text-accent-text font-mono text-xs">{n}</p>
               <h3 className="font-semibold">{t}</h3>
-              <p className="text-muted text-sm">{d}</p>
+              <p className="text-muted text-sm [overflow-wrap:anywhere]">{d}</p>
             </li>
           ))}
         </ol>

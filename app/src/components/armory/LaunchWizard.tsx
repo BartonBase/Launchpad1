@@ -28,6 +28,7 @@ import { buildDbcLaunchTx, buildInitVaultTx, buildNativeLaunchTx, fetchDbcCurveS
 import { NO_CURVE_MESSAGE } from "@/lib/armory/errors";
 import { buildPlainLaunchTx } from "@/lib/meteora/dbc";
 import { shortAddr } from "@/lib/armory/format";
+import { Knight } from "./Knight";
 import { DBC_PLATFORM_CONFIG } from "@/config/integrations";
 import { useChainRead } from "@/hooks/useChain";
 import { compact, formatSol, formatUnits } from "@/lib/armory/format";
@@ -465,9 +466,13 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
               <p role="alert" className="text-negative text-sm" data-testid="launch-error">{safeSend.error}</p>
             )}
             {safeSend.status === "success" && launchedMint && (
-              <p role="status" className="text-positive-text text-sm" data-testid="launch-success">
-                Launched. <Link className="underline" href={`/t/${launchedMint.toBase58()}`}>Open the token page</Link>.
-              </p>
+              <div role="status" className="bg-surface-2 rounded-panel border-border flex items-end gap-4 border px-4 pt-2" data-testid="launch-success">
+                <Knight k="c" glow sizes="96px" className="w-[84px] shrink-0 sm:w-[96px]" />
+                <p className="text-positive-text pb-4 text-sm">
+                  <span className="text-fg block text-base font-semibold">Launched.</span>
+                  <Link className="underline" href={`/t/${launchedMint.toBase58()}`}>Open the token page</Link>.
+                </p>
+              </div>
             )}
             {launchedMint && t === "hybrid" && (
               <button type="button" className="btn w-full" disabled={!connected || !artV.art || safeSend.busy} onClick={commitArt} data-testid="launch-commit-art">

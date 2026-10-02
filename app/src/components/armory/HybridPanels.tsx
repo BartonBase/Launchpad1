@@ -19,7 +19,6 @@ import { fetchHoldings, fetchUserRequests, findIdleRandomness, type LaunchDTO } 
 import { useSafeSend, type BuildFn } from "@/lib/tx/useSafeSend";
 import { TxPreviewModal } from "@/components/TxPreviewModal";
 import { CostBreakdown } from "./CostBreakdown";
-import { MascotPlaceholder } from "./MascotPlaceholder";
 
 export type HybridPanel = "capture" | "release" | "reroll" | null;
 
@@ -139,10 +138,7 @@ export function HybridPanels({ launch, initialPanel = null }: { launch: LaunchDT
           </div>
 
           {!launch.vaultOpen && (
-            <div className="flex items-center gap-4">
-              <MascotPlaceholder size={88} />
-              <p className="text-muted text-sm">{common}</p>
-            </div>
+            <p className="text-muted text-sm">{common}</p>
           )}
 
           {tab === "capture" && !review && (

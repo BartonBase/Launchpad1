@@ -10,9 +10,17 @@ import { fontVariables } from "./fonts";
 /** Chain-backed shell (authorities panel, launches): re-render at most every 30 s (ISR). */
 export const revalidate = 30;
 
+/** Absolute base for OG/Twitter image URLs: explicit site URL, else the Vercel production domain. */
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000");
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: { default: BRAND.name, template: `%s · ${BRAND.name}` },
   description: "Launch a Solana meme coin on its own, or with an NFT collection built in.",
+  openGraph: { siteName: BRAND.name, type: "website", title: `${BRAND.name}: Trade the meme. Collect the art.` },
+  twitter: { card: "summary_large_image" },
   robots: { index: false, follow: false },
 };
 
