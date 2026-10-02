@@ -6,7 +6,7 @@
 import { PublicKey, type Connection } from "@solana/web3.js";
 import { launchConfigPda } from "@/lib/generated/hybridLaunch";
 import { metadataPda } from "@/lib/generated/dbc";
-import { HYBRID_LAUNCH_PROGRAM_ID } from "@/config/programs";
+import { HYBRID_LAUNCH_PROGRAM_ID, armoryProgramsEnabled } from "@/config/programs";
 import { curveStateFrom, dbcClient, platformDbcConfig, platformPoolForMint, type CurveStateDTO } from "./dbc";
 
 export interface PlainLaunchDTO {
@@ -60,8 +60,8 @@ async function toDTOs(conn: Connection, pools: { publicKey: PublicKey; account: 
   const cfg = await dbcClient(conn).state.getPoolConfig(cfgKey);
   if (!cfg) return [];
   const mints = live.map((p) => p.account.poolState.baseMint);
-  // Exclude hybrid launches (registered with hybrid_launch).
-  const lcInfos = await conn.getMultipleAccountsInfo(mints.map((m) => launchConfigPda(m)));
+  // Exclude hybrid launches (registered with hybrid_launch). Mainnet has no Armory programs: every pool is a Launch.
+  const lcInfos = armoryProgramsEnabled() ? await conn.getMultipleAccountsInfo(mints.map((m) => launchConfigPda(m))) : mints.map(() => null);
   const plain = live.filter((_, i) => !(lcInfos[i] && lcInfos[i]!.owner.equals(HYBRID_LAUNCH_PROGRAM_ID)));
   if (plain.length === 0) return [];
   const pm = plain.map((p) => p.account.poolState.baseMint);

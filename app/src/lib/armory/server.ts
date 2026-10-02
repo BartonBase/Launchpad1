@@ -1,14 +1,16 @@
 /** Server-only module (imported only from server components). */
 /**
- * Server-side reads with a small in-memory TTL cache so pages don't hammer the free public devnet
+ * Server-side reads with a small in-memory TTL cache so pages don't hammer the free public
  * RPC (429s). Failures never crash a page: callers get { ok: false } and render a notice.
  */
-import { Connection } from "@solana/web3.js";
-import { CLUSTER } from "@/config/cluster";
+import type { Connection } from "@solana/web3.js";
+import { serverRpcUrl } from "@/config/cluster";
+import { makeConnection } from "@/lib/rpc";
 
 let conn: Connection | null = null;
+/** SOLANA_RPC_URL (server-only) if set, else the public cluster RPC; 429s are retried with backoff (lib/rpc). */
 export function serverConnection(): Connection {
-  conn ??= new Connection(CLUSTER.rpcUrl, { commitment: "confirmed", disableRetryOnRateLimit: true });
+  conn ??= makeConnection(serverRpcUrl());
   return conn;
 }
 

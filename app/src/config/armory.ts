@@ -28,6 +28,7 @@ export const PRODUCTION_MIN_GRADUATION_LAMPORTS = 10_000_000_000n;
 export const MIN_GRADUATION_LAMPORTS: Record<ClusterName, bigint> = {
   localnet: 10_000_000_000n,
   devnet: 100_000_000n,
+  "mainnet-beta": 10_000_000_000n, // unused on mainnet (no hybrid_launch); the DBC config fixes the target
 };
 
 /** Wrap ratios (whole tokens per NFT). 10k dropped (BRIEF 2026-09-25 4:55 PM). */
@@ -113,7 +114,7 @@ export interface LaunchType {
 }
 
 export const LAUNCH_TYPES: readonly LaunchType[] = [
-  { id: "plain", name: "Launch", short: "Just the coin", description: "A classic 1B meme coin on a bonding curve that graduates to a locked liquidity pool. No NFTs, no converter, no platform fee." },
+  { id: "plain", name: "Launch", short: "Just the coin", description: "A classic 1B meme coin on a bonding curve that graduates to a locked liquidity pool. No NFTs, no converter." },
   { id: "hybrid", name: "Hybrid", short: "Coin and NFT, both ways", description: "Lock a fixed number of tokens to get a random NFT, and return the NFT for exactly those tokens, any time after graduation." },
   { id: "burn", name: "Burn", short: "Burn coins to mint an NFT", description: "Burn a fixed number of tokens to mint the next NFT in the collection. One-way: the tokens are gone and the NFT can't be turned back." },
   { id: "tax", name: "Tax split", short: "Transfer tax to NFT holders", description: "A transfer fee, fixed at launch, shared with NFT holders." },
@@ -136,17 +137,26 @@ export const FF_TAX_RAFFLE = process.env.NEXT_PUBLIC_FF_TAX_RAFFLE === "1";
  *   Verified on devnet: plain launch 4awRSUS5…, buy F31NFAf6…, sell tXVXFGjw….
  * - Burn: launch_burn is not deployed (InstructionFallbackNotFound on devnet), so it is "Coming
  *   soon" everywhere, like Tax split and Raffle.
+ * - Mainnet (ADR-022, release/mainnet-app): the Launch type ONLY, on Armory's mainnet DBC config. No Armory
+ *   program is deployed or loaded there, so Hybrid is "Coming soon" like Burn, Tax split and Raffle.
  */
 export const DEPLOYED_MODES: Record<ClusterName, readonly LaunchTypeId[]> = {
   localnet: ["hybrid"],
   devnet: ["hybrid", "plain"],
+  "mainnet-beta": ["plain"],
 };
 
 /** Modes shown as "Coming soon" on every cluster (no builders / programs not deployed). */
 export const COMING_SOON_MODES: readonly LaunchTypeId[] = ["burn", "tax", "raffle"];
+/** Extra "Coming soon" modes per cluster (mainnet: Hybrid, until its programs ship there). */
+export const COMING_SOON_BY_CLUSTER: Record<ClusterName, readonly LaunchTypeId[]> = {
+  localnet: [],
+  devnet: [],
+  "mainnet-beta": ["hybrid"],
+};
 
 export function launchTypeStatus(id: LaunchTypeId, cluster: ClusterName): LaunchTypeStatus {
-  if (COMING_SOON_MODES.includes(id)) return "coming-soon"; // regardless of FF: no builders exist
+  if (COMING_SOON_MODES.includes(id) || COMING_SOON_BY_CLUSTER[cluster].includes(id)) return "coming-soon"; // regardless of FF: no builders exist
   return DEPLOYED_MODES[cluster].includes(id) ? "live" : "pending-deploy";
 }
 

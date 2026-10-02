@@ -8,7 +8,8 @@
  *  - Curve progress: `fetchCurveState` (SOL raised vs the config's migration threshold, migrated
  *    flag, spot price).
  * Every transaction built here goes through useSafeSend (allowlist -> simulate -> preview ->
- * explicit confirm), like the rest of the app. Devnet only (the config is pinned per cluster).
+ * explicit confirm), like the rest of the app. The config is pinned per cluster (devnet; mainnet from
+ * NEXT_PUBLIC_DBC_CONFIG_MAINNET).
  */
 import { Keypair, PublicKey, type Connection, type Transaction } from "@solana/web3.js";
 import BN from "bn.js";
@@ -24,6 +25,8 @@ import {
 import { CLUSTER } from "@/config/cluster";
 import { DBC_PLATFORM_CONFIG } from "@/config/integrations";
 import { WRAPPED_SOL_MINT } from "@/config/programs";
+import type { LaunchTermsView } from "@/config/launchTerms";
+import { PLANNED_MAINNET_TERMS, configProblems, steadyFeeBps, termsFromConfig } from "./terms";
 
 const clients = new WeakMap<Connection, DynamicBondingCurveClient>();
 export function dbcClient(conn: Connection): DynamicBondingCurveClient {
@@ -61,7 +64,7 @@ export interface CurveStateDTO {
   /** Spot price, SOL per whole token. */
   readonly priceSol: number;
   readonly baseDecimals: number;
-  /** Total trading fee in basis points (base fee, from the config). */
+  /** Steady trading fee in basis points (after any anti-snipe schedule), from the config. */
   readonly feeBps: number;
   /** 1 = DAMM v2 (MigrationOption). */
   readonly migrationOption: number;
@@ -73,8 +76,8 @@ export function curveStateFrom(pool: PublicKey, vp: VirtualPool, cfg: PoolConfig
   const threshold = BigInt(cfg.migrationQuoteThreshold.toString());
   const pct = threshold > 0n ? Math.min(100, Number((reserve * 1000n) / threshold) / 10) : 0;
   const price = Number(getPriceFromSqrtPrice(s.sqrtPrice, cfg.tokenDecimal, 9).toString());
-  // cliffFeeNumerator is out of 1e9 (FEE_DENOMINATOR): 10_000_000 = 1%.
-  const feeBps = Math.round(Number(cfg.poolFees.baseFee.cliffFeeNumerator.toString()) / 100_000);
+  // Steady fee after any anti-snipe schedule (the cliff fee is the schedule's START, e.g. 50%).
+  const feeBps = steadyFeeBps(cfg.poolFees.baseFee);
   return {
     pool: pool.toBase58(),
     config: s.config.toBase58(),
@@ -166,4 +169,21 @@ export async function buildPlainLaunchTx(
   const mint = Keypair.generate();
   const tx = await dbcClient(conn).creator.createPool({ name: p.name, symbol: p.symbol, uri: p.uri, payer: creator, poolCreator: creator, config, baseMint: mint.publicKey });
   return { tx, signers: [mint], mint: mint.publicKey, pool: deriveDbcPoolAddress(WRAPPED_SOL_MINT, mint.publicKey, config) };
+}
+
+export interface PlatformTermsDTO {
+  readonly config: string;
+  readonly feeClaimer: string;
+  readonly terms: LaunchTermsView;
+  /** Non-empty = the config is unsafe to launch on (see configProblems). */
+  readonly problems: string[];
+}
+
+/** Live launch terms of the platform config (fees, anti-snipe, creator share, graduation) + safety problems. */
+export async function fetchPlatformTerms(conn: Connection): Promise<PlatformTermsDTO | null> {
+  const key = platformDbcConfig();
+  if (!key) return null;
+  const cfg = await dbcClient(conn).state.getPoolConfig(key);
+  if (!cfg) return { config: key.toBase58(), feeClaimer: "", terms: PLANNED_MAINNET_TERMS, problems: ["The platform config account was not found on chain."] };
+  return { config: key.toBase58(), feeClaimer: cfg.feeClaimer.toBase58(), terms: termsFromConfig(cfg), problems: configProblems(cfg, CLUSTER.name) };
 }

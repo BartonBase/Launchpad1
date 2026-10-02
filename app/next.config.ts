@@ -1,14 +1,15 @@
 import type { NextConfig } from "next";
-// Importing the cluster config here makes `next dev` / `next build` fail fast
-// (MainnetForbiddenError) if a mainnet cluster or RPC URL is configured.
+// Importing the cluster config here makes `next dev` / `next build` fail fast (ClusterConfigError) on a bad
+// cluster / RPC URL combination, e.g. a devnet RPC on a mainnet build or a non-https RPC.
 import { CLUSTER } from "./src/config/cluster";
 
 const isDev = process.env.NODE_ENV !== "production";
 
 /**
  * Content-Security-Policy.
- * - connect-src: only the ACTIVE cluster's RPC/WS origins (localnet:
- *   127.0.0.1|localhost:8899/8900, devnet: api.devnet.solana.com https/wss).
+ * - connect-src: only the ACTIVE cluster's RPC/WS origins (localnet: 127.0.0.1|localhost:8899/8900, devnet /
+ *   mainnet: the public endpoint, or the custom NEXT_PUBLIC_SOLANA_RPC_URL origin, https + wss), plus
+ *   upload.ardrive.io for the opt-in token image/metadata upload to Arweave on the Launch form.
  * - script-src: Next.js App Router emits inline bootstrap/RSC scripts, so
  *   without per-request nonces 'unsafe-inline' is required. 'unsafe-eval' is
  *   dev-only (React debugging). See README "CSP" for the nonce upgrade path.
@@ -21,6 +22,7 @@ const connectSrc = [
   "'self'",
   ...CLUSTER.connectSrc,
   ...(CLUSTER.name === "devnet" ? ["https://*.xip.switchboard-oracles.xyz"] : []),
+  "https://upload.ardrive.io",
   ...(isDev ? ["ws://localhost:3000", "ws://127.0.0.1:3000"] : []),
 ];
 
@@ -39,9 +41,9 @@ const csp = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  // Only upgrade when every allowed endpoint is https/wss (devnet prod build);
+  // Only upgrade when every allowed endpoint is https/wss (devnet / mainnet prod builds);
   // on localnet it would break http://127.0.0.1:8899.
-  ...(!isDev && CLUSTER.name === "devnet" ? ["upgrade-insecure-requests"] : []),
+  ...(!isDev && CLUSTER.name !== "localnet" ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
 const securityHeaders = [

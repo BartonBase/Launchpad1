@@ -3,8 +3,8 @@
 /**
  * Wallet + connection providers.
  *
- * - Endpoint comes ONLY from src/config/cluster.ts (localnet/devnet; mainnet
- *   throws at import time).
+ * - Endpoint comes ONLY from src/config/cluster.ts (NEXT_PUBLIC_SOLANA_CLUSTER /
+ *   NEXT_PUBLIC_SOLANA_RPC_URL); requests retry on 429 with backoff (src/lib/rpc.ts).
  * - wallets: explicit Phantom + Solflare adapters, so both are always listed in
  *   the modal (with their install page if the extension isn't there: picking a
  *   wallet that isn't detected opens its site in a new tab). Any installed
@@ -30,6 +30,7 @@ import { WalletAdapterNetwork, WalletNotReadyError, WalletReadyState, isIosAndRe
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
 import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { CLUSTER } from "@/config/cluster";
+import { connectionConfig } from "@/lib/rpc";
 
 /** Solflare adapter that never falls back to the web-wallet iframe on desktop (see header). */
 class SolflareExtensionAdapter extends SolflareWalletAdapter {
@@ -73,10 +74,10 @@ function ConnectOnSelect() {
 
 export function SolanaProviders({ children }: { children: ReactNode }) {
   const wallets = useMemo<Adapter[]>(
-    () => [new PhantomWalletAdapter(), new SolflareExtensionAdapter({ network: WalletAdapterNetwork.Devnet })],
+    () => [new PhantomWalletAdapter(), new SolflareExtensionAdapter({ network: CLUSTER.isMainnet ? WalletAdapterNetwork.Mainnet : WalletAdapterNetwork.Devnet })],
     [],
   );
-  const config = useMemo(() => ({ commitment: "confirmed" as const, wsEndpoint: CLUSTER.wsUrl }), []);
+  const config = useMemo(() => connectionConfig(CLUSTER.wsUrl), []);
   const onError = useCallback((error: WalletError) => {
     // Never log payloads/keys; the error name + message is enough.
     console.warn(`[wallet] ${error.name}: ${error.message}`);

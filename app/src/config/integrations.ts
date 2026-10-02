@@ -1,8 +1,31 @@
 /**
  * Per-cluster integration settings (Switchboard reveal, Meteora DBC, lookup tables).
+ * Mainnet (ADR-022): only the Meteora DBC config; no Switchboard, no lookup tables, no Armory programs.
  */
 import { PublicKey } from "@solana/web3.js";
-import type { ClusterName } from "./cluster";
+import { ClusterConfigError, type ClusterName } from "./cluster";
+
+/**
+ * Parses an optional base58 address from the env. Unset/empty = null; set but invalid = throw at module load, so a
+ * typo fails `next build` instead of shipping a site that silently can't launch.
+ */
+export function parseEnvAddress(raw: string | undefined, what: string): PublicKey | null {
+  const v = raw?.trim();
+  if (!v) return null;
+  try {
+    const k = new PublicKey(v);
+    if (k.toBase58() !== v) throw new Error("not canonical base58");
+    return k;
+  } catch {
+    throw new ClusterConfigError(`${what}="${v}" is not a valid Solana address.`);
+  }
+}
+
+/**
+ * Armory's MAINNET DBC config address (ADR-022, Launch type only). Created and signed by Barton's fee wallet;
+ * set NEXT_PUBLIC_DBC_CONFIG_MAINNET once it exists. Until then mainnet shows launches as "opening soon".
+ */
+export const DBC_CONFIG_MAINNET: PublicKey | null = parseEnvAddress(process.env.NEXT_PUBLIC_DBC_CONFIG_MAINNET, "NEXT_PUBLIC_DBC_CONFIG_MAINNET");
 
 /**
  * Meteora DBC platform config used by register_dbc_launch. Devnet: DuQYHUC… is the platform
@@ -13,6 +36,8 @@ import type { ClusterName } from "./cluster";
 export const DBC_PLATFORM_CONFIG: Record<ClusterName, PublicKey | null> = {
   localnet: null,
   devnet: new PublicKey("DuQYHUCToW6uHkWngXFiU4uGVSjcVKKCTJwViEb87Em9"),
+  // Pools are discovered with getPoolsByConfig(config) (src/lib/meteora/plain.ts); no Armory program involved.
+  "mainnet-beta": DBC_CONFIG_MAINNET,
 };
 
 /**
@@ -27,6 +52,7 @@ export const PINNED_LOOKUP_TABLES: Record<ClusterName, readonly PublicKey[]> = {
   localnet: [],
   // Devnet ARMT settle table (Solana Program Engineer, 2026-10-01; authority An3Zmi…, 21 entries).
   devnet: [new PublicKey("5xhFeeakpaggTw9Ntbjt8yuZSHEoXPTUd63h4tVmZVsU")],
+  "mainnet-beta": [], // no lookup tables on mainnet (Launch type only)
 };
 
 /** Exact expected contents (base58, in index order) of each pinned table, keyed by table address. */
@@ -65,4 +91,5 @@ export const PINNED_LOOKUP_TABLE_CONTENTS: Readonly<Record<string, readonly stri
 export const SWITCHBOARD_GATEWAY_RE: Record<ClusterName, RegExp | null> = {
   localnet: null,
   devnet: /^https:\/\/(?:\d{1,3}\.){3}\d{1,3}\.xip\.switchboard-oracles\.xyz\/devnet$/,
+  "mainnet-beta": null, // no Switchboard on mainnet (Launch type only)
 };

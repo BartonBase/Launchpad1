@@ -9,6 +9,8 @@ import { mintDepositText } from "@/config/armory";
 import { fetchPlainLaunches } from "@/lib/meteora/plain";
 import { isListed } from "@/lib/armory/listing";
 import { PlainCard } from "@/components/meteora/PlainCard";
+import { CLUSTER } from "@/config/cluster";
+import { curveFeeText } from "@/config/launchTerms";
 
 const STEPS = [
   ["01", "Buy the token", "Every launch has a supply fixed at 1,000,000,000 tokens. When the curve fills, the token graduates and converting opens."],
@@ -57,6 +59,7 @@ export default async function HomePage() {
           <div className="card bg-glass shadow-float relative z-10 -mt-24 space-y-4 p-5 sm:-mt-32 lg:absolute lg:bottom-0 lg:-left-4 lg:mt-0 lg:w-[22rem]" aria-label="How converting works">
             <div className="flex items-center justify-between">
               <p className="eyebrow">Switch any time</p>
+              {CLUSTER.isMainnet && <span className="tag tag-soon" data-testid="home-hybrid-soon">Hybrid · coming soon</span>}
             </div>
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
               <div className="bg-surface-2 rounded-panel border-border border p-4">
@@ -79,7 +82,7 @@ export default async function HomePage() {
 
       <section className="space-y-6" aria-labelledby="how">
         <div className="space-y-2">
-          <p className="eyebrow">How it works</p>
+          <p className="eyebrow">{CLUSTER.isMainnet ? "How Hybrid works · coming soon on mainnet" : "How it works"}</p>
           <h2 id="how" className="hd text-3xl md:text-4xl">One asset, two forms</h2>
         </div>
         <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -100,9 +103,9 @@ export default async function HomePage() {
           <p className="eyebrow">Fair launch</p>
           <h2 id="curve" className="hd text-2xl md:text-3xl">Curve first, real pool after</h2>
           <p className="text-muted">
-            Every launch starts on a <strong className="text-fg">bonding curve</strong>: a fixed 1B supply, mint authority revoked and a 1% trading fee. When the
+            Every launch starts on a <strong className="text-fg">bonding curve</strong>: a fixed 1B supply, mint authority revoked and a {curveFeeText(CLUSTER.name)} trading fee{CLUSTER.isMainnet ? ", half of Armory's share paid to the creator" : ""}. When the
             curve fills, the token <strong className="text-fg">graduates</strong> and its liquidity moves to a trading pool with the LP locked for good. Buy and
-            sell right on the token page, with live quotes and slippage protection. Hybrid launches add the NFT converter on top, and it opens at graduation.
+            sell right on the token page, with live quotes and slippage protection. {CLUSTER.isMainnet ? "Hybrid launches, coming soon, add an NFT converter on top." : "Hybrid launches add the NFT converter on top, and it opens at graduation."}
           </p>
         </div>
         <div className="flex flex-col items-start gap-2 md:items-end md:justify-center">

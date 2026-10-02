@@ -9,6 +9,7 @@ import { StateTag } from "./LaunchCard";
 import { TypeIcon } from "./TypeIcon";
 import { EmptyState } from "./EmptyState";
 import { Knight } from "./Knight";
+import { CreatorFeesPanel } from "@/components/meteora/FeeClaims";
 
 /** Portfolio per design/system portfolio.html (lean): summary, positions, NFTs, history. */
 export function PortfolioView() {
@@ -41,6 +42,7 @@ export function PortfolioView() {
         <div className="border-border p-4 md:border-l"><dt className="text-muted text-xs">Hybrid NFTs</dt><dd className="num text-xl font-semibold">{nftCount}</dd></div>
         <div className="border-border p-4 md:border-l"><dt className="text-muted text-xs">Burn NFTs</dt><dd className="text-xl font-semibold"><span className="tag tag-soon">Coming soon</span></dd></div>
       </dl>
+      <CreatorFeesPanel />
       <section className="card overflow-x-auto" aria-labelledby="pos-h">
         <h2 id="pos-h" className="border-border border-b p-4 font-semibold">Positions</h2>
         {d.rows.length === 0 ? (

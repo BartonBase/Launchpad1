@@ -38,7 +38,7 @@
   --color-rarity-uncommon: var(--arm-color-rarity-uncommon);
   --color-rarity-rare: var(--arm-color-rarity-rare);
   --color-rarity-legendary: var(--arm-color-rarity-legendary);
-  /* Cluster badge: never themable to look like mainnet. */
+  /* Cluster badge colours (test networks). Mainnet uses the positive/green dot, see ClusterBadge. */
   --color-cluster-localnet: #7c3aed;
   --color-cluster-devnet: var(--arm-color-status-warn-default);
   --color-cluster-fg: #120805;

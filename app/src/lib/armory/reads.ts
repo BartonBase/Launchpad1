@@ -5,7 +5,7 @@
  */
 import { PublicKey, type Connection, type GetProgramAccountsFilter } from "@solana/web3.js";
 import bs58Encode from "./bs58";
-import { HYBRID_LAUNCH_PROGRAM_ID, HYBRID_VAULT_PROGRAM_ID, SWITCHBOARD_PROGRAM_ID } from "@/config/programs";
+import { HYBRID_LAUNCH_PROGRAM_ID, HYBRID_VAULT_PROGRAM_ID, SWITCHBOARD_PROGRAM_ID, armoryProgramsEnabled } from "@/config/programs";
 import { isExactTierFee } from "@/config/armory";
 import { decodeLaunchConfig, launchConfigPda } from "@/lib/generated/hybridLaunch";
 import {
@@ -126,6 +126,7 @@ const discFilter = (disc: readonly number[]): GetProgramAccountsFilter => ({
 
 /** All hybrid launches (LaunchConfig accounts) on the cluster, newest first. */
 export async function fetchLaunches(conn: Connection): Promise<LaunchDTO[]> {
+  if (!armoryProgramsEnabled()) return []; // mainnet: no Armory programs (Launch type only)
   const res = await conn.getProgramAccounts(HYBRID_LAUNCH_PROGRAM_ID, { filters: [discFilter(hybridLaunchAccounts.LaunchConfig)] });
   const dtos = await buildDTOs(conn, res.map((r) => ({ address: r.pubkey, data: new Uint8Array(r.account.data) })));
   return dtos.sort((a, b) => b.launchedAt - a.launchedAt);
@@ -133,6 +134,7 @@ export async function fetchLaunches(conn: Connection): Promise<LaunchDTO[]> {
 
 /** One launch by mint, or null if this mint was not launched by Armory. */
 export async function fetchLaunch(conn: Connection, mint: PublicKey): Promise<LaunchDTO | null> {
+  if (!armoryProgramsEnabled()) return null;
   const lc = launchConfigPda(mint);
   const info = await conn.getAccountInfo(lc);
   if (!info || !info.owner.equals(HYBRID_LAUNCH_PROGRAM_ID)) return null;
@@ -150,6 +152,7 @@ export interface ProgramStatus {
 
 /** Program accounts + upgrade authority (BPF upgradeable loader ProgramData). */
 export async function fetchProgramStatus(conn: Connection): Promise<ProgramStatus[]> {
+  if (!armoryProgramsEnabled()) return [];
   const progs = [
     { name: "hybrid_launch", id: HYBRID_LAUNCH_PROGRAM_ID },
     { name: "hybrid_vault", id: HYBRID_VAULT_PROGRAM_ID },
@@ -216,6 +219,7 @@ export interface RequestDTO {
 
 /** Pending capture/re-roll requests of a user (optionally for one vault). */
 export async function fetchUserRequests(conn: Connection, user: PublicKey, vault?: string): Promise<RequestDTO[]> {
+  if (!armoryProgramsEnabled()) return [];
   const res = await conn.getProgramAccounts(HYBRID_VAULT_PROGRAM_ID, {
     filters: [discFilter(hybridVaultAccounts.Request), { memcmp: { offset: REQUEST_USER_OFFSET, bytes: s(user) } }],
   });
@@ -239,6 +243,7 @@ export async function fetchUserRequests(conn: Connection, user: PublicKey, vault
  * PDA) that is not currently locked by another request.
  */
 export async function findIdleRandomness(conn: Connection, vault: PublicKey): Promise<PublicKey | null> {
+  if (!armoryProgramsEnabled()) return null;
   const ra = randomnessAuthorityPda(vault);
   const res = await conn.getProgramAccounts(SWITCHBOARD_PROGRAM_ID, {
     filters: [{ memcmp: { offset: 8, bytes: s(ra) } }],

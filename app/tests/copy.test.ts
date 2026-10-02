@@ -69,7 +69,8 @@ describe("live-product copy", () => {
     expect(src("components/SiteFooter.tsx")).toMatch(/href="\/trust"/);
     const linkers = UI.filter((p) => !p.endsWith("SiteFooter.tsx") && /href="\/trust/.test(code(p)));
     expect(linkers.map((p) => p.slice(ROOT.length))).toEqual([]);
-    expect(src("app/faq/page.tsx")).toMatch(/"Is Armory audited\?", "Not yet\./);
+    // Cluster-aware answer: both the devnet and the mainnet wording say plainly that Armory's programs aren't audited.
+    expect(src("app/faq/page.tsx")).toMatch(/"Is Armory audited\?", CLUSTER\.isMainnet \? "Armory's own programs aren't audited yet[^"]*" : "Not yet\./);
   });
 
   it("has no bug-bounty route (redirects home)", async () => {

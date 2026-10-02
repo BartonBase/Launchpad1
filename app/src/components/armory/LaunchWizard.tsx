@@ -37,6 +37,11 @@ import { EXAMPLE_SOL_USD, FALLBACK_CURVE_SPLIT, designSol, type WizardType } fro
 import { useSafeSend } from "@/lib/tx/useSafeSend";
 import { TxPreviewModal } from "@/components/TxPreviewModal";
 import { TypeIcon } from "./TypeIcon";
+import { MetadataUpload } from "./MetadataUpload";
+import { fetchPlatformTerms } from "@/lib/meteora/dbc";
+import { PLANNED_MAINNET_TERMS } from "@/lib/meteora/terms";
+import { launchDisclosure } from "@/config/launchTerms";
+import { armoryProgramsEnabled } from "@/config/programs";
 
 const GROUPS = [
   { label: "Large collections", hint: "50K to 200K: more NFTs, each one cheaper", ratios: [50_000, 100_000, 200_000] },
@@ -57,7 +62,9 @@ function Row({ k, val, testId }: { k: string; val: React.ReactNode; testId?: str
   );
 }
 
-export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardType }) {
+export function LaunchWizard({ initialType: requested = "hybrid" }: { initialType?: WizardType }) {
+  // A type that isn't open on this cluster (Hybrid on mainnet) can't be the starting point.
+  const initialType: WizardType = launchTypeStatus(requested, CLUSTER.name) === "coming-soon" ? "plain" : requested;
   const { connected } = useWallet();
   const safeSend = useSafeSend();
   const [step, setStep] = useState(0);
@@ -93,7 +100,7 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
   const formOk = Object.keys(v.errors).length === 0;
   const launch = () => {
     if (t === "plain") {
-      if (!formOk || !plainAvailable) return;
+      if (!formOk || !plainReady) return;
       const p = { name: form.name.trim(), symbol: form.symbol.trim(), uri: (form.metadataUri ?? "").trim() };
       void safeSend.start(async ({ connection, payer }) => {
         const b = await buildPlainLaunchTx(connection, payer, p);
@@ -117,7 +124,15 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
   const dbcAvailable = t === "hybrid" && dbcConfig !== null;
   const plainAvailable = t === "plain" && dbcConfig !== null;
   const dbcGrad = useChainRead(dbcConfig !== null ? "dbc:grad" : null, (c) => fetchDbcGraduationLamports(c));
-  const gradText = isPlain ? (dbcGrad.data != null ? formatSol(dbcGrad.data, 1) : "…") : `${form.graduationSol || "—"} SOL`;
+  // Live launch terms (fee, creator share, anti-snipe, graduation) + the config safety check (mainnet fee wallet).
+  const platform = useChainRead(dbcConfig !== null ? "dbc:terms" : null, (c) => fetchPlatformTerms(c));
+  const terms = platform.data?.terms ?? PLANNED_MAINNET_TERMS;
+  const configBlocked = (platform.data?.problems.length ?? 0) > 0;
+  const plainReady = plainAvailable && !configBlocked;
+  const disclosure = launchDisclosure(terms);
+  const hasPrograms = armoryProgramsEnabled(CLUSTER.name);
+  const pctText = (bps: number) => `${(bps / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}%`;
+  const gradText = isPlain ? (dbcGrad.data != null ? formatSol(dbcGrad.data, 1) : dbcConfig ? "…" : `${PLANNED_MAINNET_TERMS.graduationSol} SOL (planned)`) : `${form.graduationSol || "—"} SOL`;
   const previewDbc = () => {
     if (!v.params || !dbcAvailable) return;
     const params = v.params;
@@ -199,9 +214,10 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
               {LAUNCH_TYPES.filter((x) => x.id === "plain" || x.id === "hybrid").map((x) => {
                 const st = launchTypeStatus(x.id, CLUSTER.name);
                 const on = t === x.id;
+                const soon = st === "coming-soon";
                 return (
-                  <label key={x.id} className={`rounded-panel cursor-pointer border p-4 ${on ? "border-accent-border bg-accent-tint" : "border-border"}`} data-testid={`launch-type-option-${x.id}`} data-status={st}>
-                    <input type="radio" name="type" className="sr-only" checked={on} onChange={() => set("type", x.id as WizardType)} />
+                  <label key={x.id} aria-disabled={soon || undefined} className={`rounded-panel border p-4 ${soon ? "card-soon" : "cursor-pointer"} ${on ? "border-accent-border bg-accent-tint" : "border-border"}`} data-testid={`launch-type-option-${x.id}`} data-status={st}>
+                    <input type="radio" name="type" className="sr-only" checked={on} disabled={soon} onChange={() => set("type", x.id as WizardType)} />
                     <TypeIcon type={x.id} className="text-accent-text" />
                     <span className="mt-2 block font-semibold">{x.name}</span>
                     <span className="text-accent-text block text-xs">{x.short}</span>
@@ -224,7 +240,7 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
                 </div>
               ))}
             </div>
-            <p className="text-dim text-xs">Burn, Tax split and Raffle aren&apos;t available yet. They&apos;re listed so you know what&apos;s planned.</p>
+            <p className="text-dim text-xs">{hasPrograms ? "Burn, Tax split and Raffle aren't available yet." : "Hybrid, Burn, Tax split and Raffle aren't available on mainnet yet."} They&apos;re listed so you know what&apos;s planned.</p>
             {!live && (
               <p className="border-warning-border bg-warning-bg text-warning rounded-panel border p-3 text-sm" data-testid="launch-pending-deploy">
                 {TNAME[t]} launches aren&apos;t open yet. You can walk through the setup; launching is disabled.
@@ -252,9 +268,10 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
                 {err("symbol", form.symbol !== "")}
               </div>
             </div>
-            {field("metadataUri", "Token metadata URI", "Hosted off-chain", "ipfs://… or ar://…")}
+            {isPlain && <MetadataUpload name={form.name} symbol={form.symbol} onUploaded={(uri) => set("metadataUri", uri)} />}
+            {field("metadataUri", "Token metadata URI", isPlain ? "Filled by the upload, or paste your own" : "Hosted off-chain", "https://arweave.net/… · ipfs://… · ar://…")}
             <p className="text-dim text-xs" data-testid="launch-metadata-note">
-              Optional. The token&apos;s image and description live in a metadata file you host yourself (IPFS or Arweave). It&apos;s set when the curve pool is created and can&apos;t be edited afterwards. Armory has no upload step and doesn&apos;t host files.{isPlain ? "" : " A Hybrid launch without a curve has no metadata field, so it's only used on the curve path."}
+              Optional. Wallets and explorers read the token&apos;s image and description from this metadata file. It&apos;s set when the curve pool is created and can&apos;t be edited afterwards. {isPlain ? "Upload above (Arweave, public and permanent) or paste a file you host yourself. Armory doesn't store your files." : "Host it yourself (IPFS or Arweave). A Hybrid launch without a curve has no metadata field, so it's only used on the curve path."}
             </p>
           </div>
         )}
@@ -266,7 +283,7 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
               {[
                 [isBurn ? "Supply: capped at 1,000,000,000 tokens" : "Supply: fixed at 1,000,000,000 tokens", isBurn ? "Mint authority revoked at launch, so nobody can mint more; burns only lower it." : "Mint authority revoked at launch, so nobody can mint more."],
                 ["Freeze authority revoked", "Nobody can freeze holders' tokens."],
-                ...(isPlain ? [["No NFT side", "No ratio, collection, converting or platform fee."]] : [["Conversion rate set at launch", "Fixed in the launch record; no instruction can change it."]]),
+                ...(isPlain ? [["No NFT side", "No ratio, collection or converting. Just the coin."]] : [["Conversion rate set at launch", "Fixed in the launch record; no instruction can change it."]]),
                 ["No transfer tax", "A classic SPL token. No tax on any transfer."],
               ].map(([a, b]) => (
                 <div key={a} className="bg-surface-2 rounded-panel border-border border p-3 text-sm">
@@ -275,6 +292,14 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
                 </div>
               ))}
             </div>
+            {isPlain && (
+              <div className="border-accent-border bg-accent-tint rounded-panel border p-3 text-sm" data-testid="launch-disclosure">
+                <p className="text-accent-text mb-1 font-medium">Fees and what you earn</p>
+                <ul className="text-muted list-disc space-y-1 pl-5 text-xs">
+                  {disclosure.map((l) => <li key={l}>{l}</li>)}
+                </ul>
+              </div>
+            )}
             {!isPlain && (
               <>
                 <p className="border-accent-border bg-accent-tint text-accent-text rounded-panel border p-3 text-sm">
@@ -427,9 +452,15 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
                   <Row k="Converting back" val={isBurn ? "Not possible, one-way" : "No platform fee"} />
                 </>
               )}
-              <Row k="Launch fee" val={isPlain ? "None · you pay Solana rent (≈ 0.02 SOL)" : "None on chain today"} testId="launch-review-launch-fee" />
-              {isPlain && <Row k="Curve trade fee" val="1% per trade" />}
-              <Row k="Program upgrades" val="Not locked yet · 1 dev key per program · multisig + 7-day delay planned for mainnet" />
+              <Row k="Launch fee" val={isPlain ? `None · you pay about ${terms.creatorCostSol.toFixed(4)} SOL network rent and fees` : "None on chain today"} testId="launch-review-launch-fee" />
+              {isPlain && (
+                <>
+                  <Row k="Curve trade fee" val={`${pctText(terms.tradingFeeBps)} per trade, in SOL`} testId="launch-review-trade-fee" />
+                  <Row k="Your share" val={`${terms.creatorFeePercent}% of the fee after Meteora's cut · claim in Portfolio`} testId="launch-review-creator-share" />
+                  {terms.antiSnipeStartBps !== null && terms.antiSnipeSeconds !== null && <Row k="Anti-snipe" val={`Fee starts at ${pctText(terms.antiSnipeStartBps)}, falls to ${pctText(terms.tradingFeeBps)} over ${terms.antiSnipeSeconds} s`} testId="launch-review-antisnipe" />}
+                </>
+              )}
+              {hasPrograms ? <Row k="Program upgrades" val="Not locked yet · 1 dev key per program · multisig + 7-day delay planned for mainnet" /> : <Row k="Programs" val="Meteora's audited bonding curve and DAMM v2 only. No Armory program." testId="launch-review-programs" />}
             </dl>
             {t === "hybrid" && (
               <p className="border-warning-border bg-warning-bg text-warning rounded-panel border p-3 text-sm" data-testid="launch-native-warning">
@@ -439,18 +470,30 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
             <label className="flex items-start gap-2 text-sm">
               <input type="checkbox" className="mt-1" checked={ack} onChange={(e) => setAck(e.target.checked)} data-testid="launch-ack" />
               <span className="text-muted">
-                I understand that the launch type{isPlain ? "" : ", collection size and committed art"} can&apos;t be changed after launch, and that the programs can still be upgraded until they&apos;re frozen after the audit.
+                {hasPrograms
+                  ? <>I understand that the launch type{isPlain ? "" : ", collection size and committed art"} can&apos;t be changed after launch, and that the programs can still be upgraded until they&apos;re frozen after the audit.</>
+                  : <>I understand the name, ticker and metadata can&apos;t be changed after launch, and I&apos;ve read the fees above, including the anti-snipe fee on early trades.</>}
               </span>
             </label>
             <button
               type="button"
               className="btn btn-primary btn-lg w-full"
-              disabled={!live || !ack || !connected || (isPlain ? !formOk || !plainAvailable : !v.params) || safeSend.busy}
+              disabled={!live || !ack || !connected || (isPlain ? !formOk || !plainReady : !v.params) || safeSend.busy}
               onClick={launch}
               data-testid="launch-submit"
             >
-              {live ? (isPlain ? "Launch token" : "Launch Hybrid") : `${TNAME[t]}: ${STATUS_LABEL[launchTypeStatus(t, CLUSTER.name)].toLowerCase()}`}
+              {live ? (isPlain ? (plainAvailable ? "Launch token" : "Launches opening soon") : "Launch Hybrid") : `${TNAME[t]}: ${STATUS_LABEL[launchTypeStatus(t, CLUSTER.name)].toLowerCase()}`}
             </button>
+            {isPlain && !plainAvailable && (
+              <p className="border-warning-border bg-warning-bg text-warning rounded-panel border p-3 text-sm" data-testid="launch-config-missing">
+                Launches open as soon as Armory&apos;s {CLUSTER.displayName.toLowerCase()} curve settings are published. You can walk through the setup now.
+              </p>
+            )}
+            {isPlain && configBlocked && (
+              <p role="alert" className="border-warning-border bg-warning-bg text-warning rounded-panel border p-3 text-sm" data-testid="launch-config-problem">
+                Launching is paused: {platform.data?.problems.join(" ")}
+              </p>
+            )}
             {dbcAvailable && (
               <div className="space-y-1" data-testid="launch-dbc">
                 <button type="button" className="btn w-full" disabled={!ack || !connected || !v.params || safeSend.busy} onClick={previewDbc} data-testid="launch-dbc-preview">
@@ -508,10 +551,10 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
               <dl data-testid="math-split">
                 <Row k="Sold on the curve" val={`${formatUnits(split.curve, 0)} · ${split.pct[0]}%`} />
                 <Row k="Set aside for the trading pool" val={`${formatUnits(split.dex, 0)} · ${split.pct[1]}%`} />
-                <Row k="Unsold buffer, locked" val={`${formatUnits(split.buffer, 0)} · ${split.pct[2]}%`} />
+                {split.buffer > 0n && <Row k={hasPrograms ? "Unsold buffer, locked" : "Unsold leftover, burned"} val={`${formatUnits(split.buffer, 0)} · ${split.pct[2]}%`} />}
                 <Row k="Per-NFT fees" val="None" />
               </dl>
-              <p className="text-dim text-xs">Split from Armory&apos;s curve settings (read from chain); the approved settings at launch decide it.</p>
+              <p className="text-dim text-xs">{dbcConfig ? "Split from Armory's curve settings (read from chain); the approved settings at launch decide it." : "Example split. The curve settings, once published, decide it."}</p>
             </>
           ) : (
             <>

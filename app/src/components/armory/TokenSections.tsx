@@ -3,7 +3,9 @@
  * token-burn; matrix: lib/armory/tokenPanels). Server components; no transaction code here.
  */
 import { BURN_MINT_TEXT, FIRST_MINT_RANGE_TEXT, MINT_ESCROW_LAMPORTS, TOTAL_SUPPLY_WHOLE } from "@/config/armory";
-import { explorerAddressUrl } from "@/config/cluster";
+import { CLUSTER, explorerAddressUrl } from "@/config/cluster";
+import { curveFeeText } from "@/config/launchTerms";
+import { armoryProgramsEnabled } from "@/config/programs";
 import { formatSol, formatUnits, shortAddr } from "@/lib/armory/format";
 import type { Phase, TokenType } from "@/lib/armory/tokenPanels";
 import { NO_CURVE_MESSAGE } from "@/lib/armory/errors";
@@ -266,12 +268,12 @@ export function FeesControl({ v }: { v: TokenView }) {
     <section className="card space-y-2 p-5" aria-labelledby="fc-h" data-testid="fees-control">
       <h2 id="fc-h" className="font-semibold">Fees and control</h2>
       <dl>
-        <Fact k="Curve trade fee" v="1% per trade" />
+        <Fact k="Curve trade fee" v={`${curveFeeText(CLUSTER.name)} per trade`} />
         {v.type !== "plain" && <Fact k={`Platform fee per ${v.type === "burn" ? "burn" : "capture or re-roll"}`} v={v.feeLamports !== null ? formatSol(v.feeLamports) : "—"} />}
         {v.type === "hybrid" && <Fact k="Mint deposit, per capture or re-roll" v={`${formatSol(MINT_ESCROW_LAMPORTS, 4)}, refunded except ${FIRST_MINT_RANGE_TEXT} if the NFT is minted new`} />}
         {v.type === "hybrid" && <Fact k="Converting back" v="No platform fee" />}
         {v.type === "burn" && <Fact k="Mint cost, every burn" v={BURN_MINT_TEXT} />}
-        <Fact k="Program upgrades" v="Not locked yet · 1 dev key per program · 3-of-5 multisig + 7-day delay planned for mainnet" />
+        {armoryProgramsEnabled(CLUSTER.name) ? <Fact k="Program upgrades" v="Not locked yet · 1 dev key per program · 3-of-5 multisig + 7-day delay planned for mainnet" /> : <Fact k="Programs" v="Meteora bonding curve + DAMM v2 only, no Armory program" />}
       </dl>
     </section>
   );

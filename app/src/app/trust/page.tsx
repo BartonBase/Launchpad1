@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { BURN_MINT_TEXT, FIRST_MINT_RANGE_TEXT, KEY_CUSTODY_RULE, PROGRAM_UPGRADES_COPY, mintDepositText } from "@/config/armory";
 import { explorerAddressUrl } from "@/config/cluster";
-import { HYBRID_LAUNCH_PROGRAM_ID, HYBRID_VAULT_PROGRAM_ID, SWITCHBOARD_PROGRAM_ID } from "@/config/programs";
+import { DAMM_V2_PROGRAM_ID, DBC_PROGRAM_ID, HYBRID_LAUNCH_PROGRAM_ID, HYBRID_VAULT_PROGRAM_ID, SWITCHBOARD_PROGRAM_ID, armoryProgramsEnabled } from "@/config/programs";
+import { DBC_PLATFORM_CONFIG } from "@/config/integrations";
+import { CLUSTER } from "@/config/cluster";
 import { AuthoritiesPanel } from "@/components/armory/AuthoritiesPanel";
 import { DocLayout, DocSection, Dots } from "@/components/armory/DocLayout";
 import { PipelineSelfTest } from "@/components/PipelineSelfTest";
@@ -47,6 +49,13 @@ function Table({ head, rows, okCells = false }: { head: string[]; rows: string[]
   );
 }
 
+/** Mainnet (ADR-022): Launch type only. No Armory program exists there; the app talks to Meteora's programs only. */
+const HYBRID = armoryProgramsEnabled();
+const dbcConfig = DBC_PLATFORM_CONFIG[CLUSTER.name];
+const ADDRESSES: [string, string][] = HYBRID
+  ? [["hybrid_launch", HYBRID_LAUNCH_PROGRAM_ID.toBase58()], ["hybrid_vault", HYBRID_VAULT_PROGRAM_ID.toBase58()], ["Switchboard On-Demand", SWITCHBOARD_PROGRAM_ID.toBase58()]]
+  : [["Meteora Dynamic Bonding Curve", DBC_PROGRAM_ID.toBase58()], ["Meteora DAMM v2", DAMM_V2_PROGRAM_ID.toBase58()], ...(dbcConfig ? ([["Armory DBC config", dbcConfig.toBase58()]] as [string, string][]) : [])];
+
 export default function TrustPage() {
   return (
     <DocLayout
@@ -54,6 +63,13 @@ export default function TrustPage() {
       intro="What's locked, what isn't yet, and what comes next. Straight answers, checked against our own engineering records."
       toc={TOC}
     >
+      {!HYBRID && (
+        <p className="card text-muted p-4 text-sm" data-testid="trust-mainnet-note">
+          <b className="text-fg">On mainnet Armory runs the Launch type only.</b> Launches use Meteora&apos;s bonding-curve and DAMM v2 programs with
+          Armory&apos;s fixed config; no Armory program is deployed or used. The Hybrid, Burn, randomness and program-upgrade notes below describe
+          launch types that are coming soon.
+        </p>
+      )}
       <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-testid="trust-summary">
         {[
           ["Third-party audit", "Not completed yet", "Two internal security reviews done. A paid third-party audit is planned.", true],
@@ -88,10 +104,10 @@ export default function TrustPage() {
         <p className="text-muted text-sm">An &quot;authority&quot; is a key that&apos;s allowed to change something on-chain. Here&apos;s what each one means and where it stands for each launch type.</p>
         <Dots items={[<><b className="text-fg">Mint authority.</b> The power to create new tokens. Revoked means the supply can never grow.</>, <><b className="text-fg">Freeze authority.</b> The power to lock tokens inside someone&apos;s wallet. It&apos;s never set on Armory tokens.</>, <><b className="text-fg">Metadata update authority.</b> The power to change a token&apos;s name, ticker or image. Launches must be created without one.</>, <><b className="text-fg">Upgrade authority.</b> The power to replace a program&apos;s code. This is the one power that still exists today. Here&apos;s who holds it and how it ends.</>]} />
         <Table head={["Authority", "Launch", "Hybrid", "Burn"]} rows={AUTH} okCells />
-        <p className="text-dim text-xs">Launch tokens are created on the bonding curve with Armory&apos;s config, which fixes these settings (fixed 1B supply, mint authority revoked, immutable metadata, unsold tokens to a locked buffer). Burn is coming soon; its column describes the program code.</p>
+        <p className="text-dim text-xs">Launch tokens are created on the bonding curve with Armory&apos;s config, which fixes these settings (fixed 1B supply, mint authority revoked, immutable metadata, {HYBRID ? "unsold tokens to a locked buffer" : "unsold curve dust to Solana's incinerator address"}). Burn is coming soon; its column describes the program code.</p>
         <div className="border-border border-t pt-4">
           <h3 className="mb-2 text-sm font-semibold">Read live from the chain</h3>
-          <AuthoritiesPanel />
+          {HYBRID ? <AuthoritiesPanel /> : <p className="text-muted text-sm">No Armory program runs on mainnet, so there is no Armory upgrade key. Each token page shows its own mint and freeze authority, read live.</p>}
         </div>
       </DocSection>
 
@@ -156,8 +172,8 @@ export default function TrustPage() {
       <DocSection id="addresses" title="Program addresses">
         <p className="text-muted text-sm">Programs this app talks to. The verifiable build hash will be published here.</p>
         <ul className="space-y-1 text-sm">
-          {[["hybrid_launch", HYBRID_LAUNCH_PROGRAM_ID], ["hybrid_vault", HYBRID_VAULT_PROGRAM_ID], ["Switchboard On-Demand", SWITCHBOARD_PROGRAM_ID]].map(([n, id]) => (
-            <li key={String(n)} className="fact"><span>{String(n)}</span><a className="font-mono text-xs break-all underline-offset-2 hover:underline" href={explorerAddressUrl(id!.toString())} target="_blank" rel="noopener noreferrer">{id!.toString()}</a></li>
+          {ADDRESSES.map(([n, id]) => (
+            <li key={n} className="fact"><span>{n}</span><a className="font-mono text-xs break-all underline-offset-2 hover:underline" href={explorerAddressUrl(id)} target="_blank" rel="noopener noreferrer">{id}</a></li>
           ))}
         </ul>
       </DocSection>

@@ -6,7 +6,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PublicKey } from "@solana/web3.js";
 import { CLUSTER, explorerAddressUrl } from "@/config/cluster";
-import { DAMM_V2_PROGRAM_ID, DBC_PROGRAM_ID, HYBRID_LAUNCH_PROGRAM_ID, HYBRID_VAULT_PROGRAM_ID } from "@/config/programs";
+import { DAMM_V2_PROGRAM_ID, DBC_PROGRAM_ID, HYBRID_LAUNCH_PROGRAM_ID, HYBRID_VAULT_PROGRAM_ID, armoryProgramsEnabled } from "@/config/programs";
+import { DBC_PROTOCOL_FEE_PERCENT, INCINERATOR } from "@/config/launchTerms";
+import { antiSnipe, steadyFeeBps } from "@/lib/meteora/terms";
 import { DBC_PLATFORM_CONFIG } from "@/config/integrations";
 import { cachedRead } from "@/lib/armory/server";
 import { dbcClient } from "@/lib/meteora/dbc";
@@ -20,6 +22,8 @@ export const metadata: Metadata = { title: "How it works", description: "The tec
 interface ConfigFacts {
   thresholdLamports: string;
   feeBps: number;
+  creatorFeePercent: number;
+  antiSnipe: { startBps: number; seconds: number } | null;
   migrationOption: number;
   supplyWhole: string;
   curvePct: number;
@@ -46,7 +50,9 @@ async function loadConfig(): Promise<ConfigFacts | null> {
     const pools = (await dbcClient(c).state.getPoolsByConfig(key)).length;
     return {
       thresholdLamports: cfg.migrationQuoteThreshold.toString(),
-      feeBps: Math.round(Number(cfg.poolFees.baseFee.cliffFeeNumerator.toString()) / 100_000),
+      feeBps: steadyFeeBps(cfg.poolFees.baseFee),
+      creatorFeePercent: cfg.creatorTradingFeePercentage,
+      antiSnipe: antiSnipe(cfg.poolFees.baseFee, cfg.activationType),
       migrationOption: cfg.migrationOption,
       supplyWhole: (total / 10n ** BigInt(cfg.tokenDecimal)).toString(),
       curvePct: pct(swap),
@@ -62,7 +68,15 @@ async function loadConfig(): Promise<ConfigFacts | null> {
   }).then((r) => (r.ok ? r.value : null));
 }
 
-const BUFFER_PDA = PublicKey.findProgramAddressSync([new TextEncoder().encode("dbc_buffer")], HYBRID_LAUNCH_PROGRAM_ID)[0].toBase58();
+/** Devnet only: Armory's locked ["dbc_buffer"] PDA of hybrid_launch (mainnet loads no Armory program). */
+const HYBRID = armoryProgramsEnabled();
+const BUFFER_PDA = HYBRID ? PublicKey.findProgramAddressSync([new TextEncoder().encode("dbc_buffer")], HYBRID_LAUNCH_PROGRAM_ID)[0].toBase58() : null;
+const INCINERATOR_B58 = INCINERATOR.toBase58();
+function leftoverLabel(receiver: string): string {
+  if (receiver === INCINERATOR_B58) return "Solana's incinerator address (nobody can ever move them)";
+  if (receiver === BUFFER_PDA) return "Armory's locked buffer PDA (no withdraw instruction)";
+  return shortAddr(receiver);
+}
 
 function Addr({ k, a }: { k: string; a: string }) {
   return (
@@ -76,9 +90,13 @@ function Addr({ k, a }: { k: string; a: string }) {
 const FLOW = [
   ["01", "Launch on DBC", "A Launch is one Meteora DBC instruction (initialize_virtual_pool_with_spl_token) on Armory's platform config. DBC creates the 1B SPL token, revokes mint authority, writes immutable metadata and opens the curve."],
   ["02", "Trade the curve", "Buys and sells go straight to the DBC pool (swap2, exact-in). The app quotes with the SDK, shows fees and a minimum received, and simulates before your wallet signs."],
-  ["03", "Graduate", "When the curve raises its SOL target, DBC migrates the liquidity into a Meteora DAMM v2 pool. The LP is permanently locked by the config; unsold curve tokens go to a program-owned buffer that can never withdraw."],
+  ["03", "Graduate", HYBRID
+    ? "When the curve raises its SOL target, DBC migrates the liquidity into a Meteora DAMM v2 pool. The LP is permanently locked by the config; unsold curve tokens go to a program-owned buffer that can never withdraw."
+    : "When the curve raises its SOL target, DBC migrates the liquidity into a Meteora DAMM v2 pool. The LP is permanently locked by the config; the few unsold curve tokens go to Solana's incinerator address, where nobody can ever move them."],
   ["04", "Trade on DAMM v2", "After migration the same Trade panel routes to the DAMM v2 pool through the cp-amm SDK, with price impact and slippage protection."],
-  ["05", "NFT layer (Hybrid)", "For Hybrid launches, Armory's hybrid_launch registers the DBC pool (allowlisted config only), and hybrid_vault opens converting only after it has verified the pool migrated. Then tokens ⇄ Metaplex Core NFTs at a fixed ratio, with Switchboard randomness."],
+  ["05", "NFT layer (Hybrid)", HYBRID
+    ? "For Hybrid launches, Armory's hybrid_launch registers the DBC pool (allowlisted config only), and hybrid_vault opens converting only after it has verified the pool migrated. Then tokens ⇄ Metaplex Core NFTs at a fixed ratio, with Switchboard randomness."
+    : "Coming soon on mainnet. Hybrid launches (coin and NFT, both ways) will add Armory's own programs on top of the same curve."],
 ] as const;
 
 export default async function MeteoraPage() {
@@ -128,11 +146,12 @@ export default async function MeteoraPage() {
               <div className="fact"><dt>Graduation target</dt><dd>{formatSol(cfg.thresholdLamports, 2)} raised</dd></div>
               <div className="fact"><dt>Migrates to</dt><dd>{cfg.migrationOption === 1 ? "Meteora DAMM v2" : `Option ${cfg.migrationOption}`}</dd></div>
               <div className="fact"><dt>Supply</dt><dd>{Number(cfg.supplyWhole).toLocaleString("en-US")}{cfg.fixedSupply ? " · fixed" : ""}</dd></div>
-              <div className="fact"><dt>Supply split</dt><dd>{cfg.curvePct}% curve · {cfg.dexPct}% DAMM v2 pool · {cfg.bufferPct}% locked buffer</dd></div>
-              <div className="fact"><dt>Curve trade fee</dt><dd>{cfg.feeBps / 100}% (part goes to Meteora as protocol fee)</dd></div>
+              <div className="fact"><dt>Supply split</dt><dd>{cfg.curvePct}% curve · {cfg.dexPct}% DAMM v2 pool{cfg.bufferPct > 0 ? ` · ${cfg.bufferPct}% ${HYBRID ? "locked buffer" : "leftover"}` : ""}</dd></div>
+              <div className="fact"><dt>Curve trade fee</dt><dd>{cfg.feeBps / 100}% in SOL (Meteora keeps {DBC_PROTOCOL_FEE_PERCENT}%{cfg.creatorFeePercent > 0 ? `; the rest is split ${cfg.creatorFeePercent}/${100 - cfg.creatorFeePercent} creator/Armory` : ""})</dd></div>
+              {cfg.antiSnipe && <div className="fact"><dt>Anti-snipe fee</dt><dd>{cfg.antiSnipe.startBps / 100}% at launch, falling to {cfg.feeBps / 100}% over {cfg.antiSnipe.seconds} s</dd></div>}
               <div className="fact"><dt>LP after migration</dt><dd>{cfg.lockedLpPct}% permanently locked</dd></div>
               <div className="fact"><dt>Token metadata</dt><dd>{cfg.immutableMetadata ? "Immutable" : "Updatable"}</dd></div>
-              <div className="fact"><dt>Unsold tokens go to</dt><dd>{cfg.leftoverReceiver === BUFFER_PDA ? "Armory's locked buffer PDA (no withdraw instruction)" : shortAddr(cfg.leftoverReceiver)}</dd></div>
+              <div className="fact"><dt>Unsold tokens go to</dt><dd>{leftoverLabel(cfg.leftoverReceiver)}</dd></div>
               <div className="fact"><dt>Pools on this config</dt><dd>{cfg.pools}</dd></div>
             </dl>
           ) : (
@@ -145,16 +164,16 @@ export default async function MeteoraPage() {
             <Addr k="Meteora DBC program" a={DBC_PROGRAM_ID.toBase58()} />
             <Addr k="Meteora DAMM v2 program" a={DAMM_V2_PROGRAM_ID.toBase58()} />
             {dbcConfig && <Addr k="Armory DBC config" a={dbcConfig.toBase58()} />}
-            <Addr k="Locked buffer PDA" a={BUFFER_PDA} />
+            {BUFFER_PDA && <Addr k="Locked buffer PDA" a={BUFFER_PDA} />}
             {cfg && <Addr k="Platform fee claimer" a={cfg.feeClaimer} />}
-            <Addr k="Armory hybrid_launch" a={HYBRID_LAUNCH_PROGRAM_ID.toBase58()} />
-            <Addr k="Armory hybrid_vault" a={HYBRID_VAULT_PROGRAM_ID.toBase58()} />
+            {HYBRID && <Addr k="Armory hybrid_launch" a={HYBRID_LAUNCH_PROGRAM_ID.toBase58()} />}
+            {HYBRID && <Addr k="Armory hybrid_vault" a={HYBRID_VAULT_PROGRAM_ID.toBase58()} />}
           </dl>
         </div>
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <div className="card space-y-3 p-5">
+        {HYBRID && <div className="card space-y-3 p-5">
           <h2 className="font-semibold">Why the NFT layer needs the curve</h2>
           <ul className="text-muted list-inside list-disc space-y-1 text-sm">
             <li>hybrid_launch only registers a DBC pool whose config is on its compiled allowlist, and checks the pool, config and mint on-chain.</li>
@@ -162,17 +181,19 @@ export default async function MeteoraPage() {
             <li>So the NFT side can only open on a token with a real, locked DAMM v2 market, never on a pre-mint the creator controls.</li>
             <li>Converting is exact both ways: lock the ratio for a random Metaplex Core NFT (Switchboard randomness), release it for exactly the ratio back.</li>
           </ul>
-        </div>
+        </div>}
         <div className="card space-y-3 p-5" data-testid="meteora-live">
           <h2 className="font-semibold">On chain now</h2>
           <dl className="text-sm">
             <div className="fact"><dt>Launches (DBC)</dt><dd>{plains.ok ? plains.value.length : "—"}</dd></div>
             <div className="fact"><dt>… graduated to DAMM v2</dt><dd>{plains.ok ? plains.value.filter((p) => p.curve.migrated).length : "—"}</dd></div>
-            <div className="fact"><dt>Hybrid launches on a DBC curve</dt><dd>{hybrids.ok ? curveHybrids.length : "—"}</dd></div>
+            {HYBRID && <div className="fact"><dt>Hybrid launches on a DBC curve</dt><dd>{hybrids.ok ? curveHybrids.length : "—"}</dd></div>}
           </dl>
-          <p className="text-muted text-sm">
-            Try it: the <Link className="text-accent-text" href="/t/Dhv3VkqeTYJiahzcVJLmJ1snApdYtQxsAKeUnv5GTNos">ARMT</Link> Hybrid launch graduated from DBC to DAMM v2; its page trades on DAMM v2 and converts tokens to NFTs.
-          </p>
+          {CLUSTER.name === "devnet" && (
+            <p className="text-muted text-sm">
+              Try it: the <Link className="text-accent-text" href="/t/Dhv3VkqeTYJiahzcVJLmJ1snApdYtQxsAKeUnv5GTNos">ARMT</Link> Hybrid launch graduated from DBC to DAMM v2; its page trades on DAMM v2 and converts tokens to NFTs.
+            </p>
+          )}
         </div>
       </section>
 
@@ -183,7 +204,8 @@ export default async function MeteoraPage() {
           <li>app/src/lib/meteora/damm.ts: cp-amm SDK client: find the migrated DAMM v2 pool, quote + swap</li>
           <li>app/src/lib/meteora/plain.ts: lists Launch tokens (pools on the platform config)</li>
           <li>app/src/components/meteora/SwapPanel.tsx · CurveProgress.tsx: trade UI and graduation indicator</li>
-          <li>programs/hybrid_launch/src/dbc.rs · programs/hybrid_vault/src/graduation.rs: on-chain DBC config + migration checks</li>
+          <li>app/src/lib/meteora/fees.ts · app/src/app/admin/fees: creator and platform fee claims</li>
+          {HYBRID && <li>programs/hybrid_launch/src/dbc.rs · programs/hybrid_vault/src/graduation.rs: on-chain DBC config + migration checks</li>}
         </ul>
       </section>
     </div>

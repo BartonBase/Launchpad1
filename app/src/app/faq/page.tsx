@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { FIRST_MINT_RANGE_TEXT, MINT_ESCROW_LAMPORTS, PROGRAM_UPGRADES_COPY, mintDepositText } from "@/config/armory";
 import { DocLayout, DocSection } from "@/components/armory/DocLayout";
+import { CLUSTER } from "@/config/cluster";
+import { PLANNED_MAINNET_TERMS } from "@/lib/meteora/terms";
+import { curveFeeText, launchDisclosure } from "@/config/launchTerms";
 
 export const metadata: Metadata = { title: "FAQ", description: "Plain-language answers about Armory." };
 
@@ -12,7 +15,7 @@ const GROUPS: readonly { id: string; title: string; qa: readonly (readonly [stri
     ["What is Armory?", <>A place to launch Solana memecoins. A launch can be a <b className="text-fg">Launch</b> (just the coin) or <b className="text-fg">Hybrid</b> (the coin is also an NFT collection, both ways), with <b className="text-fg">Burn</b> (burn coins to mint an NFT) coming soon. Every market starts on a bonding curve, then graduates into a locked liquidity pool.</>],
     ["What's a bonding curve?", "A formula that sets the price: it goes up as people buy and down as they sell. Armory uses the platform's approved curve settings, and you can buy and sell on it from the token page. A launch created without a curve can never graduate, and converting never opens for it."],
     ["What does \"graduation\" mean?", "When the curve has raised its SOL target (fixed by the approved curve settings and shown on every token page), the token graduates. The SOL raised and the tokens set aside move into a liquidity pool with the LP permanently locked, and trading continues there, from the same Trade panel. Unsold curve tokens stay locked by the program."],
-    ["Which launch types are live?", "Launch and Hybrid. Burn, Tax split and Raffle are coming soon."],
+    ["Which launch types are live?", CLUSTER.isMainnet ? "On mainnet: Launch. Hybrid, Burn, Tax split and Raffle are coming soon." : "Launch and Hybrid. Burn, Tax split and Raffle are coming soon."],
   ] },
   { id: "hybrid", title: "Hybrid", qa: [
     ["What is SPL-404?", "A standard Solana token (SPL) paired with an NFT collection, so a fixed number of tokens and one NFT can be swapped for each other. Hybrid launches work this way."],
@@ -26,15 +29,22 @@ const GROUPS: readonly { id: string; title: string; qa: readonly (readonly [stri
     ["How does a Burn launch work?", `After graduation, burn the ratio of tokens to mint the next NFT in the collection. The tokens are destroyed, so the supply goes down. You pay the platform fee and ${FIRST_MINT_RANGE_TEXT} mint cost directly; there's no deposit (Burn is pending deploy).`],
     ["Can I undo a burn?", "No. Burn NFTs can't be converted back to tokens or re-rolled. They have no token backing; their price is whatever buyers pay."],
     ["Which NFT do I get from a burn?", "The next one in collection order. The order is public, so you can see what's next."],
-    ["What's a Launch?", "Just the coin: 1,000,000,000 tokens on a bonding curve, then a locked liquidity pool. No NFTs and no per-NFT fees, just the 1% curve trade fee."],
+    ["What's a Launch?", `Just the coin: 1,000,000,000 tokens on a bonding curve, then a locked liquidity pool. No NFTs and no per-NFT fees, just the ${curveFeeText(CLUSTER.name)} curve trade fee.`],
     ["Why is Burn \"coming soon\"?", "Its program code is written but not deployed yet, so Burn launches can't be created."],
   ] },
   { id: "fees", title: "Fees", qa: [
     ["What does it cost?", "Platform fees are flat SOL by ratio: 0.002 SOL (50K), 0.005 SOL (100K and 200K) or 0.01 SOL (500K and up), per capture, re-roll or burn. Release is free. The kept part of the mint deposit (Burn: the mint cost) is Solana rent plus the Metaplex fee, not an Armory fee. There's no launch fee on chain today, and no separate randomness fee."],
     ["Do you take tokens as a fee?", "No. Fees are paid in SOL only, and go to a platform address fixed in the program."],
   ] },
+  ...(CLUSTER.isMainnet
+    ? [{ id: "launch-fees", title: "Launch fees on mainnet", qa: [
+        ["What does a Launch cost and earn?", <ul key="d" className="list-disc space-y-1 pl-5">{launchDisclosure(PLANNED_MAINNET_TERMS).map((l) => <li key={l}>{l}</li>)}</ul>],
+        ["Which programs does a Launch use?", "Only Meteora's Dynamic Bonding Curve and DAMM v2 programs. No Armory program is involved, and Armory can't touch your tokens or the pool."],
+        ["How do I claim my creator fees?", "Open Portfolio with the wallet that launched the coin. Unclaimed curve fees show under Creator fees, with a Claim button. Every claim is previewed before you sign."],
+      ] as const }]
+    : []),
   { id: "safety", title: "Safety", qa: [
-    ["Is Armory audited?", "Not yet. There have been internal security reviews, and a paid third-party audit is required before mainnet. Until it is done, Armory does not claim to be audited."],
+    ["Is Armory audited?", CLUSTER.isMainnet ? "Armory's own programs aren't audited yet, which is why Hybrid isn't on mainnet. Mainnet launches run only on Meteora's bonding-curve and DAMM v2 programs; Armory adds no program of its own." : "Not yet. There have been internal security reviews, and a paid third-party audit is required before mainnet. Until it is done, Armory does not claim to be audited."],
     ["Can anyone freeze my tokens or mint more?", "No. Freeze authority is never set and mint authority is revoked at launch. Token names and images can't be edited either."],
     ["Can anyone pause the app?", "No key or multisig can pause the vault, so captures, releases, re-rolls and burns can't be halted by us."],
     ["Who can change the programs?", `${PROGRAM_UPGRADES_COPY.status}. ${PROGRAM_UPGRADES_COPY.today} ${PROGRAM_UPGRADES_COPY.planned} ${PROGRAM_UPGRADES_COPY.after}`],

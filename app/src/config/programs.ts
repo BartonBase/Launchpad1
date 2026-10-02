@@ -81,7 +81,7 @@ const COMMON: readonly ProgramEntry[] = [
   { id: ADDRESS_LOOKUP_TABLE_PROGRAM_ID, name: "Address Lookup Table", kind: "native", topLevel: false },
 ];
 
-/** Meteora DBC: top-level only on clusters where a platform DBC config is pinned (devnet). */
+/** Meteora DBC + DAMM v2: top-level on devnet and mainnet (same program IDs on both). */
 const METEORA: readonly ProgramEntry[] = [
   { id: DBC_PROGRAM_ID, name: "Meteora Dynamic Bonding Curve", kind: "dex", topLevel: true },
   // Swaps on a graduated launch's DAMM v2 pool (buy/sell after migration).
@@ -93,10 +93,22 @@ const ARMORY: readonly ProgramEntry[] = [
   { id: HYBRID_VAULT_PROGRAM_ID, name: "Armory hybrid_vault", kind: "armory", topLevel: true },
 ];
 
+/** Mainnet: no Armory programs, no Switchboard / lookup-table / Metaplex Core labels (Launch type only, ADR-022). */
+const MAINNET_EXCLUDED = new Set([SWITCHBOARD_PROGRAM_ID, ADDRESS_LOOKUP_TABLE_PROGRAM_ID, MPL_CORE_PROGRAM_ID].map((k) => k.toBase58()));
+
 export const PROGRAMS_BY_CLUSTER: Record<ClusterName, readonly ProgramEntry[]> = {
   localnet: [...COMMON, ...ARMORY],
   devnet: [...COMMON, ...ARMORY, ...METEORA],
+  "mainnet-beta": [...COMMON.filter((p) => !MAINNET_EXCLUDED.has(p.id.toBase58())), ...METEORA],
 };
+
+/**
+ * Armory's own programs (hybrid_launch / hybrid_vault) exist on this cluster. FALSE on mainnet: nothing reads,
+ * derives against or sends to them there (reads return empty, Hybrid is "Coming soon").
+ */
+export function armoryProgramsEnabled(cluster: ClusterName = CLUSTER.name): boolean {
+  return getProgramRegistry(cluster).some((p) => p.kind === "armory");
+}
 
 export function getProgramRegistry(cluster: ClusterName = CLUSTER.name): readonly ProgramEntry[] {
   return PROGRAMS_BY_CLUSTER[cluster];
