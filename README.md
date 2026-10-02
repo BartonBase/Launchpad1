@@ -65,12 +65,13 @@ into one NFT and the NFT always converts back into exactly that many tokens.
 
 ## How it works
 
-```
- Creator                     Traders                         Graduation                      After
- ───────                     ───────                         ──────────                      ─────
- Launch in the app  ──►  Buy / sell on the Meteora DBC  ──►  Curve hits its SOL target  ──►  Trade on Meteora DAMM v2
- (creator.createPool)     curve (swapQuote2 + swap2)         DBC migrates the liquidity       (getQuote2 + swap2),
-                          price rises as people buy          to DAMM v2, LP locked forever    same trade panel
+```mermaid
+flowchart LR
+  A["Creator launches<br/>(DBC createPool)"] --> B["Trading on the<br/>Meteora DBC curve"]
+  B --> C{"SOL target<br/>reached?"}
+  C -- "not yet" --> B
+  C -- "yes" --> D["Liquidity migrates to<br/>Meteora DAMM v2<br/>(LP locked forever)"]
+  D --> E["Trading continues<br/>on DAMM v2"]
 ```
 
 1. **Launch.** The app calls `creator.createPool` on Armory's platform DBC config. The config fixes the curve, the
@@ -130,23 +131,23 @@ variables and the transaction safety pipeline. To build and test the on-chain pr
 ```
 .
 ├── app/                    Next.js web app (the Armory site)
-│   ├── src/app/            Pages: home, launch, explore, token (/t/[mint]), portfolio, faq, trust, how it works
-│   ├── src/components/     UI, trade panel, launch wizard, curve progress
-│   ├── src/lib/meteora/    Meteora DBC and DAMM v2 integration (launch, quotes, swaps, pool reads)
-│   ├── src/lib/tx/         Transaction safety pipeline (allowlist → simulate → preview → confirm)
-│   ├── src/config/         Cluster, program IDs, pinned configs
+│   ├── src/app/            Pages (home, launch, explore, token, portfolio, …)
+│   ├── src/components/     UI, trade panel, launch wizard
+│   ├── src/lib/meteora/    Meteora DBC + DAMM v2 integration
+│   ├── src/lib/tx/         Transaction safety pipeline
+│   ├── src/config/         Cluster, program IDs, configs
 │   └── tests/              Vitest unit tests
-├── programs/               Anchor programs for Hybrid launches
-│   ├── hybrid_launch/      Launch registry and DBC config/pool checks
-│   └── hybrid_vault/       Token ⇄ NFT vault (opens only after the DBC pool has migrated)
+├── programs/               Anchor programs (Hybrid)
+│   ├── hybrid_launch/      Launch registry, DBC checks
+│   └── hybrid_vault/       Token ⇄ NFT vault (opens after migration)
 ├── tests/                  LiteSVM integration tests for the programs
-├── scripts/                Build, test and devnet deploy scripts (devnet/localnet only)
-├── design/                 Visual direction, design system and the knight mascot
-├── docs/                   Architecture, decisions (ADRs), threat model, security reviews, QA
-│   ├── security/           Independent security reviews and the merged findings list
+├── scripts/                Build, test and devnet deploy scripts
+├── design/                 Design system and the knight mascot
+├── docs/                   Architecture, ADRs, threat model
+│   ├── security/           Security reviews and merged findings
 │   ├── qa/                 Test plan, findings tracker and QA reports
 │   └── screenshots/        Images used in this README
-├── shelved/                Paused Token-2022 tax/raffle work (excluded from the build)
+├── shelved/                Paused tax/raffle work (not built)
 └── HACKATHON.md            Meteora DBC hackathon submission
 ```
 
