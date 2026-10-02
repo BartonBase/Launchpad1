@@ -118,3 +118,14 @@ describe("Core asset uri + public listing", () => {
     expect(isHybridListed({ mint: "CzDzhYGoCP5BDc2gYmNnwd3s7gW5MWnK8VD7TrbCwVDQ", tokenName: "Armory Hybrid Live", collectionName: "Armory Live Knights" })).toBe(false);
   });
 });
+
+describe("home stats", () => {
+  it("counts only swap instructions as trades", async () => {
+    const { isSwapLog } = await import("@/lib/armory/stats");
+    expect(isSwapLog(["Program log: Instruction: Swap2"])).toBe(true);
+    expect(isSwapLog(["Program log: Instruction: InitializeVirtualPoolWithSplToken", "Program log: Instruction: Swap"])).toBe(true);
+    expect(isSwapLog(["Program log: Instruction: MigrationDammV2"])).toBe(false);
+    expect(isSwapLog(["Program log: Instruction: WithdrawLeftover", "Program log: Instruction: OpenVault"])).toBe(false);
+    expect(isSwapLog(null)).toBe(false);
+  });
+});

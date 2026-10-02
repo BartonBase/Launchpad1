@@ -17,7 +17,10 @@ export const HIDDEN_MINTS: ReadonlySet<string> = new Set([
 ]);
 
 /** Demo collections shown first on Home and Explore, in this order. */
-export const FEATURED_MINTS: readonly string[] = [];
+export const FEATURED_MINTS: readonly string[] = [
+  "PyngwuDKX8ZDfsY91wVXgX78fFmz4w9F6Zc7tjBdMMU", // Forge Gems (GEMS), Hybrid demo collection
+  "5VVsjp6oKi3mcSKb5YnvQ1MWZBPejqC57RLTqSy33ryE", // Shieldwall (SHLD), Hybrid demo collection
+];
 
 /** Sort key: featured mints first (in FEATURED_MINTS order), then everything else in its original order. */
 export const featuredRank = (mint: string): number => {

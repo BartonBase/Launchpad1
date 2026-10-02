@@ -19,7 +19,10 @@ export function tokenImage(uri: string | null | undefined): string | null {
 export async function resolveTokenImage(uri: string | null | undefined, fetcher: typeof fetch = fetch): Promise<string | null> {
   const hosted = tokenImage(uri);
   if (hosted) return hosted;
-  const u = (uri ?? "").trim();
+  // NFT metadata is committed as ar://<id> (shorter on-chain); on devnet those items live on the Irys devnet node.
+  const raw = (uri ?? "").trim();
+  const ar = /^ar:\/\/([1-9A-HJ-NP-Za-km-z]{32,64})$/.exec(raw);
+  const u = ar ? `https://devnet.irys.xyz/${ar[1]}` : raw;
   if (CLUSTER.name !== "devnet" || !IRYS_ITEM.test(u)) return null;
   try {
     const res = await fetcher(u, { signal: AbortSignal.timeout(3000), next: { revalidate: 3600 } } as RequestInit);

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { StatsStrip, StatsStripFallback } from "@/components/armory/StatsStrip";
 import { Knight } from "@/components/armory/Knight";
 import { LaunchCard } from "@/components/armory/LaunchCard";
 import { LaunchTypes } from "@/components/armory/LaunchTypes";
@@ -86,6 +88,12 @@ export default async function HomePage() {
             </p>
           </div>
         </div>
+      </section>
+
+      <section aria-label="Armory on devnet" className="-mt-8 md:-mt-10">
+        <Suspense fallback={<StatsStripFallback />}>
+          <StatsStrip />
+        </Suspense>
       </section>
 
       <section className="space-y-6" aria-labelledby="how">
