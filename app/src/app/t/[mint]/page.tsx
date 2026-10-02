@@ -208,14 +208,17 @@ export default async function TokenPage({ params, searchParams }: { params: Para
             <NobodyCanChange v={view} />
           </div>
         </div>
-        <aside className="space-y-6">
-          {curve && !curve.migrated && view.mint ? (
-            <SwapPanel venue="dbc" pool={curve.pool} mint={view.mint} symbol={view.symbol} decimals={view.decimals} feeBps={curve.feeBps} />
-          ) : damm && view.mint ? (
-            <SwapPanel venue="damm" pool={damm.pool} mint={view.mint} symbol={view.symbol} decimals={view.decimals} />
-          ) : (
-            <TradePanel v={view} />
-          )}
+        {/* Phone: the trade panel comes right after the header (aside is display:contents below lg); facts stay last. */}
+        <aside className="contents lg:block lg:space-y-6">
+          <div className="order-first lg:order-none">
+            {curve && !curve.migrated && view.mint ? (
+              <SwapPanel venue="dbc" pool={curve.pool} mint={view.mint} symbol={view.symbol} decimals={view.decimals} feeBps={curve.feeBps} />
+            ) : damm && view.mint ? (
+              <SwapPanel venue="damm" pool={damm.pool} mint={view.mint} symbol={view.symbol} decimals={view.decimals} />
+            ) : (
+              <TradePanel v={view} />
+            )}
+          </div>
           <FactsCard v={view} />
         </aside>
       </div>
