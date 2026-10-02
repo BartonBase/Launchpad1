@@ -202,8 +202,11 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
       return { tx: b.tx, signers: b.signers };
     });
   };
-  const launchedOk = launchedMint !== null && (action !== "launch" || safeSend.status === "success");
-  const registered = action === "register" && safeSend.status === "success";
+  // Completion is latched: closing the transaction dialog resets safeSend to idle.
+  const [launchedOk, setLaunchedOk] = useState(false);
+  const [registered, setRegistered] = useState(false);
+  if (safeSend.status === "success" && action === "launch" && launchedMint && !launchedOk) setLaunchedOk(true);
+  if (safeSend.status === "success" && action === "register" && !registered) setRegistered(true);
 
   const err = (k: keyof typeof v.errors, show = true) =>
     show && v.errors[k] ? (
@@ -521,7 +524,7 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
                 <button type="button" className="btn btn-primary btn-lg w-full" disabled={!connected || !artReady || safeSend.busy} onClick={register} data-testid="launch-register">
                   Create the NFT vault (step 2 of 2)
                 </button>
-                <p className="text-dim text-xs">Your token is live on the curve. This records the conversion rate and locks your art into the collection vault.</p>
+                <p className="text-dim text-xs">Your token is live on the curve. This records the conversion rate and locks your art into the collection vault. Keep this page open until it<p className="text-dim text-xs">Your token is live on the curve. This records the conversion rate and locks your art into the collection vault.</p>apos;s done.</p>
               </div>
             )}
             {live && !connected && <p className="text-muted text-sm">Connect a wallet to launch.</p>}
