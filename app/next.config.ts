@@ -17,10 +17,13 @@ const isDev = process.env.NODE_ENV !== "production";
  *   checks every gateway URL against SWITCHBOARD_GATEWAY_RE before calling it.
  * - No other third-party origins (no fonts, analytics, CDNs).
  */
+/** Irys devnet node (browser uploads of token/NFT art + metadata) and its gateway CDN (redirect target). */
+const IRYS_DEVNET_ORIGINS = ["https://devnet.irys.xyz", "https://*.devnet-1.datasprite-cdn.com"];
+const imgSrc = ["'self'", "data:", "blob:", ...(CLUSTER.name === "devnet" ? IRYS_DEVNET_ORIGINS : [])];
 const connectSrc = [
   "'self'",
   ...CLUSTER.connectSrc,
-  ...(CLUSTER.name === "devnet" ? ["https://*.xip.switchboard-oracles.xyz"] : []),
+  ...(CLUSTER.name === "devnet" ? ["https://*.xip.switchboard-oracles.xyz", ...IRYS_DEVNET_ORIGINS] : []),
   ...(isDev ? ["ws://localhost:3000", "ws://127.0.0.1:3000"] : []),
 ];
 
@@ -28,7 +31,7 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
+  `img-src ${imgSrc.join(" ")}`,
   "font-src 'self'",
   `connect-src ${connectSrc.join(" ")}`,
   "frame-src 'none'",

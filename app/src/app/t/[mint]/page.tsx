@@ -6,6 +6,7 @@
  * exists as a design preview at /t/example-burn (only with NEXT_PUBLIC_DESIGN_PREVIEWS=1).
  * Panel state: ?panel=capture|release|reroll (old ?action= is accepted).
  */
+import { GraduationPanel } from "@/components/armory/GraduationPanel";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PublicKey } from "@solana/web3.js";
@@ -176,6 +177,9 @@ export default async function TokenPage({ params, searchParams }: { params: Para
           {panels.has("market") && <MarketCard v={view} priceSol={priceSol} />}
           {curve ? <CurveProgress curve={curve} dammPool={damm?.pool ?? null} /> : <PhaseCard v={view} />}
           {panels.has("plainFacts") && <PlainFacts />}
+          {curve && curve.pool && (curve.curveComplete || curve.migrated) && (
+            <GraduationPanel dbcPool={curve.pool} curveComplete={curve.curveComplete} migrated={curve.migrated} vault={launch?.vault ?? null} vaultOpen={launch?.vaultOpen ?? false} />
+          )}
           {view.type === "hybrid" && launch && <HybridPanels launch={launch} initialPanel={panel} />}
           {view.type === "burn" && (
             <>

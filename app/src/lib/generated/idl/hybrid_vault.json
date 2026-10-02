@@ -1145,7 +1145,7 @@
             "transfer (F-06 / M-05). Not the LaunchConfig copy, so a wallet rotation never strands old launches."
           ],
           "writable": true,
-          "address": "7J3AajxfajAMgGmmwzfZeYGNieRtHRCuEgNTfd4gTjDN"
+          "address": "BVKxZMjuXryATqCeifPgh6Ee9H93BH5UGv8eML66yT3j"
         },
         {
           "name": "request",
@@ -1385,7 +1385,7 @@
         {
           "name": "fee_recipient",
           "writable": true,
-          "address": "7J3AajxfajAMgGmmwzfZeYGNieRtHRCuEgNTfd4gTjDN"
+          "address": "BVKxZMjuXryATqCeifPgh6Ee9H93BH5UGv8eML66yT3j"
         },
         {
           "name": "vault_authority",
@@ -2808,6 +2808,41 @@
       "code": 6060,
       "name": "ExpireBatchAccountMismatch",
       "msg": "expire_requests: a per-request account doesn't match the request (PDA, owner, user, randomness or token account)"
+    },
+    {
+      "code": 6061,
+      "name": "FeeNotTier",
+      "msg": "LaunchConfig fee is not exactly the tier for its ratio (QA-FEE-03; 0 and off-tier fees are invalid)"
+    },
+    {
+      "code": 6062,
+      "name": "TokenSourceNotDerived",
+      "msg": "token source must be the user's classic ATA for this mint"
+    },
+    {
+      "code": 6063,
+      "name": "ExtensionsNotAllowed",
+      "msg": "Token-2022 mint or token account has an extension; Mode 4 allows the base account only"
+    },
+    {
+      "code": 6064,
+      "name": "DistributionExceeded",
+      "msg": "claim pays more than this NFT's share of the pool, or more than the pool has credited"
+    },
+    {
+      "code": 6065,
+      "name": "QueueNotApproved",
+      "msg": "Switchboard queue is not on the compile-time APPROVED_SB_QUEUES list"
+    },
+    {
+      "code": 6066,
+      "name": "AssetNotDead",
+      "msg": "the NFT at the payout cursor still exists; only a burned or missing NFT can be skipped"
+    },
+    {
+      "code": 6067,
+      "name": "RaffleDeadlineNotReached",
+      "msg": "the raffle reveal deadline has not passed yet"
     }
   ],
   "types": [
@@ -3083,6 +3118,78 @@
       }
     },
     {
+      "name": "PermanentInitParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trait_root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "trait_schema_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "collection_name",
+            "type": "string"
+          },
+          {
+            "name": "collection_uri",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RaffleInitParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trait_root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "trait_schema_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "collection_name",
+            "type": "string"
+          },
+          {
+            "name": "collection_uri",
+            "type": "string"
+          },
+          {
+            "name": "sb_queue",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
       "name": "RandLock",
       "docs": [
         "Binds a Switchboard randomness account to one pending request so no other request can commit it",
@@ -3236,6 +3343,40 @@
                 32
               ]
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Token22InitParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trait_root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "trait_schema_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "collection_name",
+            "type": "string"
+          },
+          {
+            "name": "collection_uri",
+            "type": "string"
           }
         ]
       }

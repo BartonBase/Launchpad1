@@ -14,14 +14,11 @@ import { CLUSTER } from "@/config/cluster";
 import { MIN_GRADUATION_LAMPORTS } from "@/config/armory";
 import { DBC_PLATFORM_CONFIG, PINNED_LOOKUP_TABLE_CONTENTS, PINNED_LOOKUP_TABLES, SWITCHBOARD_GATEWAY_RE } from "@/config/integrations";
 import { fetchLaunch, fetchLaunches, fetchProgramStatus, findIdleRandomness, fetchHoldings } from "@/lib/armory/reads";
-import { buildDbcLaunchTx, buildInitVaultTx, buildNativeLaunchTx, buildUnwrapTx, buildVrfRequestTx, MAX_TX_BYTES, txSize } from "@/lib/armory/builders";
+import { buildUnwrapTx, fetchDbcGraduationLamports, buildVrfRequestTx, MAX_TX_BYTES, txSize } from "@/lib/armory/builders";
 import { leafSourceFor } from "@/lib/armory/leaves";
 import { checkGatewayUrl, gatewayRevealFetcher, parseRevealResponse, revealRequestBody } from "@/lib/armory/reveal";
 import { hybridVaultErrors, hybridLaunchErrors } from "@/lib/generated/idlMeta";
-import { assetPda, collectionPda, decodeVault, settleIx, vaultPda, vaultTokensPda } from "@/lib/generated/hybridVault";
-import { hybridVaultIx } from "@/lib/generated/idlMeta";
-import { launchConfigPda } from "@/lib/generated/hybridLaunch";
-import { NO_CURVE_MESSAGE } from "@/lib/armory/errors";
+import { assetPda, decodeVault, settleIx } from "@/lib/generated/hybridVault";
 import { decodeCoreAssetOwner } from "@/lib/generated/core";
 import { decodeOracleGatewayUri, decodeQueue, decodeRandomness } from "@/lib/generated/switchboard";
 import { simulate } from "@/lib/tx/simulate";
@@ -29,6 +26,7 @@ import { validateInstructions } from "@/lib/tx/validate";
 import { checkLookups, contentsMatch, resolveLookups } from "@/lib/tx/lookup";
 import { viewMessage, messageBytes, messageFingerprint } from "@/lib/tx/message";
 import { buildTxPreview } from "@/lib/tx/preview";
+import { buildPlainLaunchTx, quoteDevBuy } from "@/lib/meteora/dbc";
 
 const conn = new Connection("https://api.devnet.solana.com", "confirmed");
 const log = (...a: unknown[]) => { const line = `[devnet] ${a.map((x) => (typeof x === "string" ? x : JSON.stringify(x, (_k, v) => (typeof v === "bigint" ? v.toString() : v)))).join(" ")}\n`; console.log(line); if (process.env.DEVNET_LOG) appendFileSync(process.env.DEVNET_LOG, line); };
@@ -284,54 +282,24 @@ describe.sequential("devnet", { timeout: 180_000 }, () => {
     if (table.state.authority) expect(pinned.canSend).toBe(false); // has an authority -> still blocked
   });
 
-  it("register_dbc_launch: DBC pool + register in one tx from the funded wallet (simulate only)", async () => {
+  it("launch with dev buy: DBC pool + first buy in one tx from the funded wallet (simulate only)", async () => {
     expect(DBC_PLATFORM_CONFIG.devnet?.toBase58()).toBe("DuQYHUCToW6uHkWngXFiU4uGVSjcVKKCTJwViEb87Em9");
-    const b = await buildDbcLaunchTx(conn, wallet, { name: "Armory Sim", symbol: "ARMSIM", uri: "https://example.invalid/armory-sim.json", ratioWholeTokens: 1_000_000n, collectionSize: 100n });
-    const signed = b.tx;
-    const r = await simV0(signed);
-    log("register_dbc_launch", { mint: b.mint.toBase58(), pool: b.pool.toBase58(), graduationLamportsFromConfig: b.graduationLamports.toString(), bytes: txSize(b.tx), err: r.err, code: r.code, name: r.name, cu: r.units, tail: r.logs.slice(-4) });
-    expect(r.err).toBeNull();
-    expect(b.graduationLamports).toBe(MIN_GRADUATION_LAMPORTS.devnet);
-    const p = await pipelinePreview(b.tx, wallet);
-    log("register_dbc_launch preview", { canSend: p.canSend, errors: p.errors, programs: p.programs.map((x) => `${x.name ?? x.programId}${x.cpiOnly ? " (cpi)" : ""}`) });
-    expect(p.canSend).toBe(true);
+    expect(await fetchDbcGraduationLamports(conn)).toBe(MIN_GRADUATION_LAMPORTS.devnet);
+    const q = await quoteDevBuy(conn, 10_000_000n, 100);
+    expect(q.tokensOut > 0n).toBe(true);
+    const b = await buildPlainLaunchTx(conn, wallet, { name: "Armory Sim", symbol: "ARMSIM", uri: "https://example.invalid/armory-sim.json" }, { lamports: 10_000_000n, minimumAmountOut: q.minimumAmountOut });
+    b.tx.feePayer = wallet;
+    b.tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
+    b.tx.partialSign(...b.signers); // throwaway mint key, never persisted
+    const r = await conn.simulateTransaction(b.tx);
+    log("pool + dev buy", { mint: b.mint.toBase58(), pool: b.pool.toBase58(), tokensOut: q.tokensOut.toString(), feePct: q.feePct, err: r.value.err, tail: r.value.logs?.slice(-3) });
+    expect(r.value.err).toBeNull();
   });
 
-  it("native launch and unwrap still simulate as before", async () => {
-    const { tx, signers } = buildNativeLaunchTx(PLATFORM_FEE_RECIPIENT, { decimals: 6, ratioWholeTokens: 1_000_000n, collectionSize: 100n, graduationThresholdLamports: MIN_GRADUATION_LAMPORTS.devnet });
-    tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
-    tx.partialSign(...signers); // throwaway mint key, never persisted
-    const r = await conn.simulateTransaction(tx);
-    expect(r.value.err).toBeNull();
+  it("unwrap still simulates as before", async () => {
     const u = await simLegacy(await buildUnwrapTx(conn, wallet, E2E_VAULT, 0));
     log("unwrap (wallet, not owner)", u.err ? `ERR ${u.code} ${u.name}` : "OK");
     expect(u.logs.some((l) => l.includes(`Program ${HYBRID_VAULT_PROGRAM_ID.toBase58()} invoke [1]`))).toBe(true);
     expect(SWITCHBOARD_PROGRAM_ID.toBase58()).toBe("Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2");
-  });
-
-  it("art commitment: launch + init_vault simulate from the wallet; open_vault on a native launch fails with 6037 (friendly message)", async () => {
-    const l = buildNativeLaunchTx(wallet, { decimals: 6, ratioWholeTokens: 1_000_000n, collectionSize: 100n, graduationThresholdLamports: MIN_GRADUATION_LAMPORTS.devnet });
-    const art = { collectionName: "Armory Sim", collectionUri: "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi", traitRoot: new Uint8Array(32).fill(7), traitSchemaHash: new Uint8Array(32).fill(9) };
-    const iv = await buildInitVaultTx(conn, wallet, l.mint, 100, art, l.tx.instructions);
-    const v0tx = (ixs: TransactionInstruction[]) => new VersionedTransaction(new TransactionMessage({ payerKey: wallet, recentBlockhash: PublicKey.default.toBase58(), instructions: ixs }).compileToV0Message());
-    const r = await simV0(v0tx(iv.tx.instructions));
-    log("launch + init_vault", { err: r.err, code: r.code, name: r.name, cu: r.units, tail: r.logs.slice(-3) });
-    expect(r.err).toBeNull();
-    const lc = launchConfigPda(l.mint), vault = vaultPda(lc);
-    const open = new TransactionInstruction({
-      programId: HYBRID_VAULT_PROGRAM_ID,
-      keys: [
-        { pubkey: wallet, isSigner: true, isWritable: false }, { pubkey: vault, isSigner: false, isWritable: true }, { pubkey: lc, isSigner: false, isWritable: false },
-        { pubkey: iv.pool, isSigner: false, isWritable: false }, { pubkey: vaultTokensPda(vault), isSigner: false, isWritable: false },
-        { pubkey: collectionPda(vault), isSigner: false, isWritable: false }, { pubkey: l.mint, isSigner: false, isWritable: false },
-      ],
-      data: Buffer.from(hybridVaultIx.openVault),
-    });
-    const tx = v0tx([...iv.tx.instructions, open]);
-    const o = await simV0(tx);
-    log("open_vault on native launch", { code: o.code, name: o.name });
-    expect(o.code).toBe(6037);
-    const p = await pipelinePreview(tx, wallet);
-    expect(p.errors[0]).toBe(NO_CURVE_MESSAGE);
   });
 });

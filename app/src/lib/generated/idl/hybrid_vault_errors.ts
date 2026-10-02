@@ -60,7 +60,14 @@ export const HybridVaultErrorCode = {
   AlreadyMinted: 6057,
   MintCostConstantStale: 6058,
   ExpireBatchInvalid: 6059,
-  ExpireBatchAccountMismatch: 6060
+  ExpireBatchAccountMismatch: 6060,
+  FeeNotTier: 6061,
+  TokenSourceNotDerived: 6062,
+  ExtensionsNotAllowed: 6063,
+  DistributionExceeded: 6064,
+  QueueNotApproved: 6065,
+  AssetNotDead: 6066,
+  RaffleDeadlineNotReached: 6067
 };
 
 export type HybridVaultErrorName = keyof typeof HybridVaultErrorCode;

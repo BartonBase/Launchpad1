@@ -23,7 +23,11 @@ export const HybridLaunchErrorCode = {
   DbcMintRejected: 6020,
   DbcCreatorMismatch: 6021,
   DbcAlreadyGraduated: 6022,
-  DbcConfigNotApproved: 6023
+  DbcConfigNotApproved: 6023,
+  FeeNotTier: 6024,
+  ExtensionsNotAllowed: 6025,
+  TaxBpsNotAllowed: 6026,
+  BuybackPriceNotAllowed: 6027
 };
 
 export type HybridLaunchErrorName = keyof typeof HybridLaunchErrorCode;

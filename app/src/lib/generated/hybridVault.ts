@@ -447,3 +447,23 @@ export function initVaultIx(a: { creator: PublicKey; launchConfig: PublicKey; mi
     data: new Writer().raw(hybridVaultIx.initVault).raw(p.traitRoot).raw(p.traitSchemaHash).string(p.collectionName).string(p.collectionUri).raw(p.sbQueue.toBytes()).toBuffer(),
   });
 }
+
+/**
+ * `open_vault()` (permissionless, one-way): opens converting once the launch's recorded DBC pool has
+ * migrated (graduation_proof = that DBC pool). Accounts in IDL order.
+ */
+export function openVaultIx(a: { caller: PublicKey; vault: PublicKey; vaultData: Vault; dbcPool: PublicKey }): TransactionInstruction {
+  return new TransactionInstruction({
+    programId: PID,
+    keys: [
+      { pubkey: a.caller, isSigner: true, isWritable: false },
+      rw(a.vault),
+      ro(a.vaultData.launchConfig),
+      ro(a.vaultData.pool),
+      ro(vaultTokensPda(a.vault)),
+      ro(a.vaultData.collection),
+      ro(a.dbcPool),
+    ],
+    data: new Writer().raw(hybridVaultIx.openVault).toBuffer(),
+  });
+}

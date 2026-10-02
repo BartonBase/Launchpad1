@@ -65,7 +65,7 @@ export const HYBRID_LAUNCH_PROGRAM_ID = pk("9Loc4hQZJh4SuBCGPiPs1wAfwywUAM7av5up
 export const HYBRID_VAULT_PROGRAM_ID = pk("BEfL9dccCUtgBVfLmJieeSr3ju29fpVqLM3NgttxqXqG");
 
 /** Platform fee wallet compiled into both programs (LaunchConfig.fee_recipient). */
-export const PLATFORM_FEE_RECIPIENT = pk("7J3AajxfajAMgGmmwzfZeYGNieRtHRCuEgNTfd4gTjDN");
+export const PLATFORM_FEE_RECIPIENT = pk("BVKxZMjuXryATqCeifPgh6Ee9H93BH5UGv8eML66yT3j");
 
 const COMMON: readonly ProgramEntry[] = [
   { id: SYSTEM_PROGRAM_ID, name: "System Program", kind: "native", topLevel: true },

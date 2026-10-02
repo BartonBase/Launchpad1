@@ -1,33 +1,27 @@
-# Devnet IDLs: match what is DEPLOYED on devnet (verified 2026-10-01, ~5:20 PM MT)
+# Devnet IDLs: match what is DEPLOYED on devnet (upgraded 2026-10-02, ~2:09 PM MT)
 
-| Program | Program ID | Deployed (MT) | Source commit | Build | Verified |
+| Program | Program ID | Deployed (MT) | Source | Build | .so |
 |---|---|---|---|---|---|
-| hybrid_launch | `9Loc4hQZJh4SuBCGPiPs1wAfwywUAM7av5upyGHfc6Q8` | 2026-09-26 07:30 (slot 504423460) | `5cd7a7e` | **devnet-e2e** build (`scripts/build-devnet-e2e.sh`, `--features devnet-e2e`) | rebuilt `.so` (221,096 B, sha256 `a22beb3f…7127`) is byte-identical to the deployed program data; the rest of the 231,216 B program data is zero padding |
-| hybrid_vault | `BEfL9dccCUtgBVfLmJieeSr3ju29fpVqLM3NgttxqXqG` | 2026-09-25 18:46 (slot 504224933) | `e777ea7` … `5cd7a7e` (hybrid_vault source is identical across these; built from `5cd7a7e`) | default production build (`scripts/build.sh`) | rebuilt `.so` (691,744 B, sha256 `414d450c…04cf`) is byte-identical to the full deployed program data |
+| hybrid_launch | `9Loc4hQZJh4SuBCGPiPs1wAfwywUAM7av5upyGHfc6Q8` | 2026-10-02 ~14:09 (slot 506750423) | `hackathon/meteora-dbc` (= `fix/modes-1-5` + ADR-021 beta gating + ADR-023 fee recipient) | `--features devnet-e2e,mainnet-beta`, opt-level z | 175,384 B, sha256 `8b340f1900f69dcc…` |
+| hybrid_vault | `BEfL9dccCUtgBVfLmJieeSr3ju29fpVqLM3NgttxqXqG` | 2026-10-02 ~14:09 (slot 506750498) | same | `--features mainnet-beta`, opt-level z | 532,824 B, sha256 `9bfa365fcae86c43…` |
 
-Both are **before** `d981011` (QA-FEE-03): the deployed vault has no `FeeNotTier` (6061) check, and the deployed
-launch still has the third-party DBC config `5L1MfYm4…` in its devnet allowlist (removed in `df0d1d9`, not deployed).
+Program data accounts were not resized (231,216 B and 691,744 B); the rest is zero padding.
 Upgrade authority for both: throwaway devnet deployer `An3ZmiB4SaA7FCJ4bpad2qDRmqhu4F9d5UqUAKHiAB5Z`.
 
-## Files
-- `hybrid_launch.json` / `hybrid_launch.ts`: IDL + Anchor TS type, generated WITH `--features devnet-e2e`
-  (`anchor idl build -p hybrid_launch -- --features devnet-e2e`). The only difference from the default-build IDL:
-  the constant `MIN_GRADUATION_THRESHOLD_LAMPORTS` is absent (its devnet-e2e value isn't marked `#[constant]`).
-  **The deployed floor is 0.1 SOL = 100,000,000 lamports**, not the default build's 10 SOL.
-- `hybrid_launch_errors.ts`: error-code map (same for both builds).
-- `hybrid_vault.json` / `hybrid_vault.ts` / `hybrid_vault_errors.ts`: IDL, TS type, error-code map (13 instructions).
+What changed versus the previous devnet builds (`5cd7a7e`):
+- `PLATFORM_FEE_RECIPIENT` (devnet) = `BVKxZMjuXryATqCeifPgh6Ee9H93BH5UGv8eML66yT3j` (ADR-023).
+- Native `launch` compiled out (`no-native-launch`); `register_plain_dbc` present; burn / tax / raffle modes compiled out.
+- Vault includes QA-FEE-03 (`FeeNotTier` 6061) and the other `fix/modes-1-5` audit fixes; Vault/Request layouts unchanged.
+- Devnet DBC allowlist: only `DuQYHUCToW6uHkWngXFiU4uGVSjcVKKCTJwViEb87Em9`.
 
-## Not deployed
-The IDLs in the repo's `target/idl/` on branch `fix/modes-1-5` (Modes 1–5 plus review fixes) are **NOT deployed**
-anywhere. They describe different, larger programs with the same program IDs. Don't use them against devnet.
-The same applies to `df0d1d9` / `d981011` builds (not upgraded on devnet).
+## Files
+- `hybrid_launch.json` / `.ts` / `_errors.ts`: `anchor idl build -p hybrid_launch -- --features devnet-e2e,mainnet-beta`.
+  `MIN_GRADUATION_THRESHOLD_LAMPORTS` is absent from the IDL (devnet-e2e value isn't a `#[constant]`): **the deployed floor is 0.1 SOL**.
+- `hybrid_vault.json` / `.ts` / `_errors.ts`: `anchor idl build -p hybrid_vault -- --features mainnet-beta`.
 
 ## On-chain IDL accounts
-None. Neither the legacy Anchor IDL account (`create_with_seed(pda([]), "anchor:idl")`: `J7UtKV2Y…` for launch,
-`5MpZT6Yu…` for vault) nor any Program Metadata (`ProgM6JC…`) account referencing either program exists on devnet.
-These files are the only source; `anchor idl fetch` will not work.
+None; these files are the only source (`anchor idl fetch` will not work).
 
 ## How this was produced
-`git worktree` of `5cd7a7e` in `/workspace/scratch`, separate `CARGO_TARGET_DIR`, platform-tools v1.54
-(`scripts/env.sh`), Anchor CLI 1.2.0. Deployed programs fetched with `solana -ud program dump` and compared by sha256.
-The worktree was removed afterwards; the shared checkout `/workspace/launchpad` was not touched.
+Platform-tools v1.57 (v1.54 isn't installed on this box), Anchor CLI 1.2.0, separate `CARGO_TARGET_DIR`.
+Deployed with `solana program deploy --program-id …` (buffer upgrade; fees 0.0035 SOL total, buffer rent refunded).

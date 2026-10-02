@@ -11,7 +11,7 @@ import { checkBalance, requestCost } from "@/lib/armory/fees";
 import { compact, formatSol, formatUnits, solToLamports } from "@/lib/armory/format";
 import bs58Encode from "@/lib/armory/bs58";
 import { hybridLaunchIx, hybridVaultErrors, hybridVaultIx } from "@/lib/generated/idlMeta";
-import { decodeLaunchConfig, launchConfigPda, launchIx } from "@/lib/generated/hybridLaunch";
+import { decodeLaunchConfig, launchConfigPda, registerDbcLaunchIx } from "@/lib/generated/hybridLaunch";
 import { requestPda, vaultPda } from "@/lib/generated/hybridVault";
 import launchIdl from "@/lib/generated/idl/hybrid_launch.json";
 import vaultIdl from "@/lib/generated/idl/hybrid_vault.json";
@@ -20,13 +20,12 @@ describe("devnet IDLs", () => {
   it("are the devnet IDLs (no undeployed modes) and match the pinned program ids", () => {
     expect(launchIdl.address).toBe("9Loc4hQZJh4SuBCGPiPs1wAfwywUAM7av5upyGHfc6Q8");
     expect(vaultIdl.address).toBe("BEfL9dccCUtgBVfLmJieeSr3ju29fpVqLM3NgttxqXqG");
-    expect(launchIdl.instructions.map((i) => i.name).sort()).toEqual(["launch", "register_dbc_launch"]);
-    expect(Object.keys(hybridLaunchIx).sort()).toEqual(["launch", "registerDbcLaunch"]);
+    expect(launchIdl.instructions.map((i) => i.name).sort()).toEqual(["register_dbc_launch", "register_plain_dbc"]);
+    expect(Object.keys(hybridLaunchIx).sort()).toEqual(["registerDbcLaunch", "registerPlainDbc"]);
     expect(vaultIdl.instructions).toHaveLength(13);
   });
-  it("devnet vault has no FeeNotTier (6061) error", () => {
-    expect(hybridVaultErrors[6061]).toBeUndefined();
-    expect(Object.values(hybridVaultErrors).some((e) => e.name === "FeeNotTier")).toBe(false);
+  it("devnet vault enforces the exact fee tier (FeeNotTier 6061, QA-FEE-03 deployed)", () => {
+    expect(hybridVaultErrors[6061]?.name).toBe("FeeNotTier");
   });
   it("generated discriminators match the IDL", () => {
     const d = (n: string) => vaultIdl.instructions.find((i) => i.name === n)!.discriminator;
@@ -90,14 +89,13 @@ describe("launch types", () => {
 });
 
 describe("clients", () => {
-  it("launch ix: discriminator + params + accounts match the devnet IDL", () => {
+  it("register_dbc_launch ix: discriminator + params + accounts match the devnet IDL", () => {
     const creator = Keypair.generate().publicKey;
     const mint = Keypair.generate().publicKey;
-    const ix = launchIx(creator, mint, { decimals: 6, ratioWholeTokens: 1_000_000n, collectionSize: 100n, graduationThresholdLamports: 100_000_000n });
-    expect([...ix.data.subarray(0, 8)]).toEqual([...hybridLaunchIx.launch]);
-    expect(ix.data.length).toBe(8 + 1 + 8 * 3);
-    expect(ix.keys).toHaveLength(launchIdl.instructions.find((i) => i.name === "launch")!.accounts.length);
-    expect(ix.keys[2]!.pubkey.equals(launchConfigPda(mint))).toBe(true);
+    const ix = registerDbcLaunchIx({ creator, mint, dbcConfig: Keypair.generate().publicKey, dbcPool: Keypair.generate().publicKey, ratioWholeTokens: 1_000_000n, collectionSize: 100n });
+    expect([...ix.data.subarray(0, 8)]).toEqual([...hybridLaunchIx.registerDbcLaunch]);
+    expect(ix.keys).toHaveLength(launchIdl.instructions.find((i) => i.name === "register_dbc_launch")!.accounts.length);
+    expect(ix.keys.some((k) => k.pubkey.equals(launchConfigPda(mint)))).toBe(true);
   });
   it("PDAs are deterministic", () => {
     const lc = new PublicKey("11111111111111111111111111111112");

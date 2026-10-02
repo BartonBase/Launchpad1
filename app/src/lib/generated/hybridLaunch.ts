@@ -83,37 +83,6 @@ export interface LaunchParams {
   readonly graduationThresholdLamports: bigint;
 }
 
-function encodeLaunchParams(p: LaunchParams): Buffer {
-  return new Writer().raw(hybridLaunchIx.launch).u8(p.decimals).u64(p.ratioWholeTokens).u64(p.collectionSize).u64(p.graduationThresholdLamports).toBuffer();
-}
-
-function nativeLaunchKeys(creator: PublicKey, mint: PublicKey) {
-  const lc = launchConfigPda(mint);
-  const lv = launchVaultPda(mint, lc);
-  return [
-    { pubkey: creator, isSigner: true, isWritable: true },
-    { pubkey: mint, isSigner: true, isWritable: true },
-    { pubkey: lc, isSigner: false, isWritable: true },
-    { pubkey: mintAuthorityPda(lc), isSigner: false, isWritable: false },
-    { pubkey: lv, isSigner: false, isWritable: false },
-    { pubkey: ataAddress(lv, mint), isSigner: false, isWritable: true },
-    { pubkey: PLATFORM_FEE_RECIPIENT, isSigner: false, isWritable: false },
-    { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-    { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-    { pubkey: SYSTEM_PROGRAM_ID, isSigner: false, isWritable: false },
-  ];
-}
-
-/**
- * `launch` (native hybrid launch, DEPLOYED). Mints exactly 1B to a PDA-owned destination,
- * revokes mint + freeze authority and writes the immutable LaunchConfig. No bonding curve:
- * the vault of a native launch can never open (graduation check fails closed). Devnet test use.
- */
-export function launchIx(creator: PublicKey, mint: PublicKey, params: LaunchParams): TransactionInstruction {
-  return new TransactionInstruction({ programId: PID, keys: nativeLaunchKeys(creator, mint), data: encodeLaunchParams(params) });
-}
-
-
 /**
  * `register_dbc_launch(params)` (ADR-014, Meteora DBC curve path). The DBC pool must already exist
  * (created in the SAME transaction by dbc.initializeVirtualPoolWithSplTokenIx); the program checks

@@ -19,13 +19,13 @@ import { CLUSTER } from "@/config/cluster";
 import { DBC_PLATFORM_CONFIG, PINNED_LOOKUP_TABLE_CONTENTS, PINNED_LOOKUP_TABLES } from "@/config/integrations";
 import { contentsMatch } from "@/lib/tx/lookup";
 import { ADDRESS_LOOKUP_TABLE_PROGRAM_ID, DBC_PROGRAM_ID, HYBRID_VAULT_PROGRAM_ID, SWITCHBOARD_DEVNET_QUEUE, SWITCHBOARD_PROGRAM_ID } from "@/config/programs";
-import { decodeDbcConfig, dbcPoolPda, initializeVirtualPoolWithSplTokenIx } from "@/lib/generated/dbc";
+import { decodeDbcConfig, dbcPoolPda } from "@/lib/generated/dbc";
 import type { BuildResult } from "@/lib/tx/useSafeSend";
 import { leafSourceFor, type LeafSource } from "./leaves";
 import { resolveOracle, rightKeyFromLogs, type OracleState } from "./oracle";
 import { fetchReveal, type RevealFetcher } from "./reveal";
 import { isExactTierFee } from "@/config/armory";
-import { decodeLaunchConfig, launchConfigPda, launchIx, registerDbcLaunchIx, type LaunchParams } from "@/lib/generated/hybridLaunch";
+import { decodeLaunchConfig, launchConfigPda, registerDbcLaunchIx } from "@/lib/generated/hybridLaunch";
 import {
   assetPda,
   decodeRequest,
@@ -33,6 +33,7 @@ import {
   expireRequestIx,
   initRandomnessIx,
   initVaultIx,
+  openVaultIx,
   requestCaptureIx,
   requestRerollIx,
   revealRandomnessIx,
@@ -46,6 +47,11 @@ import {
 import { createAtaIdempotentIx } from "@/lib/generated/spl";
 import { decodeQueue, oracleCandidates, oracleStatsPda, sbLutAccounts } from "@/lib/generated/switchboard";
 import { findIdleRandomness } from "./reads";
+import { decodeCoreCollection } from "@/lib/generated/core";
+import { DAMM_V2_MIGRATION_FEE_ADDRESS } from "@meteora-ag/dynamic-bonding-curve-sdk";
+import { dbcClient } from "@/lib/meteora/dbc";
+import { manifestLeafSource } from "./art";
+import { resolveArUri } from "./irys";
 
 /** Request.kind values (hybrid_vault state.rs). */
 const REQUEST_KIND_REROLL = 1;
@@ -231,7 +237,7 @@ export async function buildSettleTx(conn: Connection, settler: PublicKey, reques
   const minted = (await conn.getAccountInfo(assetPda(req.vault, assetIndex))) !== null;
   let mint: MintArgs | null = null;
   if (!minted) {
-    const src = opts.leaves === undefined ? leafSourceFor(v.launchConfig) : opts.leaves;
+    const src = opts.leaves === undefined ? (leafSourceFor(v.launchConfig) ?? (await vaultLeafSource(conn, v).catch(() => null))) : opts.leaves;
     if (!src) throw new Error(`NFT #${assetIndex} isn't minted yet and this launch has no published traits manifest, so it can't be minted from the app yet.`);
     mint = await src.mintArgs(v.launchConfig, assetIndex);
   }
@@ -247,28 +253,78 @@ export async function buildSettleTx(conn: Connection, settler: PublicKey, reques
 }
 
 /**
- * Meteora DBC launch (simulate-only path for now): DBC creates the mint + curve on the cluster's
- * pinned platform config, then register_dbc_launch records the immutable LaunchConfig, in one
- * transaction. The graduation threshold is the config's migration_quote_threshold (read from chain).
+ * The leaf source published with a collection (lib/armory/art): the vault's Core collection URI →
+ * collection JSON → leaf manifest, checked against the vault's on-chain trait root.
  */
-export async function buildDbcLaunchTx(
+export async function vaultLeafSource(conn: Connection, v: Vault, fetcher: typeof fetch = fetch): Promise<LeafSource> {
+  const ci = await conn.getAccountInfo(v.collection);
+  if (!ci) throw new Error("Collection account not found.");
+  const uri = decodeCoreCollection(new Uint8Array(ci.data)).uri;
+  const res = await fetcher(resolveArUri(uri));
+  if (!res.ok) throw new Error(`Couldn't load the collection metadata (${res.status}).`);
+  return manifestLeafSource(await res.json(), v.traitRoot, v.launchConfig, fetcher);
+}
+
+/**
+ * Hybrid launch, step 2 (after the DBC pool exists): register_dbc_launch records the immutable
+ * LaunchConfig for the pool, then init_vault commits the art in the SAME transaction (the pool
+ * account is pre-created with a fresh local keypair). The DBC config must be the pinned platform
+ * config (also on hybrid_launch's compile-time allowlist).
+ */
+export async function buildHybridRegisterTx(
   conn: Connection,
   creator: PublicKey,
-  p: { name: string; symbol: string; uri: string; ratioWholeTokens: bigint; collectionSize: bigint },
-): Promise<{ tx: VersionedTransaction; signers: Keypair[]; mint: PublicKey; dbcConfig: PublicKey; graduationLamports: bigint; pool: PublicKey }> {
+  p: { mint: PublicKey; ratioWholeTokens: bigint; collectionSize: bigint; art: ArtCommitment },
+): Promise<{ tx: VersionedTransaction; signers: Keypair[]; pool: PublicKey }> {
   const dbcConfig = DBC_PLATFORM_CONFIG[CLUSTER.name];
   if (!dbcConfig) throw new Error(`No Meteora DBC platform config is pinned for ${CLUSTER.label}.`);
   const ci = await conn.getAccountInfo(dbcConfig);
   if (!ci || !ci.owner.equals(DBC_PROGRAM_ID)) throw new Error("DBC platform config not found (or not owned by Meteora DBC).");
   const cfg = decodeDbcConfig(new Uint8Array(ci.data));
-  const mint = Keypair.generate();
-  const pool = dbcPoolPda(dbcConfig, mint.publicKey, cfg.quoteMint);
-  const ixs = [
-    initializeVirtualPoolWithSplTokenIx({ config: dbcConfig, quoteMint: cfg.quoteMint, creator, payer: creator, baseMint: mint.publicKey, name: p.name, symbol: p.symbol, uri: p.uri }),
-    registerDbcLaunchIx({ creator, mint: mint.publicKey, dbcConfig, dbcPool: pool, ratioWholeTokens: p.ratioWholeTokens, collectionSize: p.collectionSize }),
-  ];
-  const tx = v0(creator, (await conn.getLatestBlockhash("confirmed")).blockhash, [CU_LIMIT, ...ixs]);
-  return { tx, signers: [mint], mint: mint.publicKey, dbcConfig, graduationLamports: cfg.migrationQuoteThreshold, pool };
+  const dbcPool = dbcPoolPda(dbcConfig, p.mint, cfg.quoteMint);
+  if (!(await conn.getAccountInfo(dbcPool))) throw new Error("The bonding-curve pool for this token doesn't exist yet.");
+  const poolKp = Keypair.generate();
+  const size = Number(p.collectionSize);
+  const space = vaultPoolBytes(size);
+  const lc = launchConfigPda(p.mint);
+  const ixs: TransactionInstruction[] = [CU_LIMIT_INIT];
+  if (!(await conn.getAccountInfo(lc))) ixs.push(registerDbcLaunchIx({ creator, mint: p.mint, dbcConfig, dbcPool, ratioWholeTokens: p.ratioWholeTokens, collectionSize: p.collectionSize }));
+  ixs.push(
+    SystemProgram.createAccount({ fromPubkey: creator, newAccountPubkey: poolKp.publicKey, lamports: await conn.getMinimumBalanceForRentExemption(space), space, programId: HYBRID_VAULT_PROGRAM_ID }),
+    initVaultIx({ creator, launchConfig: lc, mint: p.mint, pool: poolKp.publicKey, params: { ...p.art, sbQueue: SWITCHBOARD_DEVNET_QUEUE } }),
+  );
+  const tx = v0(creator, (await conn.getLatestBlockhash("confirmed")).blockhash, ixs);
+  if (txSize(tx) > MAX_TX_BYTES) throw new Error(`Register + vault transaction is ${txSize(tx)} bytes (> ${MAX_TX_BYTES}).`);
+  return { tx, signers: [poolKp], pool: poolKp.publicKey };
+}
+
+/** Permissionless DBC → DAMM v2 migration once the curve is full (devnet has no migration keeper). */
+export async function buildMigrateTx(conn: Connection, payer: PublicKey, dbcPool: PublicKey): Promise<BuildResult> {
+  const r = await dbcClient(conn).migration.migrateToDammV2({ payer, pool: dbcPool, dammConfig: DAMM_V2_MIGRATION_FEE_ADDRESS[0]! });
+  const signers = [r.firstPositionNftKeypair, r.secondPositionNftKeypair].filter((k): k is Keypair => !!k);
+  const tx = r.transaction;
+  tx.feePayer = payer;
+  return { tx, signers };
+}
+
+/** Permissionless: sends the curve's unsold tokens to the config's leftover receiver (the locked buffer PDA). */
+export async function buildWithdrawLeftoverTx(conn: Connection, payer: PublicKey, dbcPool: PublicKey): Promise<Transaction> {
+  const tx = await dbcClient(conn).migration.withdrawLeftover({ payer, pool: dbcPool });
+  tx.feePayer = payer;
+  return tx;
+}
+
+/** Permissionless open_vault for a migrated launch (graduation proof = the recorded DBC pool). */
+export async function buildOpenVaultTx(conn: Connection, caller: PublicKey, vault: PublicKey): Promise<Transaction> {
+  const vi = await conn.getAccountInfo(vault);
+  if (!vi) throw new Error("Vault not found.");
+  const v = decodeVault(new Uint8Array(vi.data));
+  if (v.open) throw new Error("This vault is already open.");
+  const li = await conn.getAccountInfo(v.launchConfig);
+  if (!li) throw new Error("LaunchConfig not found.");
+  const lc = decodeLaunchConfig(new Uint8Array(li.data));
+  if (!lc.dbcPool) throw new Error("This launch has no bonding-curve pool, so its vault can't open.");
+  return legacy(caller, [openVaultIx({ caller, vault, vaultData: v, dbcPool: lc.dbcPool })]);
 }
 
 /** Graduation threshold of the cluster's DBC platform config, or null when there's no DBC path. */
@@ -290,12 +346,6 @@ export async function buildExpireTx(conn: Connection, caller: PublicKey, vault: 
   return legacy(caller, [
     expireRequestIx({ caller, vault, vaultData: decodeVault(new Uint8Array(vi.data)), request, requestData: decodeRequest(new Uint8Array(ri.data)) }),
   ]);
-}
-
-/** Native hybrid launch (deployed). A throwaway mint keypair is generated locally and co-signs. */
-export function buildNativeLaunchTx(creator: PublicKey, params: LaunchParams): { tx: Transaction; signers: Keypair[]; mint: PublicKey } {
-  const mint = Keypair.generate();
-  return { tx: legacy(creator, [launchIx(creator, mint.publicKey, params)]), signers: [mint], mint: mint.publicKey };
 }
 
 /** Art commitment fields from the wizard (InitVaultParams minus the pinned Switchboard queue). */

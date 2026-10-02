@@ -2,11 +2,12 @@
 
 export const hybridLaunchAddress = "9Loc4hQZJh4SuBCGPiPs1wAfwywUAM7av5upyGHfc6Q8";
 export const hybridLaunchIx = {
-  launch: [153,241,93,225,22,69,74,61],
   registerDbcLaunch: [9,83,227,117,86,39,147,183],
+  registerPlainDbc: [176,253,155,12,148,97,254,78],
 } as const;
 export const hybridLaunchAccounts = {
   LaunchConfig: [18,161,9,224,102,145,29,94],
+  PlainLaunchConfig: [105,241,220,100,83,90,203,150],
 } as const;
 export const hybridLaunchErrors: Record<number, { name: string; msg: string }> = {
   6000: { name: "InvalidDecimals", msg: "decimals must be <= 9" },
@@ -33,6 +34,10 @@ export const hybridLaunchErrors: Record<number, { name: string; msg: string }> =
   6021: { name: "DbcCreatorMismatch", msg: "the signer must be the DBC pool's creator" },
   6022: { name: "DbcAlreadyGraduated", msg: "the DBC pool has already migrated; register before graduation" },
   6023: { name: "DbcConfigNotApproved", msg: "DBC config is not on the platform allowlist (APPROVED_DBC_CONFIGS)" },
+  6024: { name: "FeeNotTier", msg: "stored fee is not exactly the tier for the ratio (QA-FEE-03; 0 and off-tier fees are invalid)" },
+  6025: { name: "ExtensionsNotAllowed", msg: "Token-2022 mint must carry the transfer-fee extension and no other extension" },
+  6026: { name: "TaxBpsNotAllowed", msg: "transfer tax must be from 1 to 1000 basis points and is fixed at launch" },
+  6027: { name: "BuybackPriceNotAllowed", msg: "buyback price must be from 1 lamport to 1 SOL per whole token and is fixed at launch" },
 };
 
 export const hybridVaultAddress = "BEfL9dccCUtgBVfLmJieeSr3ju29fpVqLM3NgttxqXqG";
@@ -118,5 +123,12 @@ export const hybridVaultErrors: Record<number, { name: string; msg: string }> = 
   6058: { name: "MintCostConstantStale", msg: "Live rent for a Core asset + create fee exceeds the mint escrow constant" },
   6059: { name: "ExpireBatchInvalid", msg: "expire_requests: count must be 1..=MAX_EXPIRE_PER_CALL with 7 remaining accounts per request" },
   6060: { name: "ExpireBatchAccountMismatch", msg: "expire_requests: a per-request account doesn't match the request (PDA, owner, user, randomness or token account)" },
+  6061: { name: "FeeNotTier", msg: "LaunchConfig fee is not exactly the tier for its ratio (QA-FEE-03; 0 and off-tier fees are invalid)" },
+  6062: { name: "TokenSourceNotDerived", msg: "token source must be the user's classic ATA for this mint" },
+  6063: { name: "ExtensionsNotAllowed", msg: "Token-2022 mint or token account has an extension; Mode 4 allows the base account only" },
+  6064: { name: "DistributionExceeded", msg: "claim pays more than this NFT's share of the pool, or more than the pool has credited" },
+  6065: { name: "QueueNotApproved", msg: "Switchboard queue is not on the compile-time APPROVED_SB_QUEUES list" },
+  6066: { name: "AssetNotDead", msg: "the NFT at the payout cursor still exists; only a burned or missing NFT can be skipped" },
+  6067: { name: "RaffleDeadlineNotReached", msg: "the raffle reveal deadline has not passed yet" },
 };
 

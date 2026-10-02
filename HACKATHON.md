@@ -22,7 +22,7 @@ launch types:
 
 | Step | What happens | Meteora piece |
 | --- | --- | --- |
-| 1. Launch | Launch type: `creator.createPool` on Armory's platform DBC config. Hybrid: `hybrid_launch::register_dbc_launch` creates the pool on the same config and records it. | DBC |
+| 1. Launch | Both types: `creator.createPool` (or `createPoolWithFirstBuy` when the creator adds a dev buy, same transaction) on Armory's platform DBC config, with token metadata uploaded from the browser. Hybrid then calls `hybrid_launch::register_dbc_launch` to record the pool and `hybrid_vault::init_vault` to commit the NFT art, in one second transaction. | DBC |
 | 2. Trade on the curve | Buy and sell in the app with a live quote, slippage setting (0.5/1/3/5%), minimum received, trading fee and Meteora protocol fee (`swapQuote2` + `swap2`, exact-in). | DBC SDK |
 | 3. Progress | A progress bar shows SOL raised against the config's migration threshold, with three steps: curve, graduation, DAMM v2. | DBC state |
 | 4. Graduation | At the threshold, DBC migrates the liquidity to DAMM v2. LP is permanently locked by the config. | DBC to DAMM v2 |
@@ -85,6 +85,29 @@ DAMM v2 pool `Azo9hpTV6HvpPUkc253NqKXEfQrPZFooeNd4dRKbwzkZ`):
 | Sell 100k ARMT | SDK script | `5KxphQnCH2g4iDxh4C3a74offLVXe1rFX5TiBktzGcpDnBUcPzTZ6shbG4ZHEZxFh8UCNyqh3PRCsLjCM127P4KK` |
 | Buy 0.002 SOL | **web app UI** | `NuqYYrosqskYoQyWfbHLKCV376wD1BEbPpjB3FsYbtTRwk6hszLdbQA2g9RcWLsVxFZ4zQ1BrbAYGvxoDVWzrgV` |
 
+**Full Hybrid lifecycle on devnet, built with the same app code the wizard and token page use**
+("Armory Hybrid E2E", AHYB, mint `HJUw5ETgeTUxgzbJ6EuNozUDhHBGjzyaJe4a8GHs76q5`, DBC pool
+`7oyAYJUGxPzrqVEGnUVB4bvckArQGzjaAX43GtuhuPbn`, vault `H1qEpAUzVH7kueMN297upcvLSH4cRRUuYBvLJk3yCjft`,
+collection metadata `ar://7AGUktX7u4u8iSfqpnWnFFe3VzF3LyRtjAkjJQy6Kru6` on Irys devnet):
+
+| Action | Signature |
+| --- | --- |
+| Launch on DBC + 0.02 SOL dev buy (one tx) | `4WLAkvmMBYkNYpCKbqF1B72oZcNih5ZSvKciJBw6hfnxBR83RStUE4k1bvm163youdyL2vDy9PQpHLik5EBhsf4v` |
+| `register_dbc_launch` + `init_vault` (art commitment) | `3ohMMW2mcwjk83YrQfJSfbmQF2woxSQNDbWkjAiR8We1vFFp8jnfA9pjF7sMm94vYXCW4oZob1CjxJhTBdgmG8Gt` |
+| Buy that fills the curve | `2TMdVBw9RKQRbm4uLt8suqmpUNfpbn7xPuB3nZd6Hj11HKiCjisSZWV6dibyaQZ6bQhR8qzdn8t5VcuQ4TzY3aRN` |
+| Graduation: migrate to DAMM v2 | `5jdcQ24vUUTvE4Rw21PS7hT3JHK8kupzMXocjgmHMP51oLpj6zbDExPHeR9BDUkcYQE6eLGU1hFoR7ttwA7pjrtN` |
+| Unsold tokens to the locked buffer | `35Dfbhq8J1JNY4o3qoRutxpwesFYZRJzzRYSf1MLSYRwFYpYksTtfxZgER72ypGnmGKfoMmhLqD7AHP4FJArTojG` |
+| `open_vault` | `2paj2FPEzcwFxrxDktVxbtgKoF6dibeTR3YggChWDFJtsmFYW6QegqSSqiZN2gvShAqCbhg3Y6ZXSNsiqZGPdMfv` |
+| Capture request (0.01 SOL fee) | `fMW4Hg67c2hFGESefvspj8w195F6XyybSszF5hk12TrVNFTAchSprA3vNGWy7QjBfkhairraeerd8j6foECwnz8` |
+| Reveal (Switchboard) | `4Qe6Lr5xVLs2oK3EoUuTLtyFEJesjTVKjfpFpi5wQ5DsGm9jBYenVykSLa9eSFioRFFmaVUDxYxKUwanazWq5CTU` |
+| Settle, lazy-mints NFT #73 | `36wDUJnb2wdYrk9yQuugJYhMYNevHjrBx71DGCmwHemDVb2vjHynSbK191ReAHkbCmqzGZMyD5iVbV1zkEPVcQEY` |
+| Re-roll request (0.01 SOL fee) | `2xqxEEvDDBES5W9NRRWwQkvAZpt5hCmsjwq8riGFvA3AqAJ36axGDxzMsdm3AATmL3GPeJJNayUxjJ9Z1eoUqeCb` |
+| Re-roll reveal | `56cxcVNU87RWj7XmLq5NQ7U6bAgZnoAURjaBVdFYCp2Cfv1zX8ztJrTCXWCcgVoCiG1BNzjB1cB2mMakhf5vqwtM` |
+| Re-roll settle, lazy-mints NFT #62 | `4NsBhnr2WmJjPeWBXyfZyyrqPWdUkH6sikjkvLsWFDtjF5Qaor4HhdvLa2SPVXPMazVVRAqE52i9JcRftAVmUNbm` |
+| Release NFT #62 back to tokens | `3XV3mm2A8sWRwB6HyVNBJGMuv9GNebdqx8nZJT5ignp4UiQ6FiRWt9XD1heUPDv8inFuRWYpYS4hFLq67xkf87qz` |
+
+The fee wallet `BVKxZMjuXryATqCeifPgh6Ee9H93BH5UGv8eML66yT3j` went from 0 to 0.02 SOL (one capture + one re-roll).
+
 ## Where the integration lives
 
 Web app (`app/`, Next.js 16 + TypeScript):
@@ -144,10 +167,11 @@ Details are in `app/README.md`.
 - **Unaudited.** Devnet only, with test SOL. The programs have not been audited.
 - The 0.1 SOL graduation threshold is a devnet test value.
 - **Migration on devnet is not automatic.** On mainnet Meteora's migration keepers handle it. On
-  devnet we ran the permissionless `migrateToDammV2` call ourselves (the signature is above). The
-  app shows "Curve full · migrating" until then.
-- A Hybrid launch with a curve is simulate-only in the wizard (you can review the transaction but
-  not send it yet). Live Hybrid curve launches were created by script (ARMT).
+  devnet the token page shows a "Graduate to the trading pool" button (the permissionless
+  `migrateToDammV2`), then "Send unsold tokens to the locked buffer" and, for Hybrid, "Open the NFT vault".
+- Hybrid art and metadata are stored on the Irys **devnet** node: free for files up to 100 KB (the
+  wizard resizes images in the browser) and not permanent. Mainnet needs a funded upload.
+- The devnet curve config has no anti-snipe schedule, so a dev buy pays the flat 1% trade fee.
 - Burn, Tax and Raffle are "Coming soon".
 - The price chart is a placeholder.
 - The public devnet RPC is rate limited. Under load some live numbers may not load, and a reload

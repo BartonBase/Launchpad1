@@ -16,8 +16,10 @@ import {
   DynamicBondingCurveClient,
   SwapMode,
   deriveDbcPoolAddress,
+  getBaseFeeHandler,
   getCurrentPoint,
   getPriceFromSqrtPrice,
+  getTotalFeeNumeratorFromIncludedFeeAmount,
   type PoolConfig,
   type VirtualPool,
 } from "@meteora-ag/dynamic-bonding-curve-sdk";
@@ -151,19 +153,118 @@ export async function buildCurveSwapTx(conn: Connection, owner: PublicKey, pool:
   });
 }
 
+/** Fee schedule of a DBC config, for display (anti-snipe = a fee that starts high and decays). */
+export interface FeeSchedule {
+  /** Fee on a trade at the very start (the launch slot), percent. */
+  readonly startPct: number;
+  /** Fee once the decay is over, percent. */
+  readonly endPct: number;
+  /** True when the start fee is above the end fee (an anti-snipe window exists). */
+  readonly antiSnipe: boolean;
+  /** Decay length, e.g. "60 s" or "150 slots"; null when there is no decay. */
+  readonly window: string | null;
+}
+const pct = (num: BN | bigint) => Number(num.toString()) / 1e7; // numerator / 1e9 × 100
+
+export function feeScheduleOf(cfg: PoolConfig): FeeSchedule {
+  const b = cfg.poolFees.baseFee;
+  const h = getBaseFeeHandler(b.cliffFeeNumerator, b.firstFactor, b.secondFactor, b.thirdFactor, b.baseFeeMode);
+  const startPct = pct(b.cliffFeeNumerator);
+  const endPct = pct(h.getMinBaseFeeNumerator());
+  // Fee scheduler modes (0 linear, 1 exponential): firstFactor = periods, secondFactor = period length.
+  const periods = b.baseFeeMode <= 1 ? Number(b.firstFactor) : 0;
+  const len = b.baseFeeMode <= 1 ? Number(b.secondFactor.toString()) : 0;
+  const unit = cfg.activationType === 1 ? "s" : "slots";
+  return { startPct, endPct, antiSnipe: startPct > endPct, window: startPct > endPct && periods * len > 0 ? `${periods * len} ${unit}` : null };
+}
+
+export interface DevBuyQuote {
+  readonly lamports: bigint;
+  /** Estimated tokens received, base units. */
+  readonly tokensOut: bigint;
+  readonly minimumAmountOut: bigint;
+  /** Curve fee paid on this buy (trading + protocol), lamports. */
+  readonly feeLamports: bigint;
+  /** Fee rate applied to this buy, percent (includes any anti-snipe surcharge). */
+  readonly feePct: number;
+  readonly schedule: FeeSchedule;
+  readonly decimals: number;
+}
+
 /**
- * Plain launch: DBC `initialize_virtual_pool_with_spl_token` on the platform config. DBC creates the
- * mint (fresh local keypair, co-signs), mints the fixed 1B supply into the curve, and the config
+ * Quote for the creator's first buy, made in the launch transaction (elapsed time 0, so the config's
+ * full anti-snipe fee applies unless the config grants the first swap the minimum fee). The pool
+ * doesn't exist yet, so the quote runs on a fresh virtual pool built from the config.
+ */
+export async function quoteDevBuy(conn: Connection, lamports: bigint, slippageBps = 100): Promise<DevBuyQuote> {
+  const config = platformDbcConfig();
+  if (!config) throw new Error(`No Meteora DBC platform config is pinned for ${CLUSTER.label}.`);
+  const cfg = await dbcClient(conn).state.getPoolConfig(config);
+  if (!cfg) throw new Error("DBC platform config not found.");
+  const currentPoint = await getCurrentPoint(conn, cfg.activationType);
+  const zero = new BN(0);
+  const fresh = {
+    quoteReserve: zero, baseReserve: cfg.swapBaseAmount, sqrtPrice: cfg.sqrtStartPrice, activationPoint: currentPoint,
+    volatilityTracker: { lastUpdateTimestamp: zero, padding: [], sqrtPriceReference: cfg.sqrtStartPrice, volatilityAccumulator: zero, volatilityReference: zero },
+  };
+  const firstMin = cfg.enableFirstSwapWithMinFee === 1;
+  const q = dbcClient(conn).pool.swapQuote2({
+    virtualPool: { poolState: fresh } as unknown as VirtualPool, config: cfg, swapBaseForQuote: false, hasReferral: false, eligibleForFirstSwapWithMinFee: firstMin,
+    currentPoint, slippageBps, swapMode: SwapMode.ExactIn, amountIn: new BN(lamports.toString()),
+  });
+  const amount = new BN(lamports.toString());
+  const feeNum = firstMin
+    ? getBaseFeeHandler(cfg.poolFees.baseFee.cliffFeeNumerator, cfg.poolFees.baseFee.firstFactor, cfg.poolFees.baseFee.secondFactor, cfg.poolFees.baseFee.thirdFactor, cfg.poolFees.baseFee.baseFeeMode).getMinBaseFeeNumerator()
+    : getTotalFeeNumeratorFromIncludedFeeAmount(cfg.poolFees, fresh.volatilityTracker as never, currentPoint, currentPoint, amount, 1);
+  return {
+    lamports,
+    tokensOut: big(q.outputAmount),
+    minimumAmountOut: big(q.minimumAmountOut),
+    feeLamports: big(q.tradingFee) + big(q.protocolFee),
+    feePct: pct(feeNum),
+    schedule: feeScheduleOf(cfg),
+    decimals: cfg.tokenDecimal,
+  };
+}
+
+/**
+ * DBC `initialize_virtual_pool_with_spl_token` on the platform config, plus the creator's optional
+ * first buy (dev buy) in the SAME transaction (SDK createPoolWithFirstBuy). DBC creates the mint
+ * (the caller's local keypair co-signs), mints the fixed 1B supply into the curve, and the config
  * revokes mint authority. Graduation threshold, fees and the DAMM v2 migration are fixed by the config.
+ */
+export async function buildDbcCreatePoolTx(
+  conn: Connection,
+  creator: PublicKey,
+  mint: Keypair,
+  p: { name: string; symbol: string; uri: string },
+  devBuy: { lamports: bigint; minimumAmountOut: bigint } | null = null,
+): Promise<{ tx: Transaction; pool: PublicKey }> {
+  const config = platformDbcConfig();
+  if (!config) throw new Error(`No Meteora DBC platform config is pinned for ${CLUSTER.label}.`);
+  const createPoolParam = { name: p.name, symbol: p.symbol, uri: p.uri, payer: creator, poolCreator: creator, config, baseMint: mint.publicKey };
+  const c = dbcClient(conn).creator;
+  const tx =
+    devBuy && devBuy.lamports > 0n
+      ? await c.createPoolWithFirstBuy({
+          createPoolParam,
+          firstBuyParam: { buyer: creator, receiver: creator, buyAmount: new BN(devBuy.lamports.toString()), minimumAmountOut: new BN(devBuy.minimumAmountOut.toString()), referralTokenAccount: null },
+        })
+      : await c.createPool(createPoolParam);
+  return { tx, pool: deriveDbcPoolAddress(WRAPPED_SOL_MINT, mint.publicKey, config) };
+}
+
+/**
+ * Plain launch ("Launch" type): the DBC pool, optionally with the dev buy in the same transaction.
+ * No Armory program is involved.
  */
 export async function buildPlainLaunchTx(
   conn: Connection,
   creator: PublicKey,
   p: { name: string; symbol: string; uri: string },
+  devBuy: { lamports: bigint; minimumAmountOut: bigint } | null = null,
+  mint: Keypair = Keypair.generate(),
 ): Promise<{ tx: Transaction; signers: Keypair[]; mint: PublicKey; pool: PublicKey }> {
-  const config = platformDbcConfig();
-  if (!config) throw new Error(`No Meteora DBC platform config is pinned for ${CLUSTER.label}.`);
-  const mint = Keypair.generate();
-  const tx = await dbcClient(conn).creator.createPool({ name: p.name, symbol: p.symbol, uri: p.uri, payer: creator, poolCreator: creator, config, baseMint: mint.publicKey });
-  return { tx, signers: [mint], mint: mint.publicKey, pool: deriveDbcPoolAddress(WRAPPED_SOL_MINT, mint.publicKey, config) };
+  const { tx, pool } = await buildDbcCreatePoolTx(conn, creator, mint, p, devBuy);
+  return { tx, signers: [mint], mint: mint.publicKey, pool };
 }
