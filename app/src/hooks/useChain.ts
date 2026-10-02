@@ -16,6 +16,26 @@ interface Settled<T> {
   readonly error: string | null;
 }
 
+const RATE_LIMITED = /\b429\b|rate limit|Too Many Requests|fetch failed|Failed to fetch/i;
+
+/** Read errors as plain words (the public devnet RPC rate-limits bursts; raw JSON-RPC bodies are not shown). */
+export function friendlyReadError(e: unknown): string {
+  const m = e instanceof Error ? e.message : String(e);
+  if (RATE_LIMITED.test(m)) return "The public devnet RPC is busy right now. Wait a few seconds and try again.";
+  return m.length > 160 ? `${m.slice(0, 157)}…` : m;
+}
+
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  for (let n = 0; ; n++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (n >= 2 || !RATE_LIMITED.test(e instanceof Error ? e.message : String(e))) throw e;
+      await new Promise((r) => setTimeout(r, 1500 * 2 ** n));
+    }
+  }
+}
+
 /**
  * `key` encodes every input of `fn` (null = disabled). Results are tagged with the request id, so
  * stale responses are ignored and `loading` is derived instead of set synchronously in the effect.
@@ -27,9 +47,9 @@ export function useChainRead<T>(key: string | null, fn: (c: Connection) => Promi
   useEffect(() => {
     if (id === null) return;
     let live = true;
-    fn(connection).then(
+    withRetry(() => fn(connection)).then(
       (data) => live && setSettled({ id, data, error: null }),
-      (e: unknown) => live && setSettled({ id, data: undefined, error: e instanceof Error ? e.message : String(e) }),
+      (e: unknown) => live && setSettled({ id, data: undefined, error: friendlyReadError(e) }),
     );
     return () => {
       live = false;

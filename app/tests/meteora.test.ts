@@ -129,3 +129,11 @@ describe("home stats", () => {
     expect(isSwapLog(null)).toBe(false);
   });
 });
+
+describe("friendly read errors", () => {
+  it("turns RPC rate-limit bodies into plain words", async () => {
+    const { friendlyReadError } = await import("@/hooks/useChain");
+    expect(friendlyReadError(new Error('429 : {"jsonrpc":"2.0","error":{"code":429,"message":"Connection rate limits exceeded"}}'))).toMatch(/busy/);
+    expect(friendlyReadError(new Error("Pool not found"))).toBe("Pool not found");
+  });
+});
