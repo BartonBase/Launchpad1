@@ -1879,7 +1879,7 @@ fn uniform_below_reaches_every_index_and_is_unbiased_enough() {
     }
 }
 
-// ---------------------------------------------------------------- audit PoC regressions (Auditor A 10/11/12)
+// ---------------------------------------------------------------- audit PoC regressions (Review A 10/11/12)
 
 #[test]
 fn regress_poc10_escrow_drain_must_fail() {

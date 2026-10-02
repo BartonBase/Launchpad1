@@ -1,92 +1,182 @@
-# Armory (ARMS)
+<p align="center">
+  <img src="app/public/brand/knights/knight-b.webp" alt="Armory knight mascot" width="240" />
+</p>
 
-Armory is a Solana launchpad for hybrid token/NFT collections. A creator can launch a plain meme coin, or a coin
-with an NFT collection built in, where a fixed number of tokens converts into one NFT and back.
+<h1 align="center">Armory</h1>
 
-> **Status: devnet only. Unaudited. Nothing is live.** There is no mainnet deployment and no real funds are
-> involved. A professional third-party audit is required before mainnet, and nothing goes live without Barton's
-> approval.
+<p align="center">
+  <strong>Launch a Solana meme coin on a fair bonding curve, then graduate it to a locked Meteora pool.</strong>
+</p>
 
-## Launch types
+<p align="center">
+  <a href="https://armory-ten.vercel.app"><strong>Live demo →</strong></a>
+  &nbsp;·&nbsp; <a href="HACKATHON.md">Hackathon submission</a>
+  &nbsp;·&nbsp; <a href="docs/README.md">Docs</a>
+</p>
 
-| Type | What it is | State |
-|---|---|---|
-| Plain | Classic SPL token, fixed supply of 1,000,000,000, mint and freeze authority revoked. No NFTs. | Active in development (built on `fix/modes-1-5`, not deployed to devnet yet) |
-| Hybrid | SPL token plus a Metaplex Core NFT collection. Capture turns the collection's ratio of tokens into a random NFT; release turns the NFT back into exactly that many tokens. | Active in development (on devnet) |
-| Burn | Like Hybrid, but wrapping burns the tokens and mints an NFT. One way, no release. | Active in development (built on `fix/modes-1-5`, not deployed to devnet yet) |
-| Tax split | Token-2022 transfer tax shared with NFT holders. | Shelved (ADR-020) |
-| Raffle | Token-2022 tax pot won by one NFT. | Shelved (ADR-020) |
+<p align="center">
+  <img alt="Network: Solana devnet" src="https://img.shields.io/badge/network-devnet-f5a524" />
+  <img alt="Built on Meteora DBC and DAMM v2" src="https://img.shields.io/badge/Meteora-DBC%20%E2%86%92%20DAMM%20v2-ff6a2b" />
+  <img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-111" />
+  <img alt="Anchor 1.2" src="https://img.shields.io/badge/Anchor-1.2-512da8" />
+  <img alt="Status: unaudited" src="https://img.shields.io/badge/status-unaudited-lightgrey" />
+</p>
 
-Tax split and raffle stay shelved until there is a public way to buy the tokens, the stuck-funds fixes are in,
-and a raffle legal check is done. The site shows them as "Coming soon".
+> **Devnet demo, unaudited.** Everything here runs on Solana devnet with test SOL. Nothing has real value, and
+> nothing should be used with real funds.
 
-## Security model
+<p align="center">
+  <img src="docs/screenshots/home.jpg" alt="Armory home page" width="900" />
+</p>
 
-Security is the top priority. The design is shaped by the Stonk.fun incident (see `docs/stonkfun-lessons.md`).
+## What it is
 
-- **Frozen config.** Each launch's settings (ratio, fees, mint, fee wallet) are fixed when it is created. No
-  instruction can change them afterwards.
-- **No pause.** There is no pause or guardian switch. Nobody can halt capture, re-roll or release.
-- **Per-collection escrow.** Each Hybrid collection has its own program-owned vault holding the tokens behind its
-  NFTs. There is no admin withdraw.
-- **Approved Switchboard randomness.** NFT assignment and re-rolls use Switchboard On-Demand randomness. The
-  Switchboard program is pinned and only queues on a compile-time approved list (`APPROVED_SB_QUEUES`) are
-  accepted. The program picks the oracle, so neither the user nor the creator can choose which NFT they get.
-- **Release always returns exactly N tokens.** Releasing an NFT returns exactly the collection's ratio of tokens,
-  with no fee taken from them.
-- **Fixed supply.** Every token launches with exactly 1,000,000,000 supply and the mint authority revoked.
-- **Program upgrades are not locked yet.** On devnet the upgrade authority is a throwaway deployer key. The
-  planned mainnet setup (multisig and timelock) is still pending Barton's decision.
-- QA's 2026-10-01 review of the Modes 1-5 code found no real bugs and confirmed that nobody can drain program-held
-  funds (`qa/reports/2026-10-01-modes-1-5.md`). Audit reports are in `security/`.
+Armory is a Solana launchpad for meme coins. A creator names a coin, picks a ticker and launches it in one
+transaction. The coin trades on a **Meteora Dynamic Bonding Curve (DBC)**, where the price rises as people buy. When
+the curve raises its SOL target, the coin **graduates**: its liquidity moves into a **Meteora DAMM v2** pool with the
+LP permanently locked, and trading carries on from the same trade panel.
 
-## Mascot
+Next on the roadmap is **Hybrid**: a coin with an NFT collection built in, where a fixed number of tokens converts
+into one NFT and the NFT always converts back into exactly that many tokens.
 
-The mascot is a comic-book knight. The art in the repo is **placeholder art** (`design/placeholder/`) until the
-final mascot is made. It is not used as a logo, favicon or app icon.
+## Features
 
-## Design
+- **One-click launch.** A fixed 1,000,000,000 supply SPL token with mint and freeze authority revoked and immutable
+  metadata, created straight from the browser with the Meteora DBC SDK. No Armory program sits in the path.
+- **Trade on the curve and after graduation.** Live quotes, a slippage setting, minimum received, the trading fee
+  and Meteora's protocol fee are all shown before you sign. The panel switches from the curve to the DAMM v2 pool
+  automatically.
+- **Live progress.** A progress bar shows SOL raised against the curve's graduation target, then the migrated pool.
+- **Explore and portfolio.** Browse every launch read from chain, search by name or mint, and see your holdings.
+- **Transaction safety pipeline.** Every transaction goes through a program allowlist, a simulation and a readable
+  preview before an explicit confirm. Only then does your wallet sign. The app never holds private keys.
+- **Trust page.** Plain-language list of what is locked, what isn't, and every program and config address.
+- **Phantom and Solflare** wallets, a responsive dark UI and a comic-book knight mascot.
 
-Direction A, "Obsidian": a near-black, premium look with one bright accent.
+## Screenshots
 
-- Accent: **Ember `#FF6A2B`**, the only saturated colour.
-- Type: **Bricolage Grotesque** for headlines and the text wordmark, Geist for UI and body, Geist Mono for labels.
-- No animation.
-- Mockups: `design/directions/a-obsidian/`. Tokens and components: `design/system/`. Site map: `design/sitemap.md`.
+| Launch a token | Token page and trading |
+| --- | --- |
+| <img src="docs/screenshots/launch.jpg" alt="Launch wizard" width="440" /> | <img src="docs/screenshots/token.jpg" alt="Token page with the trade panel" width="440" /> |
+| **Explore** | **How it works (Meteora)** |
+| <img src="docs/screenshots/explore.jpg" alt="Explore launches" width="440" /> | <img src="docs/screenshots/how-it-works.jpg" alt="How it works page" width="440" /> |
 
-## Run the app locally
+<p align="center"><img src="docs/screenshots/home-mobile.jpg" alt="Armory on mobile" width="260" /></p>
 
-The web app is in `app/` (Next.js, TypeScript). It runs against localnet or devnet only; mainnet is refused at
-startup. It needs Node 20.19 or newer.
+## How it works
 
-```bash
-cd app
-npm ci
-NEXT_PUBLIC_SOLANA_CLUSTER=devnet npm run dev   # http://localhost:3000
-npm test                                        # unit tests
+```
+ Creator                     Traders                         Graduation                      After
+ ───────                     ───────                         ──────────                      ─────
+ Launch in the app  ──►  Buy / sell on the Meteora DBC  ──►  Curve hits its SOL target  ──►  Trade on Meteora DAMM v2
+ (creator.createPool)     curve (swapQuote2 + swap2)         DBC migrates the liquidity       (getQuote2 + swap2),
+                          price rises as people buy          to DAMM v2, LP locked forever    same trade panel
 ```
 
-See `app/README.md` for all scripts, environment variables and the transaction safety pipeline. The `.env.example`
-file lists the only (public) settings; no secrets are needed.
+1. **Launch.** The app calls `creator.createPool` on Armory's platform DBC config. The config fixes the curve, the
+   fee, the SOL quote token and the graduation target, so every launch plays by the same published rules.
+2. **Trade on the curve.** Buys and sells use `swapQuote2` for the quote and `swap2` (exact-in) for the transaction,
+   always with a minimum-received amount.
+3. **Graduate.** At the threshold, DBC migrates the liquidity to a DAMM v2 pool and the LP is permanently locked by
+   the config. (On mainnet Meteora's keepers do this automatically; on devnet we call the permissionless migration
+   ourselves.)
+4. **Trade after graduation.** The trade panel switches to the DAMM v2 pool with its own quotes and price impact.
 
-The on-chain programs (`programs/`) are built and tested as described in `docs/STATUS.md` ("Build and test") and
-`docs/DEV_SETUP.md`.
+Every address, the live config values and the exact code paths are on the in-app **How it works** page
+([`/meteora`](https://armory-ten.vercel.app/meteora)). The full devnet proof (launch, buys, sells, graduation and
+DAMM v2 trades, with signatures) is in [HACKATHON.md](HACKATHON.md).
 
-## Where the docs are
+## Tech stack
 
-| Path | What |
-|---|---|
-| `docs/BRIEF.md` | Project brief and Barton's decisions |
-| `docs/STATUS.md` | Current engineering status |
-| `docs/DECISIONS.md` | Architecture decision records (ADRs) |
-| `docs/ITINERARY.md` | Website plan |
-| `docs/ARCHITECTURE.md`, `docs/THREAT_MODEL.md` | Program design and threat model |
-| `design/` | Visual direction, design system, placeholder mascot, site map |
-| `app/` | Armory web app |
-| `qa/` | Test plan, findings tracker and QA reports |
-| `security/` | Auditor reports and the merged findings list |
-| `review/` | Review notes |
+| Layer | Tools |
+| --- | --- |
+| Web app | Next.js 16 (App Router), React 19, TypeScript 5.9, Tailwind CSS 4 |
+| Solana | `@solana/web3.js` 1.99, Solana wallet adapter (Phantom, Solflare) |
+| Meteora | `@meteora-ag/dynamic-bonding-curve-sdk` 1.5.13, `@meteora-ag/cp-amm-sdk` 1.5.1 (DAMM v2) |
+| On-chain (Hybrid) | Rust 1.89, Anchor 1.2, Solana/Agave 4.1.2, Metaplex Core, Switchboard On-Demand randomness |
+| Testing | Vitest (web app), LiteSVM integration tests (programs) |
+| Hosting | Vercel (devnet demo) |
 
-## Keys
+## Run it locally
 
-No keys, keypairs or `.env` files are committed. `.gitignore` excludes them.
+You need Node.js 20.19 or newer and a Solana wallet set to **devnet** with some devnet SOL from
+[faucet.solana.com](https://faucet.solana.com).
+
+```bash
+git clone https://github.com/BartonBase/Launchpad1.git
+cd Launchpad1/app
+npm ci
+cp .env.example .env.local              # then set NEXT_PUBLIC_SOLANA_CLUSTER=devnet
+npm run dev                             # http://localhost:3000
+```
+
+Other useful scripts (from `app/`):
+
+```bash
+npm test                                          # unit tests (offline)
+npm run typecheck && npm run lint
+NEXT_PUBLIC_SOLANA_CLUSTER=devnet npm run build   # production build
+```
+
+No secrets are needed: every setting in `.env.example` is public. `app/README.md` covers all scripts, environment
+variables and the transaction safety pipeline. To build and test the on-chain programs, see
+[docs/DEV_SETUP.md](docs/DEV_SETUP.md) and [tests/README.md](tests/README.md).
+
+**Deploying your own copy (Vercel or Netlify):** set the root directory to `app/`, the build command to
+`npm run build`, and the environment variable `NEXT_PUBLIC_SOLANA_CLUSTER=devnet`.
+
+## Project structure
+
+```
+.
+├── app/                    Next.js web app (the Armory site)
+│   ├── src/app/            Pages: home, launch, explore, token (/t/[mint]), portfolio, faq, trust, how it works
+│   ├── src/components/     UI, trade panel, launch wizard, curve progress
+│   ├── src/lib/meteora/    Meteora DBC and DAMM v2 integration (launch, quotes, swaps, pool reads)
+│   ├── src/lib/tx/         Transaction safety pipeline (allowlist → simulate → preview → confirm)
+│   ├── src/config/         Cluster, program IDs, pinned configs
+│   └── tests/              Vitest unit tests
+├── programs/               Anchor programs for Hybrid launches
+│   ├── hybrid_launch/      Launch registry and DBC config/pool checks
+│   └── hybrid_vault/       Token ⇄ NFT vault (opens only after the DBC pool has migrated)
+├── tests/                  LiteSVM integration tests for the programs
+├── scripts/                Build, test and devnet deploy scripts (devnet/localnet only)
+├── design/                 Visual direction, design system and the knight mascot
+├── docs/                   Architecture, decisions (ADRs), threat model, security reviews, QA
+│   ├── security/           Independent security reviews and the merged findings list
+│   ├── qa/                 Test plan, findings tracker and QA reports
+│   └── screenshots/        Images used in this README
+├── shelved/                Paused Token-2022 tax/raffle work (excluded from the build)
+└── HACKATHON.md            Meteora DBC hackathon submission
+```
+
+## Roadmap
+
+| Stage | Status |
+| --- | --- |
+| **Launch**: coin on a Meteora DBC curve, graduating to DAMM v2 | ✅ Live on devnet |
+| Trading on the curve and on DAMM v2 after graduation | ✅ Live on devnet |
+| **Hybrid**: coin plus an NFT collection that converts both ways | 🔜 Coming soon (devnet preview) |
+| Independent third-party audit of the Hybrid programs | 🔜 Planned before mainnet |
+| Mainnet | ⏸ On hold until Hybrid is ready |
+| Burn, Tax split and Raffle launch types | 💤 Later |
+
+## Security
+
+Security comes first. The key properties:
+
+- **Fixed supply.** Every coin has exactly 1,000,000,000 tokens; mint and freeze authority are revoked at launch.
+- **Locked liquidity.** At graduation the DAMM v2 LP is permanently locked by the curve config.
+- **No pause and no admin withdraw** in the Hybrid programs; each collection's tokens sit in its own program-owned
+  vault, and releasing an NFT always returns exactly the collection's ratio of tokens.
+- **Verifiable randomness** (Switchboard On-Demand) picks Hybrid NFTs, so nobody can choose which piece they get.
+- **No keys in this repo.** No private keys, keypairs or `.env` files are committed; `.gitignore` excludes them.
+
+The programs are **not audited yet**. The internal security reviews, threat models and the merged findings list are
+in [docs/security/](docs/security/) and [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md). If you find a security issue,
+please open a GitHub issue without exploit details and we'll follow up privately.
+
+## License
+
+No open-source license has been chosen yet, so all rights are reserved for now. Please get in touch before reusing
+the code or the mascot art.

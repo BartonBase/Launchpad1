@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Generates src/styles/tokens.css from the Creative Director's W3C design tokens
+ * Generates src/styles/tokens.css from the W3C design tokens in design/system
  * (design/system/tokens.json). Run: `npm run tokens`. Do not hand-edit the output.
  *
  * Every leaf token becomes a CSS custom property: color.accent.default -> --arm-color-accent-default.

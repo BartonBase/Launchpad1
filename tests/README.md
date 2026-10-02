@@ -15,4 +15,4 @@
 - **Shelved:** the Token-2022 localnet smoke test and the `fee_treasury`/`holder_lottery` tests are in
   `../shelved/` and on local branch `shelved/track-b-t22` (ADR-009). `tests/_shelved/` and `tests/.keys/` are QA's.
 
-Run everything with `./scripts/test.sh` (see ../docs/DEV_SETUP.md). QA's plan is in `../qa/TEST_PLAN.md`.
+Run everything with `./scripts/test.sh` (see ../docs/DEV_SETUP.md). QA's plan is in `../docs/qa/TEST_PLAN.md`.

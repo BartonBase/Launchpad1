@@ -1,6 +1,6 @@
 # Architecture decision records (on-chain)
 
-Owner: Solana Program Engineer. Format: context → decision → consequences. Status values: Proposed / Accepted /
+Owner: on-chain engineering. Format: context → decision → consequences. Status values: Proposed / Accepted /
 Superseded / Shelved. Every decision here is **Proposed** until Barton signs off, except where marked **Accepted (decided
 by Barton)**.
 
@@ -123,7 +123,7 @@ shelved/deferred. Kept for the record.
 >
 > The original text below is kept as the historical record.
 
-- **Who decided and why.** The Solana Program Engineer made this call on 2026-09-24. Barton did not answer Q-H1
+- **Who decided and why.** The on-chain engineering made this call on 2026-09-24. Barton did not answer Q-H1
   directly, but his stated requirements (blind assignment, VRF re-roll, burned fees, no mutable economics, multisig
   plus timelock) cannot be met by any MPL-Hybrid configuration (see Context). **Reversible if Barton objects**: the
   launch step (`hybrid_launch`) is engine-independent, and no mainnet deployment exists.
@@ -180,7 +180,7 @@ shelved/deferred. Kept for the record.
 - **Context.** Barton dropped Token-2022 for now and moved 100% of the focus to SPL-404 hybrid launches. Barton also
   supplied the real Stonk.fun source (Bitquery, figures verified 2026-09-22,
   https://bitquery.io/investigations/is-stonkfun-dumping-on-holders; summary in
-  [stonkfun-lessons.md](stonkfun-lessons.md)). It was not a hack: Stonk.fun's own reward wallet swept a 1–3% transfer
+  [research/stonkfun-lessons.md](research/stonkfun-lessons.md)). It was not a hack: Stonk.fun's own reward wallet swept a 1–3% transfer
   tax, sold it into each coin's pool and paid holders in the pair asset. 160 coins lost more than half their supply to
   tax, snipers made the first hour the worst, at least $1.41M went off-ledger to linked wallets, and on 2,178 coins the
   reward wallet can still raise the tax to 100%.
@@ -293,7 +293,7 @@ shelved/deferred. Kept for the record.
 
 ## ADR-012: VRF: Switchboard On-Demand, program-chosen oracle, heartbeat filter, bounded recommits, principal + escrow expire
 
-**Status: Accepted (engineering; Auditor A v2 M-04). Implemented on localnet (mock Switchboard). CPIs proven against the REAL Switchboard program in LiteSVM. On devnet (2026-09-25): our deployed vault's `init_randomness` CPI into real Switchboard succeeded, and a gateway-signed reveal was settled by a third party (direct flow). The vault's own request/settle path isn't exercised on devnet, because it needs a graduated DBC pool.**
+**Status: Accepted (engineering; Review A v2 M-04). Implemented on localnet (mock Switchboard). CPIs proven against the REAL Switchboard program in LiteSVM. On devnet (2026-09-25): our deployed vault's `init_randomness` CPI into real Switchboard succeeded, and a gateway-signed reveal was settled by a third party (direct flow). The vault's own request/settle path isn't exercised on devnet, because it needs a graduated DBC pool.**
 
 - **Real-program proof (2026-09-25).** `switchboard-on-demand` 0.13.0 (`default-features = false, features =
   ["solana-v3"]`) compiles for SBF with Anchor 1.2. `getrandom` 0.2 is satisfied by a `custom` backend that always
@@ -317,7 +317,7 @@ shelved/deferred. Kept for the record.
   anyone can `expire_request`: it refunds the principal (tokens or the handed-in NFT) + the full mint escrow (ADR-016),
   **never the tier fee**. Batch expire: `expire_requests(count)` expires up to `MAX_EXPIRE_PER_CALL` = 7 consecutive heads in one
   instruction, all-or-nothing (bounded by the 64-account lock limit; K > 3 needs v0 + ALT).
-- **VRF cost (M-37): the requester pays at cost, separately (Auditor A decision).** **Measured on devnet 2026-09-25
+- **VRF cost (M-37): the requester pays at cost, separately (Review A decision).** **Measured on devnet 2026-09-25
   (real Switchboard On-Demand `Aio4gaXj…`, default devnet queue `EYiAmGSd…`, gateway-signed reveal settled by a third
   party; details in CD Q2):** commit 5,000 lamports (1 signature), reveal 10,000 lamports (2 signatures: the third-party
   fee payer plus the randomness authority), **oracle fee 0 lamports** (no SOL or wSOL moved in the reveal). Mainnet queue
@@ -538,7 +538,7 @@ LaunchConfig upgrade can never lock users out of exits. Capture still fails clos
     is minted (u/P → 0) and disappears once everything is minted.
   - **Not fixed on purpose:** a subsidy or a surcharge would bring back the flat-overcharge problem ADR-018
     rejected.
-  - **Disclosure wording for the frontend / Creative Director (exact):**
+  - **Disclosure wording for the frontend / design (exact):**
     > "Re-rolling costs the same flat fee as capturing, and releasing is free. When fewer than about 600 NFTs are left
     > in the pool, a re-roll can cost slightly more on average than releasing and capturing again (for example, about
     > 0.000025 SOL more with 100 left), because a re-roll can't draw the NFT you hand in, and that NFT is already
@@ -574,9 +574,9 @@ This supersedes the M-08 "min(stored, tier, MAX)" rule.
 - **QA review trigger:** `qa_sol_fee::qa_FEE03_M08_vault_rejects_forged_config_off_tier_or_above_cap` still
   expects the old M-08 "charge min" behaviour. It now gets 6061, as this decision requires.
 
-## ADR-020: Modes 1–5 review fixes; tax and raffle modes SHELVED (Barton, 2026-10-01; relayed by Grok Bot)
+## ADR-020: Modes 1–5 review fixes; tax and raffle modes SHELVED (Barton, 2026-10-01)
 
-Source: `review/2026-10-01-barton-week-review.md` §7 (review of `onchain/modes-1-5` @ `0a12471`). Fixed on the
+Source: the 2026-10-01 project review §7 (review of `onchain/modes-1-5` @ `0a12471`). Fixed on the
 local branch `fix/modes-1-5`. Not pushed, not deployed, not audited.
 
 **Product decisions (Barton):**
@@ -618,7 +618,7 @@ local branch `fix/modes-1-5`. Not pushed, not deployed, not audited.
 - Also fixed: missing `/// CHECK:` docs on 5 `mint` fields in `raffle.rs` and `token22.rs`. Without them
   Anchor's safety lint failed and `build.sh` produced no IDL.
 
-**Barton's decision (2026-10-01, ~5:15 PM MT; relayed by Grok Bot): ACCEPTED.** A raffle round may be
+**Barton's decision (2026-10-01, ~5:15 PM MT): ACCEPTED.** A raffle round may be
 cancelled with the pot rolled over to the next round (pot → `pending_base`; no payout, nothing lost) in both
 cases where the round can't complete: every NFT in the round was burned, or 4 oracles (1 commit + 3 retries)
 never revealed.
@@ -632,7 +632,7 @@ never revealed.
 - Mode 4/5 pot tier is fixed per launch (locked buyback price); crank costs (holder ATAs, raffle seats, rand
   locks) are unpaid volunteer rent. Raffle seats and rand locks are never closed.
 
-## Creative Director questions (answered 2026-09-25; figures measured on LiteSVM unless marked ESTIMATE)
+## Design questions (answered 2026-09-25; figures measured on LiteSVM unless marked ESTIMATE)
 
 ### CD Q1: Is the ~0.005 SOL mint cost refunded when the draw lands on an already-minted NFT?
 
@@ -674,7 +674,7 @@ lamports (0.0063381 SOL)** in its own escrow account, `["mint_escrow", vault, se
 
 | Item | Amount | Who pays | Refunded? | Status |
 |---|---|---|---|---|
-| Switchboard oracle fee | **0 lamports on devnet** (measured: the gateway-signed reveal moved no SOL and no wSOL; the reward escrow stayed at 0). Mainnet queue reward read via RPC: 5 lamports | the requester, at cost, separately from the tier fee (Auditor A decision, ADR-012) | no | **measured on devnet** (mainnet 5 lamports read, not exercised) |
+| Switchboard oracle fee | **0 lamports on devnet** (measured: the gateway-signed reveal moved no SOL and no wSOL; the reward escrow stayed at 0). Mainnet queue reward read via RPC: 5 lamports | the requester, at cost, separately from the tier fee (Review A decision, ADR-012) | no | **measured on devnet** (mainnet 5 lamports read, not exercised) |
 | Commit tx (arms the randomness for this draw) | **5,000** lamports (1 signature, 15,081 CU) | requester | no | **measured on devnet** |
 | Reveal tx (submits the oracle's signed value) | **10,000** lamports when a third party pays (2 signatures: fee payer + randomness authority, 49,675 CU); 5,000 if the payer is the authority. Plus any priority fee | whoever cranks it: the requester's client, or any third party | no | **measured on devnet** |
 | Settle tx | 5,000 lamports base + priority | the settler (anyone) | no | exact base; priority varies |
@@ -731,7 +731,7 @@ Status after ADR-009. Obsolete items are struck through and kept for the record.
 ### Hybrid rarity (ADR-008)
 
 9. ~~**Q-H1:** Engine: MPL-Hybrid or the custom `hybrid_vault`?~~ **ACCEPTED: `hybrid_vault`** (decided 2026-09-24 by
-   the Solana Program Engineer because MPL-Hybrid can't meet Barton's stated requirements; reversible if Barton
+   on-chain engineering because MPL-Hybrid can't meet Barton's stated requirements; reversible if Barton
    objects; ADR-008).
 10. ~~**Q-H2:** Capture/re-roll fees as a % of the ratio in tokens~~ **Resolved: flat tiered SOL fee (ADR-013).**
 11. ~~**Q-H3:** Fee destination~~ **Resolved: BURN** (Barton, ADR-009). Supersedes my "no burn" recommendation.

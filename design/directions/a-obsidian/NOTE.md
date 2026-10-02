@@ -75,7 +75,7 @@ Lazy minting replaces the 4:55 PM batch pre-mint.
 - `home.html`: step 01 now ends "the token graduates and converting opens". The "collection is minted" wording is gone. There was no Glasshouse target text on the page. Glasshouse (200K / 5,000 NFTs) is now valid at 85 SOL anyway.
 - `launch.html`: the mint-reserve readout, the "too large for target" error and its quick fixes, the `?ratio/size/target` demo params, and the reserve/10% review lines are all removed. `launch-too-large.png` is deleted. The only size validation left is 100 to min(10,000, 1B ÷ ratio). The graduation target field stays (minimum 85 SOL at the time; 10 SOL since the 10/1 chain alignment). Step 2 and review carry: "NFTs are minted one at a time, the first time someone captures them. The collector pays the small mint cost." Step 2 has a "Mint cost per NFT: about 0.005 SOL, once per NFT" box. Review shows "NFT minting: On first capture", and the Fees box lists the mint cost and randomness. (All superseded 10/1: 0.0063 SOL refundable deposit, no randomness fee.)
 
-### Capture cost formula (for the Frontend Engineer)
+### Capture cost formula (for the frontend)
 
 ```
 platform_fee(ratio) = 0.002 SOL if ratio == 50K
@@ -158,7 +158,7 @@ A re-roll can land on an NFT that hasn't been minted yet. In graduation-design.m
 **Update (2026-10-01, itinerary steps 3–6): launch types, new pages, logic spec.**
 Sources:
 - ADR-020 (`docs/DECISIONS.md` line 577; commits 81d0b8d 17:04 MT and c43be58 17:16 MT) decides what's live: Plain and Burn kept, Tax split and Raffle shelved.
-- Branch `fix/modes-1-5`, commit 0a12471 (16:31 MT, read only), defines the mechanics: `docs/GROK_HANDOFF.md`, `programs/hybrid_launch/src/instructions/plain.rs`, `launch_burn.rs` and `programs/hybrid_vault/src/instructions/permanent.rs`.
+- Branch `fix/modes-1-5`, commit 0a12471 (16:31 MT, read only), defines the mechanics: `docs/STATUS.md`, `programs/hybrid_launch/src/instructions/plain.rs`, `launch_burn.rs` and `programs/hybrid_vault/src/instructions/permanent.rs`.
 - The two don't conflict on Plain or Burn.
 
 ### Launch types
@@ -254,7 +254,7 @@ Tier fee (Hybrid and Burn): 50K = 0.002, 100K/200K = 0.005, 500K–5M = 0.01 SOL
   - `trust.html`: audit status (two internal reviews, 41 merged findings, regression tests per fix, M-09 open; planned: paid third-party audit, live bounty, cap on, human-only upgrade keys, verifiable build hash); authorities table across types; upgrades timeline; key policy; randomness (committed Merkle root, Switchboard VRF, pinned queue `APPROVED_SB_QUEUES`, Burn order public); fees; deposit cap; known limitations; program-address placeholder; report CTA.
   - `bug-bounty.html`: "not live yet"; scope marked **Proposed**; how to report with a **labelled placeholder** contact; ground rules; "Rewards to be announced". No amounts and no real address.
   - `faq.html`: Basics, Hybrid, Burn and Plain, Fees, Safety, Coming soon. Every answer comes from BRIEF / DECISIONS / ADR / branch facts.
-- Key rule: no exact wording exists in BRIEF or DECISIONS (ITINERARY: "a published rule that no AI holds mainnet keys"; admin doc: "No mainnet keys on the box"). Written plainly as **"No AI agent holds mainnet keys. Mainnet keys are held by humans only."** plus "This applies to every mainnet key: program upgrades, the multisig, and the platform fee address" (my extension). **Needs Barton's sign-off.**
+- Key rule: no exact wording exists in BRIEF or DECISIONS (website plan: "a published rule that no AI holds mainnet keys"; admin doc: "No mainnet keys on the box"). Written plainly as **"No AI agent holds mainnet keys. Mainnet keys are held by humans only."** plus "This applies to every mainnet key: program upgrades, the multisig, and the platform fee address" (my extension). **Needs Barton's sign-off.**
 - Footer links now point to the real anchors (trust#audit, #keys, #randomness; bug-bounty.html; faq.html#curve).
 
 *Step 8: mobile*
@@ -275,7 +275,7 @@ Tier fee (Hybrid and Burn): 50K = 0.002, 100K/200K = 0.005, 500K–5M = 0.01 SOL
 *Placeholder mascot (Barton 5:40 PM, override of the shield idea; no shield files were made)*
 - Every mascot box now shows a **temporary comic-ink knight** (`../../placeholder/knight-placeholder.svg`, code-drawn with `../../placeholder/_build/knight.py`) at the same footprint, with alt "Placeholder art, mascot coming soon" and a tiny muted "Placeholder art" caption on boxes 120px or taller. Ember is used only on the plume and the shield emblem. The pages have no favicon or logo from it; the nav keeps the text wordmark. To replace it with the Higgsfield art, change `MPH` in `_build/a_obsidian.py`.
 
-**Update (2026-10-01, ~6:00 PM MT): chain alignment (Frontend Engineer devnet findings, verified read-only against `fix/modes-1-5`, BRIEF and DECISIONS).** Rule: published copy never claims what the chain doesn't do; where the chain contradicts a Barton decision, the page states what's true now and the conflict is flagged.
+**Update (2026-10-01, ~6:00 PM MT): chain alignment (frontend devnet findings, verified read-only against `fix/modes-1-5`, BRIEF and DECISIONS).** Rule: published copy never claims what the chain doesn't do; where the chain contradicts a Barton decision, the page states what's true now and the conflict is flagged.
 1. **Deploy status.** Only Hybrid is deployed on devnet (STATUS.md: deployment 2026-09-25; Modes 1 and 3 "Not deployed. Local LiteSVM"). Plain and Burn now show **Pending deploy** (`STATUS` map + `status_chip()`): home comparison and heading ("One is live on devnet"), explore tabs and lead, wizard picker (the launch button is disabled for pending types), Plain/Burn token headers, trust authorities note, FAQ, components, sitemap.
 2. **Graduation target.** Default 85 SOL (constants.rs `DEFAULT_GRADUATION_THRESHOLD_LAMPORTS`, DECIDED). Minimum is now the chain's **10 SOL** (`MIN_GRADUATION_THRESHOLD_LAMPORTS`; 0.1 SOL on the devnet-e2e build), not 85. Help text adds: "It must match one of the platform's approved curve settings", because on the curve path the threshold is read from the allowlisted curve config, not from the creator (register_dbc.rs: "threshold from DBC's config"). **Flag:** Barton's 85 SOL minimum dates from the mint-reserve rule, which was dropped with lazy minting.
 3. **Mint deposit.** Hybrid capture and re-roll: a 0.0063 SOL deposit (`MINT_ESCROW_LAMPORTS` 6,338,100), refunded at settle except about 0.003–0.004 SOL when the pick is minted for the first time (DECISIONS CD Q1, measured 0.0031–0.0044). Paid now: 0.0163 SOL at the 1M ratio; net 0.01 to ≈ 0.014 SOL. Burn: no deposit, ≈ 0.003–0.004 SOL paid directly (`create_asset_user_pays`). Updated: capture, re-roll and graduated panels; fees card; facts; wizard lazybox, review and live math; home footnote; portfolio history; trust table and limitations; FAQ; components.

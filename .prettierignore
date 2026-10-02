@@ -5,10 +5,8 @@ node_modules
 dist
 build
 test-ledger
-# Other teams' folders: Anchor/JS tooling from the repo root must not touch them
+# Folders the repo-root Anchor/JS tooling must not touch
 app
 design
-qa
-security
+docs
 reference
-docs/BRIEF.md

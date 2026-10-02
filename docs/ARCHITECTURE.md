@@ -10,11 +10,11 @@
 > different account type, so a mint cannot be both and `hybrid_vault` cannot wrap a plain mint. Mode 3
 > (burn hybrid) is not built. Track B stays shelved. Not audited. Devnet only.
 
-Owner: Solana Program Engineer. Status: **v0.2 (2026-09-24, after ADR-009)**, localnet/devnet only. Not audited, not
+Owner: on-chain engineering. Status: **v0.2 (2026-09-24, after ADR-009)**, localnet/devnet only. Not audited, not
 for mainnet. Related: [DECISIONS.md](DECISIONS.md), [THREAT_MODEL.md](THREAT_MODEL.md),
 [admin-multisig-timelock.md](admin-multisig-timelock.md), [hybrid-rarity-and-assignment.md](hybrid-rarity-and-assignment.md),
-[qa-answers.md](qa-answers.md), [DEV_SETUP.md](DEV_SETUP.md), master spec [BRIEF.md](BRIEF.md). Auditor inputs:
-`../security/auditor-a/`, `../security/auditor-b/`.
+[qa/qa-answers.md](qa/qa-answers.md), [DEV_SETUP.md](DEV_SETUP.md), master spec [BRIEF.md](BRIEF.md). Security review inputs:
+`security/review-a/`, `security/review-b/`.
 
 > **Scope (ADR-009, Barton 2026-09-24 2:51 PM MT):** **Track A only**, SPL-404 hybrid launches on a classic SPL Token.
 > **Track B** (Token-2022 transfer tax for existing collections → tax treasury buying NFTs from the token's own existing
@@ -176,7 +176,7 @@ max_spend_per_window, spend_window_seconds (1h..30d), window_start_ts, spent_in_
   - `hybrid_vault` `request_capture` at the fixed ratio (VRF-selected NFT) for an allowlisted Hybrid collection.
     This needs that collection's classic-SPL token, so the Rewards-token → Hybrid-token swap must use TWAP `min_out`.
     See DECISIONS Q3. The bought NFT goes **directly** to `holder_lottery`'s prize vault PDA. Any token→SOL leg
-  needs on-chain `min_out` from a TWAP (Auditor B R-07).
+  needs on-chain `min_out` from a TWAP (Review B R-07).
 - `set_paused`, `propose/execute_params` (planned): admin = multisig, timelocked, bounded.
 
 ### `holder_lottery`
@@ -199,7 +199,7 @@ gains. A property test is included.
 
 **Anti-snapshot-sniping (design, open question Q2).** Point-in-time balances are never used. The recommended
 mechanism is opt-in registration/stake into a program vault, with tickets from time-weighted balance over the period
-and a `min_holding_seconds` gate (Auditor B R-08). A transfer hook is avoided because it breaks permissionless DEX
+and a `min_holding_seconds` gate (Review B R-08). A transfer hook is avoided because it breaks permissionless DEX
 pools (transfer-tax-vs-wrap.md §c).
 
 **Randomness.** Switchboard On-Demand commit–reveal, or ORAO request/fulfill. The VRF account pubkey and seed are

@@ -1,9 +1,9 @@
 # On-chain threat model (engineering view)
 
-Owner: Solana Program Engineer. Status: v0.2 (2026-09-24, after Barton's SCOPE CHANGE, ADR-009). It complements, and
-doesn't replace, the independent auditor models in `../security/auditor-a/00-threat-model.md` and
-`../security/auditor-b/threat-model.md` (B-xx findings, R-xx requirements in `design-requirements.md`). Where a row maps
-to an auditor requirement, it's cited.
+Owner: on-chain engineering. Status: v0.2 (2026-09-24, after Barton's SCOPE CHANGE, ADR-009). It complements, and
+doesn't replace, the independent security review models in `security/review-a/00-threat-model.md` and
+`security/review-b/threat-model.md` (B-xx findings, R-xx requirements in `design-requirements.md`). Where a row maps
+to a security-review requirement, it's cited.
 
 > **Scope (ADR-009):** the product is **Track A only**: SPL-404 hybrid launches on a classic SPL Token mint.
 > Token-2022, the transfer tax, the tax treasury and the holder lottery (**Track B**) are **SHELVED/DEFERRED**. Their
@@ -30,7 +30,7 @@ Test status legend:
 
 **Source:** Bitquery Research, "Is StonkFun dumping on its own holders?", on-chain figures verified 2026-09-22,
 https://bitquery.io/investigations/is-stonkfun-dumping-on-holders (provided by Barton; summary in
-[stonkfun-lessons.md](stonkfun-lessons.md); I re-read the article on 2026-09-24). This replaces my earlier section,
+[research/stonkfun-lessons.md](research/stonkfun-lessons.md); I re-read the article on 2026-09-24). This replaces my earlier section,
 which had no source and speculated about a "bot drain". That speculation (old S-1..S-5 table) is withdrawn.
 
 **What happened, per Bitquery (23 Aug – 22 Sep 2026):**

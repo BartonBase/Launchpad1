@@ -1,4 +1,4 @@
-//! On-chain invariants, asserted at the END of every mutating instruction (Auditor A A-07).
+//! On-chain invariants, asserted at the END of every mutating instruction (Review A A-07).
 //!
 //! INV-1 (solvency): vault_tokens >= ratio * (assets_outside + pending_captures + pending_rerolls).
 //!   Every NFT a user holds was paid for with exactly `ratio` tokens that sit in `vault_tokens`, and

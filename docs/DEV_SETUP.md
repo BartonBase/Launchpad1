@@ -63,7 +63,7 @@ cargo test -p track-a-hybrid-tests   # LiteSVM tests (needs a prior build: targe
 ## Gotchas (all hit and resolved while scaffolding)
 
 1. **`anchor test` defaults to surfpool in Anchor 1.2, and its legacy validator uses the default ports** (8899/8900,
-   gossip 8000+), which collide with other agents on the shared box. `scripts/test.sh` starts its own
+   gossip 8000+), which collide with other validators on a shared machine. `scripts/test.sh` starts its own
    `solana-test-validator` on a random free 64-port block (rpc, faucet, gossip, `--dynamic-port-range`) with a
    unique `mktemp` ledger, loads programs with `--bpf-program` (the 4.x loader refuses to *deploy* SBPF v2), and
    runs `anchor test --skip-local-validator --skip-deploy`. It also puts `~/.cargo/bin` first in PATH.

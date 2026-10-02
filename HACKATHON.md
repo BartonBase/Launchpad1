@@ -149,6 +149,6 @@ Details are in `app/README.md`.
 - A Hybrid launch with a curve is simulate-only in the wizard (you can review the transaction but
   not send it yet). Live Hybrid curve launches were created by script (ARMT).
 - Burn, Tax and Raffle are "Coming soon".
-- The price chart is a placeholder, and the mascot art is placeholder art.
+- The price chart is a placeholder.
 - The public devnet RPC is rate limited. Under load some live numbers may not load, and a reload
   fixes it.

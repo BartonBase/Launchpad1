@@ -2,7 +2,7 @@
 
 > **UPDATE 2026-09-25: there is NO pause (ADR-015).** §3's `pause_new_requests` proposal is rejected and kept for the record. The only admin power left is the program upgrade (Squads + timelock until freeze; M-16 accepted). Devnet deploys go through `scripts/deploy-devnet.sh`, which refuses to deploy if a test-only artifact (`mock_switchboard.so`, the mock-graduation marker) is in `target/deploy`.
 
-Owner: Solana Program Engineer. Status: **Proposed** (2026-09-24, after ADR-009). Nothing here is deployed; localnet
+Owner: on-chain engineering. Status: **Proposed** (2026-09-24, after ADR-009). Nothing here is deployed; localnet
 and devnet only. Constraint source: ADR-009 §C (Stonk.fun lessons 2–3: no operator wallet custodying value, no mutable
 economics after launch; if anything must stay adjustable, use a multisig plus a long, visible timelock with hard caps).
 

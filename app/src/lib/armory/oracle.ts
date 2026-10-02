@@ -1,6 +1,5 @@
 /**
- * Simulate-first oracle selection for request_capture / request_reroll (Solana Program Engineer,
- * 2026-10-01). The PROGRAM picks the oracle (M-04) and the pick shifts with oracle heartbeats, so
+ * Simulate-first oracle selection for request_capture / request_reroll (* 2026-10-01). The PROGRAM picks the oracle (M-04) and the pick shifts with oracle heartbeats, so
  * the app simulates and follows the program's answer:
  *  - 6050 WrongOracle: Anchor's require_keys_eq! logs "Left:" (what we passed) and "Right:" (what the
  *    program wants), each followed by the key on the next log line. Rebuild with the Right key.

@@ -23,16 +23,16 @@
 > all-in" figure is the 385-byte shape plus the pre-mint crank overhead (`MINT_OVERHEAD_LAMPORTS`), which no longer
 > exists under lazy minting.
 
-Status: **ACCEPTED design (engine = `hybrid_vault`, ADR-008 accepted 2026-09-24).** Owner: Solana Program Engineer. Date: 2026-09-24, updated after the SCOPE CHANGE (ADR-009).
+Status: **ACCEPTED design (engine = `hybrid_vault`, ADR-008 accepted 2026-09-24).** Owner: on-chain engineering. Date: 2026-09-24, updated after the SCOPE CHANGE (ADR-009).
 **Basis (decided):** Token-2022 is dropped/deferred (ADR-009, supersedes ADR-004's two-type model). The product is
 SPL-404 hybrid launches only: classic SPL Token, untaxed, convertible, exact unwrap. There's no transfer fee anywhere in
 the wrap/unwrap/re-roll path, so every amount below is exact. The engine-independent launch step (mint 1B, revoke
 authorities, immutable LaunchConfig) is **built** as `programs/hybrid_launch` (ADR-010). The engine is **`hybrid_vault`**
-(ADR-008 ACCEPTED, decided 2026-09-24 by the Solana Program Engineer because MPL-Hybrid can't meet Barton's stated
+(ADR-008 ACCEPTED, decided 2026-09-24 by on-chain engineering because MPL-Hybrid can't meet Barton's stated
 requirements; reversible if Barton objects). MPL-Hybrid is reference only. ~~Re-roll and capture fees = burn, at settle~~ **Superseded: flat SOL tier fee at
 request (ADR-013); lazy mint from a per-request escrow (ADR-016).**
 
-Inputs: BRIEF.md §Decisions (2026-09-24), [transfer-tax-vs-wrap.md](transfer-tax-vs-wrap.md), Auditor B findings B-01/B-12/B-16 and sim (`../security/auditor-b/sim/reroll_ev_output.txt`).
+Inputs: BRIEF.md §Decisions (2026-09-24), [transfer-tax-vs-wrap.md](transfer-tax-vs-wrap.md), Review B findings B-01/B-12/B-16 and sim (`security/review-b/sim/reroll_ev_output.txt`).
 Decision record: [DECISIONS.md](DECISIONS.md) ADR-008. Threats: [THREAT_MODEL.md](THREAT_MODEL.md) T-HV-*.
 
 ## Summary
@@ -78,7 +78,7 @@ Max collection size = min(1B / ratio, `MAX_COLLECTION_SIZE` = 10,000).
    overflows `u64` for 1B supply and must fail cleanly).
 2. **Frontend (UX only, never trusted):** the launch wizard derives the max size from the ratio, clamps the input, and
    shows the "% of supply convertible" line below.
-3. **Launch script/CI:** `assert_launch_ready` re-reads the mint and config on-chain before the sale opens (Auditor B
+3. **Launch script/CI:** `assert_launch_ready` re-reads the mint and config on-chain before the sale opens (Review B
    R-03).
 
 **When `collection_size × ratio < 1B`:** this is fine. The escrow only ever needs `ratio × NFTs outside the vault`
@@ -167,7 +167,7 @@ relative to `programs/mpl-hybrid/src/`.
   the chosen asset's name/URI to `recipe.uri + idx + ".json"` with
   `idx = ((slot_hash_bytes[12..20] as u64) − unix_timestamp) × recipe.count mod (max − min) + min`
   (`capture_v2.rs:187-203`). Every input is public before execution, so an attacker program can CPI capture, inspect
-  the new URI, and revert unless it's rare. Auditor B's sim estimates this is ~1000× cheaper than honest grinding, and
+  the new URI, and revert unless it's rare. Review B's sim estimates this is ~1000× cheaper than honest grinding, and
   when `(max − min)` divides 2^32 the hash term vanishes entirely (`reroll_ev_output.txt` Part B). The index is drawn
   *with replacement* from `[min, max)`, so the rarity census isn't preserved and index `max` is never picked (B-16).
   Release sets the asset to name "Captured", URI `…captured.json` (`release_v2.rs:211-250`).
@@ -344,7 +344,7 @@ the same reroll**. The handed-in NFT becomes selectable for later requests.
 fee** set to cover VRF and worst-case asset rent (~0.003 SOL, capped). Sizing rule: honest grinding for a trait with
 pool frequency `p` and market premium `m × floor` has break-even `f ≥ p × m`. For example, a legendary at 0.1% of the
 pool trading at 20× floor is break-even at f = 2%. The protocol never promises premiums, so treat this as a
-disclosure-backed default, not a guarantee. Auditor B's sim shows why SOL-only fees fail when premiums rise (legendary
+disclosure-backed default, not a guarantee. Review B's sim shows why SOL-only fees fail when premiums rise (legendary
 grinding goes profitable once the premium exceeds ~50 SOL at a 0.05 SOL cycle cost).
 
 **Fee destination: BURN (decided, ADR-009).** Barton chose burn as the default on 2026-09-24. This **supersedes my
@@ -392,7 +392,7 @@ VRF and rent and nothing else.
 ## Open questions (new, for Barton)
 
 - ~~**Q-H1:** Accept replacing MPL-Hybrid with a custom `hybrid_vault`?~~ **ACCEPTED (2026-09-24):** `hybrid_vault`,
-  decided by the Solana Program Engineer (Barton's requirements rule out MPL-Hybrid); reversible if Barton objects.
+  decided by on-chain engineering (Barton's requirements rule out MPL-Hybrid); reversible if Barton objects.
   It's in audit scope.
 - **Q-H2:** Re-roll and capture fees as a **% of the ratio in tokens** plus a small SOL cost fee (recommended), instead
   of the SOL-only fees in the current mock (0.01/0.02 SOL)? Default 2%?
@@ -418,7 +418,7 @@ VRF and rent and nothing else.
 - Switchboard On-Demand randomness: https://docs.switchboard.xyz/docs-by-chain/solana-svm/randomness
 - ORAO VRF / Callback VRF: https://github.com/orao-network/solana-vrf (classic `VRFzZoJdhFWL8rkvu87LpKM3RbcVezpMEc6X5GVDr7y`,
   callback `VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU`)
-- Auditor B: `../security/auditor-b/threat-model.md` (B-01, B-12, B-16), `design-requirements.md` (R-01, R-12),
+- Review B: `security/review-b/threat-model.md` (B-01, B-12, B-16), `design-requirements.md` (R-01, R-12),
   `sim/reroll_ev_output.txt`
 - Format-preserving permutation (Feistel + cycle walking): Black & Rogaway, "Ciphers with Arbitrary Finite Domains"
   (CT-RSA 2002)

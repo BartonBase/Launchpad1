@@ -1,7 +1,7 @@
 # Marketplaces (Tensor, Magic Eden) for Core collections, and ratio edge cases
 
 - **Status:** research only. All sources were checked **2026-09-25**. Where a claim comes from on-chain reads or our own fetches, that is stated. Unverified items are marked **unverified**.
-- **Author:** executor agent, 2026-09-25 (MT).
+- **Date:** 2026-09-25 (MT).
 - **Scratch:** `/workspace/scratch/graduation/` holds on-chain reads, fetched pages, and cloned marketplace sources.
 - **Companion doc:** `docs/graduation-design.md`.
 
@@ -90,7 +90,7 @@ Both marketplaces display JSON-metadata attributes. Whether either prefers the o
 
 ## PART B: Ratio edge cases (N ∈ {10k, 50k, 100k, 200k, 500k, 1M, 2.5M, 5M}; collection size 100 ≤ C ≤ 1B/N)
 
-### B.1 Escrow cornering in small collections (Auditor B R1-B-06 / merged M-20)
+### B.1 Escrow cornering in small collections (Review B R1-B-06 / merged M-20)
 **The problem.** One actor captures most or all of a 100-NFT collection. At N = 10k that takes only 1M tokens (0.1% of supply) + 2% fees + SOL minimums. Once the pool is empty, nobody else can capture or re-roll. With lazy minting the same applies to the virtual pool.
 
 | Option | Assessment |

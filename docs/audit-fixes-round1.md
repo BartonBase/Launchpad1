@@ -1,7 +1,7 @@
-# Audit fixes: round 1 (merged findings M-01..M-41, Auditor A v2.1)
+# Audit fixes: round 1 (merged findings M-01..M-41, Review A v2.1)
 
 Baseline: tag `audit-baseline-r1` on `wip/hybrid-vault` (local only). Source of findings:
-`security/merged/round1-merged.md`. Tests: `tests/track-a-hybrid/vault/vault.rs` (V), `launch/launch.rs` (L),
+`docs/security/merged/round1-merged.md`. Tests: `tests/track-a-hybrid/vault/vault.rs` (V), `launch/launch.rs` (L),
 program unit tests (U). Localnet/LiteSVM only; not audited.
 
 Status key: **closed** = fixed + regression test · **moot** = not applicable to hybrid_vault · **accepted** =

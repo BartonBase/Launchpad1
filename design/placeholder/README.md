@@ -1,5 +1,8 @@
 # Placeholder mascot: Armory knight (TEMPORARY)
 
+> **Superseded.** The official knight mascot art is in `design/mascot/knights/` and `app/public/brand/knights/`. This
+> code-drawn placeholder is kept only because the early mockups in `design/directions/` and `design/system/` still reference it.
+
 **This is placeholder art.** It's a temporary stand-in until Barton's Higgsfield mascot art arrives, and then it gets replaced everywhere. It isn't the brand mascot and isn't final.
 
 - One comic-book knight in a front/hero pose (waving, holding a shield). The style follows the archived bomb sheet (`../mascot/archive-bomb/`): thick ink line (#050507), flat cel shading, cream highlights, friendly. Ember #FF6A2B is the only accent (the plume and the shield emblem), on the dark palette.

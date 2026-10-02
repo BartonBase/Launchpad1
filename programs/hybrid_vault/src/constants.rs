@@ -81,7 +81,7 @@ pub const MAX_MERGE_PER_IX: u32 = 32;
 
 pub const MAX_NAME_LEN: usize = 32;
 pub const MAX_URI_LEN: usize = 200;
-/// Metadata and collection URIs must be content-addressed (Auditor B R1-B-11): the committed leaf
+/// Metadata and collection URIs must be content-addressed (Review B R1-B-11): the committed leaf
 /// then pins the exact JSON bytes, and the JSON pins the image by CID / Arweave tx id.
 pub const ALLOWED_URI_PREFIXES: [&str; 2] = ["ipfs://", "ar://"];
 /// Merkle depth cap: 2^17 = 131,072 > max collection size (100,000).

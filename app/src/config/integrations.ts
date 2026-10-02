@@ -25,7 +25,7 @@ export const DBC_PLATFORM_CONFIG: Record<ClusterName, PublicKey | null> = {
  */
 export const PINNED_LOOKUP_TABLES: Record<ClusterName, readonly PublicKey[]> = {
   localnet: [],
-  // Devnet ARMT settle table (Solana Program Engineer, 2026-10-01; authority An3Zmi…, 21 entries).
+  // Devnet ARMT settle table (2026-10-01; authority An3Zmi…, 21 entries).
   devnet: [new PublicKey("5xhFeeakpaggTw9Ntbjt8yuZSHEoXPTUd63h4tVmZVsU")],
 };
 

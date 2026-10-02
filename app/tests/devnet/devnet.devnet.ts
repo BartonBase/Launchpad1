@@ -33,12 +33,12 @@ import { buildTxPreview } from "@/lib/tx/preview";
 const conn = new Connection("https://api.devnet.solana.com", "confirmed");
 const log = (...a: unknown[]) => { const line = `[devnet] ${a.map((x) => (typeof x === "string" ? x : JSON.stringify(x, (_k, v) => (typeof v === "bigint" ? v.toString() : v)))).join(" ")}\n`; console.log(line); if (process.env.DEVNET_LOG) appendFileSync(process.env.DEVNET_LOG, line); };
 
-// E2E launch (Solana Program Engineer, 2026-10-01). Fee is read from chain, never hard-coded.
+// E2E launch (2026-10-01). Fee is read from chain, never hard-coded.
 const E2E_MINT = new PublicKey("3GC9zFWzE2fVTFM7Q9Zo3BqCUArPYQEK57UVv4zvpJAu");
 const E2E_VAULT = new PublicKey("HSgG9nxvRLjqwnb7MeHzo2okA6eKRyLdBuPvP9MxYMwa");
 const E2E_LC = new PublicKey("FKAzFsdDGShgtiMntihnM6BUd8D6fDNMYsUut6en2kYD");
 const E2E_DBC_POOL = "6VbgZdmKtsCJyf3h8w4AWFBXtKFrxBX9Lm7ScBZYTk7d";
-// The app's devnet test launch "Armory Test" (ARMT; Solana Program Engineer, 2026-10-01): DBC config
+// The app's devnet test launch "Armory Test" (ARMT; 2026-10-01): DBC config
 // DuQY… + register_dbc_launch, graduated to DAMM v2, vault open. Capture minted #56 (back in the
 // vault); re-roll minted #68 (held by their throwaway wallet).
 const ARMT = {

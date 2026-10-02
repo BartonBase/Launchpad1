@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build (SBPF v2), start an ISOLATED local validator, deploy, and run all tests. Localnet only.
 #
-# Several agents share this machine, so we never use the default validator ports (8899/8900/9900/
+# Other local validators may be running, so we never use the default validator ports (8899/8900/9900/
 # 8000-8020) or a shared ledger: a free block of ports is picked at random each run and the ledger
 # lives in a unique temp dir that is deleted on exit. The Rust tests themselves run in LiteSVM.
 set -euo pipefail

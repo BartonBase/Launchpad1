@@ -14,3 +14,7 @@ node_modules
 .keys/
 *keypair*.json
 id.json
+.env*
+!.env.example
+*.pem
+*.key

@@ -4,9 +4,9 @@
 > now. This analysis is kept for reference only. Its conclusion for hybrid launches (classic SPL Token, no tax, exact
 > unwrap) is now the whole product. Stonk.fun's documented harm came from exactly this kind of tax (THREAT_MODEL.md).
 
-Status: **RESOLVED: option (a) ACCEPTED by Barton (2026-09-24, 2:45 PM MT), recorded as ADR-004.** Auditor review of the
+Status: **RESOLVED: option (a) ACCEPTED by Barton (2026-09-24, 2:45 PM MT), recorded as ADR-004.** Security review of the
 written analysis is still welcome.
-Owner: Solana Program Engineer. Date: 2026-09-24.
+Owner: on-chain engineering. Date: 2026-09-24.
 Resolves the BRIEF open issue "Token-2022 transfer fee vs. exact unwrap".
 
 > **Update 2026-09-24 (ADR-008, proposed):** Barton's cosmetic-rarity decision requires "no choosing, no peeking" when
@@ -73,7 +73,7 @@ Other MPL-Hybrid facts that matter for this decision (same commit):
 - **V2 escrows are seeded by authority (`["escrow", authority]`), not by collection.** One authority running several
   recipes that use the same token shares one token pool. Use one dedicated authority per hybrid collection.
 - **The capturer chooses which escrowed NFT they get.** In `capture_v2.rs:52-54` the `asset` is a caller-supplied
-  account. Rerolls use SlotHashes plus a timestamp (`capture_v2.rs:95,190-199`), which is predictable, and Auditor B's
+  account. Rerolls use SlotHashes plus a timestamp (`capture_v2.rs:95,190-199`), which is predictable, and Review B's
   B-01/R-01 already flags this. Hybrid collections should either set the `NoRerollMetadata` path and have traits that
   don't differ in value, or disclose that rarer NFTs can be cherry-picked.
 - **Protocol fee** is about 0.005 SOL per capture and per release, sent to Metaplex
@@ -120,7 +120,7 @@ So any design where the user receives **exactly N** of a taxed mint in one trans
   break the backing invariant.
 - *Taxed launch type*: Token-2022 mint with TransferFeeConfig (plus MetadataPointer/TokenMetadata), the same fixed 1B
   supply, and mint and freeze authority revoked. `withdraw_withheld_authority` = fee_treasury PDA.
-  `transfer_fee_config_authority` = `None`, or a PDA with hard bounds and a timelock (Auditor B R-04). **No converter.**
+  `transfer_fee_config_authority` = `None`, or a PDA with hard bounds and a timelock (Review B R-04). **No converter.**
   Tax funds NFT purchases (including from our hybrid collections), which go to holders through holder_lottery.
 
 **Why it wins**
@@ -187,7 +187,7 @@ either requires the user to send `pre_fee_amount(R)` so the escrow nets exactly 
 
 **Exploit surface.** A new custom program holding pooled backing is a new place to hide a drain:
 fee-accounting mistakes, PDA confusion across collections, stale-epoch math, and admin fee changes that make the
-escrow leak. It needs its own audit, fuzzing (Auditor B R-06: 10,000 cycles at 100 bps), and monitoring.
+escrow leak. It needs its own audit, fuzzing (Review B R-06: 10,000 cycles at 100 bps), and monitoring.
 
 **Verdict: reject.** It violates the "no custom 404/swap program" decision (ADR-003), and every payer choice either
 leaks escrow backing (a drain/bank run) or makes "exact" untrue.
@@ -227,7 +227,7 @@ charges the escrow, and a hook can't refund it.
 - Wallets and aggregators must resolve extra accounts for every transfer. Failures show up as "transaction failed", and
   the hook adds CPI compute units to **every** transfer, including DEX swaps.
 - The hook isn't called on self-transfers. A hook-controlled allowlist is also an admin kill switch, because the hook
-  authority can freeze trading. Auditor B R-03 requires no such authority.
+  authority can freeze trading. Review B R-03 requires no such authority.
 - MPL-Hybrid doesn't pass hook extra accounts, and it doesn't support Token-2022 anyway.
 
 **Verdict: reject.** It can't implement a tax, and it costs DEX compatibility, compute, and an admin kill switch.
@@ -243,7 +243,7 @@ exactly N.
 
 - It's still a custom swap program, and it must hold the **mint-wide** withdraw-withheld authority. That authority can
   withdraw fees withheld in *any* holder account. Putting it in a user-facing, high-frequency path is the concentration
-  Auditor B B-04/R-04 warns about. It would also compete with fee_treasury, which should be the only holder.
+  Review B B-04/R-04 warns about. It would also compete with fee_treasury, which should be the only holder.
 - The user's ATA may already hold withheld fees from earlier trades. Withdrawing "all withheld" refunds those too, which
   leaks tax. Withdrawing an exact amount isn't supported (`FromAccounts` withdraws the account's full withheld balance),
   so the program would have to harvest first, which is permissionless and can be front-run.
@@ -339,4 +339,4 @@ Rewards launch, tooltip if the tax authority isn't revoked:
 - DEX support: https://docs.raydium.io/algorithms/token-2022-transfer-fees, https://docs.meteora.ag/core-products/damm-v2/token-2022-support,
   https://docs.meteora.ag/core-products/dlmm/token-2022-support, https://docs.orca.so/developers/architecture/token-extensions
 - Wallets: https://docs.phantom.com/developer-powertools/solana-token-extensions-token22 (Phantom shows transfer fees; Solflare fee display unverified)
-- Auditor B requirements: ../security/auditor-b/design-requirements.md (R-01, R-03, R-04, R-06)
+- Review B requirements: security/review-b/design-requirements.md (R-01, R-03, R-04, R-06)
