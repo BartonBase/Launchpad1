@@ -38,6 +38,9 @@ const BANNED = [
   /devnet setting/i,
   /CLUSTER\.label/,
   /not wired|indexer is wired/i,
+  /bug.?bounty/i,
+  /Supply starts at/i,
+  />Permanent</,
 ];
 
 describe("live-product copy", () => {
@@ -59,6 +62,20 @@ describe("live-product copy", () => {
     expect(src("components/SiteHeader.tsx")).not.toMatch(/meteora/i);
     expect(src("components/SiteFooter.tsx")).toMatch(/href="\/meteora"/);
     expect(src("components/SiteFooter.tsx")).toMatch(/Powered by/);
+  });
+
+  it("links the Trust page from the footer only, and the FAQ says honestly it isn't audited", () => {
+    expect(src("components/SiteHeader.tsx")).not.toMatch(/\/trust/);
+    expect(src("components/SiteFooter.tsx")).toMatch(/href="\/trust"/);
+    const linkers = UI.filter((p) => !p.endsWith("SiteFooter.tsx") && /href="\/trust/.test(code(p)));
+    expect(linkers.map((p) => p.slice(ROOT.length))).toEqual([]);
+    expect(src("app/faq/page.tsx")).toMatch(/"Is Armory audited\?", "Not yet\./);
+  });
+
+  it("has no bug-bounty route (redirects home)", async () => {
+    const { existsSync } = await import("node:fs");
+    expect(existsSync(join(ROOT, "app", "bug-bounty"))).toBe(false);
+    expect(readFileSync(join(ROOT, "..", "next.config.ts"), "utf8")).toMatch(/source: "\/bug-bounty", destination: "\/"/);
   });
 
   it("never claims to be audited", () => {

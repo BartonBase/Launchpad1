@@ -13,8 +13,8 @@ export default async function LaunchPage({ searchParams }: { searchParams: Promi
       <div className="space-y-2">
         <h1 className="hd text-4xl md:text-5xl">Launch a token</h1>
         <p className="text-muted max-w-2xl">
-          Pick a launch type, then set it up. Launch is just the coin, on a bonding curve; Hybrid adds an NFT collection. The type and anything
-          marked Permanent can&apos;t change once you launch.
+          Pick a launch type, then set it up. Launch is just the coin, on a bonding curve; Hybrid adds an NFT collection. The type and the
+          token settings can&apos;t change once you launch.
         </p>
       </div>
       {q === "burn" && (

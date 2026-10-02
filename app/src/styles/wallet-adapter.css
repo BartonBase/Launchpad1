@@ -344,3 +344,90 @@
 .wallet-adapter-dropdown-list-item:not([disabled]):hover {
   background-color: var(--arm-color-surface-3);
 }
+
+/* ---- Armory wallet modal (Select Wallet): same surfaces, type and accents as the rest of the site ---- */
+.wallet-adapter-modal-overlay {
+  background: rgba(5, 6, 8, 0.72);
+  backdrop-filter: blur(4px);
+}
+.wallet-adapter-modal-wrapper {
+  max-width: 400px;
+  padding: 8px 20px 20px;
+  color: var(--arm-color-text-primary);
+}
+.wallet-adapter-modal-title {
+  font-size: 20px;
+  line-height: 1.25;
+  padding: 40px 16px 20px;
+  color: var(--arm-color-text-primary);
+}
+.wallet-adapter-modal-button-close {
+  background: var(--arm-color-surface-2);
+  border: 1px solid var(--arm-color-border-default);
+  top: 14px;
+  right: 14px;
+  padding: 10px;
+}
+.wallet-adapter-modal-button-close svg {
+  fill: var(--arm-color-text-muted);
+}
+.wallet-adapter-modal-button-close:hover svg {
+  fill: var(--arm-color-text-primary);
+}
+.wallet-adapter-modal-list {
+  margin: 0;
+}
+.wallet-adapter-modal-list li + li {
+  margin-top: 4px;
+}
+.wallet-adapter-modal-list .wallet-adapter-button {
+  height: 52px;
+  padding: 0 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--arm-color-text-primary);
+  background: transparent;
+  border: 1px solid var(--arm-color-border-default);
+  border-radius: var(--arm-radius-md);
+}
+.wallet-adapter-modal-list .wallet-adapter-button-start-icon,
+.wallet-adapter-modal-list .wallet-adapter-button-start-icon img {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+}
+/* "Detected" label on installed wallets */
+.wallet-adapter-modal-list .wallet-adapter-button span {
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 1;
+  color: var(--arm-color-status-success-text);
+}
+.wallet-adapter-modal-list-more {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--arm-color-text-muted);
+  padding: 12px 8px 0;
+}
+.wallet-adapter-modal-list-more:hover {
+  color: var(--arm-color-text-primary);
+}
+.wallet-adapter-modal-list-more svg {
+  fill: currentColor;
+}
+.wallet-adapter-modal-middle {
+  padding: 0 24px 8px;
+}
+.wallet-adapter-modal-middle svg {
+  opacity: 0.85;
+}
+.wallet-adapter-dropdown-list {
+  font-family: var(--font-sans);
+}
+.wallet-adapter-dropdown-list-item {
+  font-size: 13px;
+  height: 36px;
+  border-radius: var(--arm-radius-md);
+  color: var(--arm-color-text-primary);
+}

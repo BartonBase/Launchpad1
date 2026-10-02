@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-/** Shared layout for Trust / FAQ / Bug bounty (design a-obsidian trust.html, faq.html, bug-bounty.html):
+/** Shared layout for Trust / FAQ (design a-obsidian trust.html, faq.html):
  * title + intro, sticky in-page nav on the left, section cards on the right. */
 export function DocLayout({ title, intro, chips, toc, children }: { title: string; intro: ReactNode; chips?: ReactNode; toc: readonly (readonly [string, string])[]; children: ReactNode }) {
   return (

@@ -94,8 +94,7 @@ Standard Next.js app, no server secrets, no database.
 ```
 src/
   app/
-    layout.tsx              shell: always-visible trust strip (unaudited beta, deposit cap,
-                            authorities) + header + footer; ISR 30 s
+    layout.tsx              shell: header (nav + small network chip + wallet) + footer; ISR 30 s
     page.tsx                /                    landing (hero, how it works, launch styles, live launches)
     explore/                /explore             all launches read from chain; ?q= search, type/phase filters
     t/[mint]/               /t/<mint>            token page: phase, Convert panel (capture / release /
@@ -108,7 +107,7 @@ src/
     meteora/                /meteora             "Built on Meteora": DBC -> DAMM v2 flow, live config facts,
                                                  addresses, integration code paths
     portfolio/              /portfolio           wallet tokens, NFTs, pending requests
-    trust/ faq/ bug-bounty/ static trust pages (+ live authorities, pipeline self-test)
+    trust/ faq/             static trust pages, linked from the footer (+ live authorities, pipeline self-test)
     fonts.ts                next/font/google: Bricolage Grotesque, Geist, Geist Mono (self-hosted)
   config/
     cluster.ts              cluster config + mainnet rejection
@@ -184,7 +183,7 @@ tests/                      unit tests; tests/devnet/*.devnet.ts = read-only dev
 
 ### Stable E2E test ids
 
-`trust-strip`, `beta-label`, `deposit-cap`, `authorities-toggle`, `authorities-panel`,
+`authorities-panel`,
 `authority-hybrid_launch|hybrid_vault`, `wordmark`, `cluster-badge`, `launch-card`,
 `launch-type-<id>` (`data-status`), `token-page`, `token-not-found`, `facts-card`,
 `fact-mint-authority`, `fact-freeze-authority`, `fact-fee`, `fee-not-tier`, `convert-panel`,
@@ -298,8 +297,7 @@ constants. MPL-Hybrid was removed.
 - **Upgrade governance**: `PROGRAM_UPGRADES_COPY` in `config/armory.ts` (Trust, FAQ, authorities
   panel) is **pending Barton's approval**; the live upgrade authority is read from chain (devnet:
   throwaway deployer `An3ZmiB4…`).
-- Curve progress and buying on the curve (Meteora DBC), token metadata, marketplace links,
-  bug-bounty terms.
+- Curve progress and buying on the curve (Meteora DBC), token metadata, marketplace links.
 
 ## Security decisions
 

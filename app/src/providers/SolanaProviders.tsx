@@ -5,8 +5,16 @@
  *
  * - Endpoint comes ONLY from src/config/cluster.ts (localnet/devnet; mainnet
  *   throws at import time).
- * - wallets = [] : no per-wallet adapter packages. Wallets that implement the
- *   Wallet Standard (Phantom, Solflare, Backpack, ...) are auto-detected.
+ * - wallets: explicit Phantom + Solflare adapters, so both are always listed in
+ *   the modal (with their install page if the extension isn't there: picking a
+ *   wallet that isn't detected opens its site in a new tab). Any installed
+ *   Wallet Standard wallet (Phantom, Solflare, Backpack, ...) is auto-detected
+ *   and replaces the adapter of the same name, so nothing is listed twice.
+ *   Solflare without the extension is treated as "not detected" (opens its
+ *   install page) instead of the SDK's web-wallet iframe, which our CSP
+ *   (frame-src 'none') blocks and which connect.solflare.com refuses to be framed
+ *   anyway (X-Frame-Options: sameorigin). On iOS the adapter's deep link into the
+ *   Solflare app is kept; on Android, Mobile Wallet Adapter is added automatically.
  * - autoConnect = false : connecting is always an explicit user action. On a
  *   launchpad the wallet should never be silently re-attached when a page
  *   loads (e.g. after following a link to a collection page); the small UX
@@ -18,11 +26,21 @@
 import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { ConnectionProvider, WalletProvider, useWallet } from "@solana/wallet-adapter-react";
 import { WalletModalProvider, useWalletModal } from "@solana/wallet-adapter-react-ui";
-import type { Adapter, WalletError } from "@solana/wallet-adapter-base";
+import { WalletAdapterNetwork, WalletNotReadyError, WalletReadyState, isIosAndRedirectable, type Adapter, type WalletError } from "@solana/wallet-adapter-base";
+import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
+import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { CLUSTER } from "@/config/cluster";
 
+/** Solflare adapter that never falls back to the web-wallet iframe on desktop (see header). */
+class SolflareExtensionAdapter extends SolflareWalletAdapter {
+  override get readyState(): WalletReadyState {
+    const rs = super.readyState;
+    return rs === WalletReadyState.Loadable && !isIosAndRedirectable() ? WalletReadyState.NotDetected : rs;
+  }
+}
+
 function ConnectOnSelect() {
-  const { wallet, connected, connecting, connect } = useWallet();
+  const { wallet, connected, connecting, connect, select } = useWallet();
   const { visible } = useWalletModal();
   const atOpen = useRef<string | null | undefined>(undefined); // wallet name when the modal opened
   const pending = useRef(false);
@@ -39,15 +57,25 @@ function ConnectOnSelect() {
     }
     if (!pending.current || !wallet || connected || connecting) return;
     pending.current = false;
-    connect().catch(() => {
-      /* rejection is reported through WalletProvider onError */
+    const adapter = wallet.adapter;
+    connect().catch((e: unknown) => {
+      // Not installed (e.g. Phantom without the extension): open its install page in a new tab
+      // (still within the click's user activation) and go back to "Select Wallet".
+      // Other rejections are reported through WalletProvider onError.
+      if (e instanceof WalletNotReadyError) {
+        window.open(adapter.url, "_blank", "noopener,noreferrer");
+        select(null);
+      }
     });
-  }, [visible, name, wallet, connected, connecting, connect]);
+  }, [visible, name, wallet, connected, connecting, connect, select]);
   return null;
 }
 
 export function SolanaProviders({ children }: { children: ReactNode }) {
-  const wallets = useMemo<Adapter[]>(() => [], []);
+  const wallets = useMemo<Adapter[]>(
+    () => [new PhantomWalletAdapter(), new SolflareExtensionAdapter({ network: WalletAdapterNetwork.Devnet })],
+    [],
+  );
   const config = useMemo(() => ({ commitment: "confirmed" as const, wsEndpoint: CLUSTER.wsUrl }), []);
   const onError = useCallback((error: WalletError) => {
     // Never log payloads/keys; the error name + message is enough.

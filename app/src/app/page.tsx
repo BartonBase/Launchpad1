@@ -11,7 +11,7 @@ import { isListed } from "@/lib/armory/listing";
 import { PlainCard } from "@/components/meteora/PlainCard";
 
 const STEPS = [
-  ["01", "Buy the token", "Every launch starts as a fixed 1,000,000,000 token supply. When the curve fills, the token graduates and converting opens."],
+  ["01", "Buy the token", "Every launch has a supply fixed at 1,000,000,000 tokens. When the curve fills, the token graduates and converting opens."],
   ["02", "Capture an NFT", "Lock exactly the ratio (say 1,000,000 tokens) and receive a random NFT from the collection, picked with Switchboard randomness that anyone can verify."],
   ["03", "Collect, show, list", "It is a Metaplex Core NFT in your wallet. Keep it, re-roll it for another random one, or trade it on NFT marketplaces."],
   ["04", "Switch back", "Release any NFT for exactly the ratio in tokens, whatever its rarity. Releasing has no platform fee."],
@@ -128,21 +128,6 @@ export default async function HomePage() {
         ) : (
           <ReadError what="launches" error={launches.error} />
         )}
-      </section>
-
-      <section className="card grid gap-6 p-6 md:grid-cols-[2fr_1fr] md:p-10" aria-labelledby="trust">
-        <div className="space-y-3">
-          <h2 id="trust" className="hd text-2xl md:text-3xl">Built to be checked, not trusted</h2>
-          <p className="text-muted">
-            Supply is fixed at 1,000,000,000 and mint authority is revoked at launch. The conversion rate and fee are
-            written once and can&apos;t be changed by any setting. Every transaction is simulated and previewed before
-            you sign, and every authority is shown live on the Trust page.
-          </p>
-        </div>
-        <div className="flex flex-col items-start gap-2 md:items-end md:justify-center">
-          <Link href="/trust" className="btn btn-primary">Trust &amp; security</Link>
-          <Link href="/bug-bounty" className="text-accent-text text-sm">Bug bounty →</Link>
-        </div>
       </section>
     </div>
   );

@@ -5,7 +5,7 @@
  */
 const base = process.argv[2] ?? "http://localhost:3000";
 const M = "Dhv3VkqeTYJiahzcVJLmJ1snApdYtQxsAKeUnv5GTNos"; // devnet test launch "Armory Test" (ARMT)
-const routes = ["/", "/explore", "/launch", "/launch?type=plain", "/launch?type=burn", "/portfolio", "/trust", "/faq", "/bug-bounty",
+const routes = ["/", "/explore", "/launch", "/launch?type=plain", "/launch?type=burn", "/portfolio", "/trust", "/faq",
   `/t/${M}`, `/t/${M}?panel=capture`, "/t/notamint"];
 let bad = 0;
 for (const r of routes) {

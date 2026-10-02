@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import Link from "next/link";
 import { FIRST_MINT_RANGE_TEXT, MINT_ESCROW_LAMPORTS, PROGRAM_UPGRADES_COPY, mintDepositText } from "@/config/armory";
 import { DocLayout, DocSection } from "@/components/armory/DocLayout";
 
@@ -40,7 +39,6 @@ const GROUPS: readonly { id: string; title: string; qa: readonly (readonly [stri
     ["Can anyone pause the app?", "No key or multisig can pause the vault, so captures, releases, re-rolls and burns can't be halted by us."],
     ["Who can change the programs?", `${PROGRAM_UPGRADES_COPY.status}. ${PROGRAM_UPGRADES_COPY.today} ${PROGRAM_UPGRADES_COPY.planned} ${PROGRAM_UPGRADES_COPY.after}`],
     ["Does an AI hold any keys?", "No AI agent holds mainnet keys. Mainnet keys are held by humans only."],
-    ["How do I report a bug?", <>Privately, through the <Link href="/bug-bounty" className="text-accent-text">bug bounty page</Link>. Rewards are to be announced.</>],
   ] },
   { id: "soon", title: "Coming soon", qa: [
     ["Why aren't Tax split and Raffle live?", "They're on hold until there's a public way to buy those tokens and two fixes for stuck funds are done. Raffle also needs a legal check first."],

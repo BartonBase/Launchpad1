@@ -188,7 +188,6 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
       <div className="card min-w-0 space-y-6 p-5 md:p-6">
         <div className="flex items-center justify-between gap-2">
           <p className="eyebrow">Step {step + 1}</p>
-          {(names[step] === "Launch type" || names[step] === "Supply & conversion" || names[step] === "Token & curve") && <span className="tag tag-demo">Permanent</span>}
         </div>
 
         {names[step] === "Launch type" && (
@@ -264,7 +263,7 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
             <h2 className="text-lg font-semibold">{isPlain ? "Token and curve" : isBurn ? "Supply and burn rate" : "Supply and conversion"}</h2>
             <div className="grid gap-2 sm:grid-cols-2">
               {[
-                ["Supply starts at 1,000,000,000", "Mint authority revoked at launch, so nobody can mint more."],
+                [isBurn ? "Supply: capped at 1,000,000,000 tokens" : "Supply: fixed at 1,000,000,000 tokens", isBurn ? "Mint authority revoked at launch, so nobody can mint more; burns only lower it." : "Mint authority revoked at launch, so nobody can mint more."],
                 ["Freeze authority revoked", "Nobody can freeze holders' tokens."],
                 ...(isPlain ? [["No NFT side", "No ratio, collection, converting or platform fee."]] : [["Conversion rate set at launch", "Fixed in the launch record; no instruction can change it."]]),
                 ["No transfer tax", "A classic SPL token. No tax on any transfer."],
@@ -404,7 +403,7 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
             <dl data-testid="launch-review">
               <Row k="Launch type" val={TNAME[t]} />
               <Row k="Token" val={`${form.name || "—"} · $${form.symbol || "—"}`} />
-              <Row k="Supply at launch" val="1,000,000,000" />
+              <Row k="Supply" val={isBurn ? "Capped at 1,000,000,000 tokens" : "Fixed at 1,000,000,000 tokens"} />
               <Row k="Graduation target" val={isPlain ? `${gradText} raised, then a locked trading pool` : `${form.graduationSol} SOL raised`} />
               <Row k="Bonding curve" val={t === "hybrid" ? "None: native launch (curve launch: preview only)" : `Armory curve · settings ${dbcConfig ? shortAddr(dbcConfig.toBase58(), 4) : "—"}`} testId="launch-review-curve" />
               <Row k="Decimals" val={String(LAUNCH_DECIMALS)} testId="launch-review-decimals" />
@@ -439,7 +438,7 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
             <label className="flex items-start gap-2 text-sm">
               <input type="checkbox" className="mt-1" checked={ack} onChange={(e) => setAck(e.target.checked)} data-testid="launch-ack" />
               <span className="text-muted">
-                I understand that the launch type{isPlain ? "" : ", collection size and committed art"} can&apos;t be changed after launch, and that the programs can still be upgraded until they&apos;re frozen after the audit (see <Link href="/trust" className="text-accent-text">Trust &amp; security</Link>).
+                I understand that the launch type{isPlain ? "" : ", collection size and committed art"} can&apos;t be changed after launch, and that the programs can still be upgraded until they&apos;re frozen after the audit.
               </span>
             </label>
             <button
@@ -499,7 +498,7 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
           {isPlain ? (
             <>
               <p className="hd text-3xl">1,000,000,000</p>
-              <p className="text-muted text-sm">No NFT side. Tokens trade on the bonding curve until it raises {gradText}, then the token graduates to a locked trading pool.</p>
+              <p className="text-muted text-sm">Supply fixed at 1,000,000,000 tokens. No NFT side. Tokens trade on the bonding curve until it raises {gradText}, then the token graduates to a locked trading pool.</p>
               <div className="progress"><span style={{ width: `${split.pct[0]}%` }} /></div>
               <dl data-testid="math-split">
                 <Row k="Sold on the curve" val={`${formatUnits(split.curve, 0)} · ${split.pct[0]}%`} />

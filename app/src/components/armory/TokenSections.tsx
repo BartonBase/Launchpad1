@@ -280,7 +280,7 @@ export function FeesControl({ v }: { v: TokenView }) {
 }
 
 export function NobodyCanChange({ v }: { v: TokenView }) {
-  const items = ["Supply: 1,000,000,000 at launch, mint authority revoked", "Freeze authority revoked", "No transfer tax", "Unsold curve tokens are locked by the program, not burned"];
+  const items = [v.type === "burn" ? "Supply: capped at 1,000,000,000 tokens (burns only lower it), mint authority revoked" : "Supply: fixed at 1,000,000,000 tokens, mint authority revoked", "Freeze authority revoked", "No transfer tax", "Unsold curve tokens are locked by the program, not burned"];
   if (v.type === "plain") items.push("No update instruction exists for this token", "No NFT side, ever");
   if (v.type === "hybrid") items.push("Conversion rate and platform fee (written once at launch)", "Release always returns exactly the ratio");
   if (v.type === "burn") items.push("Burn rate and platform fee (written once at launch)", "Collection order (committed before launch)");

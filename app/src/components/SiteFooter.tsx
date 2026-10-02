@@ -26,7 +26,6 @@ export function SiteFooter() {
         <nav aria-label="Trust" className="flex flex-col gap-1.5">
           <Link href="/trust" className="hover:text-fg">Trust &amp; security</Link>
           <Link href="/faq" className="hover:text-fg">FAQ</Link>
-          <Link href="/bug-bounty" className="hover:text-fg">Bug bounty</Link>
         </nav>
       </div>
     </footer>

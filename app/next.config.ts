@@ -70,6 +70,8 @@ const nextConfig: NextConfig = {
       { source: "/collections/:mint", destination: "/t/:mint", permanent: false },
       { source: "/token/:mint", destination: "/t/:mint", permanent: false },
       { source: "/lottery", destination: "/explore", permanent: false },
+      // Bug bounty page removed (Barton, 2026-10-02).
+      { source: "/bug-bounty", destination: "/", permanent: false },
     ];
   },
   async headers() {

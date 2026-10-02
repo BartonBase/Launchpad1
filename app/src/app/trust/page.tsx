@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { BURN_MINT_TEXT, FIRST_MINT_RANGE_TEXT, KEY_CUSTODY_RULE, PROGRAM_UPGRADES_COPY, mintDepositText } from "@/config/armory";
 import { explorerAddressUrl } from "@/config/cluster";
 import { HYBRID_LAUNCH_PROGRAM_ID, HYBRID_VAULT_PROGRAM_ID, SWITCHBOARD_PROGRAM_ID } from "@/config/programs";
@@ -79,7 +78,7 @@ export default function TrustPage() {
           </div>
           <div className="bg-surface-2 rounded-panel border-border space-y-3 border p-4">
             <h3 className="text-sm font-semibold">Planned next</h3>
-            <Dots tone="plan" items={[<><b className="text-fg">A paid, professional third-party audit.</b></>, <><b className="text-fg">A live bug bounty</b> (<Link href="/bug-bounty" className="text-accent-text">details</Link>).</>, <><b className="text-fg">Upgrade keys held only by humans</b>, in a 3-of-5 multisig.</>, <><b className="text-fg">A verifiable build</b>, with the audited commit and build hash published.</>]} />
+            <Dots tone="plan" items={[<><b className="text-fg">A paid, professional third-party audit.</b></>, <><b className="text-fg">Upgrade keys held only by humans</b>, in a 3-of-5 multisig.</>, <><b className="text-fg">A verifiable build</b>, with the audited commit and build hash published.</>]} />
           </div>
         </div>
         <p className="text-muted text-sm">Armory will only call itself audited once a third-party audit report is published.</p>
@@ -164,11 +163,6 @@ export default function TrustPage() {
       </DocSection>
 
       <PipelineSelfTest />
-
-      <DocSection title="Found a problem?">
-        <p className="text-muted text-sm">Please report security issues privately rather than posting them publicly.</p>
-        <Link href="/bug-bounty" className="btn btn-primary w-fit">Report a vulnerability</Link>
-      </DocSection>
     </DocLayout>
   );
 }
