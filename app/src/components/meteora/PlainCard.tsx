@@ -2,14 +2,21 @@ import Link from "next/link";
 import type { PlainLaunchDTO } from "@/lib/meteora/plain";
 import { formatSol, shortAddr } from "@/lib/armory/format";
 import { TypeIcon } from "@/components/armory/TypeIcon";
+import { tokenImage } from "@/lib/meteora/tokenImage";
 
 /** Explore / home card for a Plain launch (Meteora DBC pool on the platform config). */
 export function PlainCard({ p }: { p: PlainLaunchDTO }) {
   const c = p.curve;
+  const img = tokenImage(p.uri);
   return (
     <Link href={`/t/${p.mint}`} className="card flex flex-col gap-3 p-4 hover:border-[var(--arm-color-border-strong)]" data-testid="launch-card" data-type="plain" data-phase={c.migrated ? "graduated" : "curve"}>
-      <div className="bg-surface-2 rounded-panel border-border relative flex aspect-[4/3] items-center justify-center border" aria-hidden="true">
-        <span className="hd text-dim text-4xl">{(p.symbol || p.name).slice(0, 1).toUpperCase()}</span>
+      <div className="bg-surface-2 rounded-panel border-border relative flex aspect-[4/3] items-center justify-center overflow-hidden border" aria-hidden="true">
+        {img ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={img} alt="" loading="lazy" className="size-full object-cover" data-testid="token-image" />
+        ) : (
+          <span className="hd text-dim text-4xl">{(p.symbol || p.name).slice(0, 1).toUpperCase()}</span>
+        )}
         <span className="absolute top-2 left-2">{c.migrated ? <span className="tag tag-ok"><i />Graduated</span> : <span className="tag tag-accent"><i />On curve</span>}</span>
       </div>
       <div className="flex items-start justify-between gap-2">

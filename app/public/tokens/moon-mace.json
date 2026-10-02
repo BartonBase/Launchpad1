@@ -1,0 +1,16 @@
+{
+  "name": "Moon Mace",
+  "symbol": "MACE",
+  "description": "Swing for the moon. A spiked little meme coin forged on Armory.",
+  "image": "https://armory-ten.vercel.app/tokens/moon-mace.png",
+  "external_url": "https://armory-ten.vercel.app",
+  "properties": {
+    "files": [
+      {
+        "uri": "https://armory-ten.vercel.app/tokens/moon-mace.png",
+        "type": "image/png"
+      }
+    ],
+    "category": "image"
+  }
+}

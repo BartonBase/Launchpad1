@@ -1,0 +1,16 @@
+{
+  "name": "Goblin Gold",
+  "symbol": "GOBLN",
+  "description": "Shiny, grinning and hoarded in a cave. Every goblin's favourite coin.",
+  "image": "https://armory-ten.vercel.app/tokens/goblin-gold.png",
+  "external_url": "https://armory-ten.vercel.app",
+  "properties": {
+    "files": [
+      {
+        "uri": "https://armory-ten.vercel.app/tokens/goblin-gold.png",
+        "type": "image/png"
+      }
+    ],
+    "category": "image"
+  }
+}

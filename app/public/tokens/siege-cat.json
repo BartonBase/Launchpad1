@@ -1,0 +1,16 @@
+{
+  "name": "Siege Cat",
+  "symbol": "SIEGE",
+  "description": "Nine lives, one catapult. Launches itself over the castle walls.",
+  "image": "https://armory-ten.vercel.app/tokens/siege-cat.png",
+  "external_url": "https://armory-ten.vercel.app",
+  "properties": {
+    "files": [
+      {
+        "uri": "https://armory-ten.vercel.app/tokens/siege-cat.png",
+        "type": "image/png"
+      }
+    ],
+    "category": "image"
+  }
+}

@@ -21,6 +21,7 @@ import { SwapPanel } from "@/components/meteora/SwapPanel";
 import { fetchCurveState, type CurveStateDTO } from "@/lib/meteora/dbc";
 import { fetchDammPool, type DammPoolDTO } from "@/lib/meteora/damm";
 import { fetchPlainLaunch, type PlainLaunchDTO } from "@/lib/meteora/plain";
+import { tokenImage } from "@/lib/meteora/tokenImage";
 import { ReadError } from "@/components/armory/ReadError";
 import {
   BurnHoldings,
@@ -73,7 +74,7 @@ function plainView(p: PlainLaunchDTO): TokenView {
     type: "plain", phase: p.curve.migrated ? "graduated" : "curve", example: false, name: p.name, symbol: p.symbol || null, mint: p.mint,
     collection: null, decimals: p.curve.baseDecimals, ratioWhole: null, collectionSize: null, minted: 0, feeLamports: null, feeIsExactTier: true,
     feeRecipient: null, graduationLamports: BigInt(p.curve.thresholdLamports), mintAuthority: p.mintAuthority, freezeAuthority: p.freezeAuthority,
-    supplyWhole: BigInt(p.supplyBase) / 10n ** BigInt(p.curve.baseDecimals),
+    supplyWhole: BigInt(p.supplyBase) / 10n ** BigInt(p.curve.baseDecimals), image: tokenImage(p.uri),
   };
 }
 

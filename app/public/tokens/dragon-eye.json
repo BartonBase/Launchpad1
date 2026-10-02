@@ -1,0 +1,16 @@
+{
+  "name": "Dragon Eye",
+  "symbol": "WYRM",
+  "description": "The wyrm never blinks, and it is watching your chart.",
+  "image": "https://armory-ten.vercel.app/tokens/dragon-eye.png",
+  "external_url": "https://armory-ten.vercel.app",
+  "properties": {
+    "files": [
+      {
+        "uri": "https://armory-ten.vercel.app/tokens/dragon-eye.png",
+        "type": "image/png"
+      }
+    ],
+    "category": "image"
+  }
+}

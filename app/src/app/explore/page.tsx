@@ -36,8 +36,8 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
   const q = (sp.q ?? "").trim().slice(0, 64).toLowerCase();
   const cur: Sp = { type, phase, q };
   const [launches, plains] = await Promise.all([cachedRead("launches", 30_000, fetchLaunches), cachedRead("plain-launches", 20_000, fetchPlainLaunches)]);
-  const all = launches.ok ? launches.value.filter((l) => isListed(l.collectionName)) : [];
-  const allPlain = plains.ok ? plains.value.filter((p) => isListed(p.name)) : [];
+  const all = launches.ok ? launches.value.filter((l) => isListed(l.collectionName, l.mint)) : [];
+  const allPlain = plains.ok ? plains.value.filter((p) => isListed(p.name, p.mint)) : [];
   const list = all.filter(
     (l) =>
       (type === "all" || type === "hybrid") &&

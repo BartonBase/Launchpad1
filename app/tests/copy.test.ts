@@ -89,8 +89,19 @@ describe("public listings", () => {
     const { isListed } = await import("@/lib/armory/listing");
     expect(isListed("Devnet E2E")).toBe(false);
     expect(isListed("Mintmark Devnet E2E")).toBe(false);
-    expect(isListed("Armory Test")).toBe(true);
+    expect(isListed("Armory Test")).toBe(false);
+    expect(isListed("Armory Plain Demo")).toBe(false);
+    expect(isListed("Armory Hackathon Plain")).toBe(false);
+    expect(isListed("Moon Mace", "AQ9p3TKktkTGPs1BjJkrvy6MAcRXZvgmMkJb7rqjGd63")).toBe(false);
+    expect(isListed("Moon Mace", "So11111111111111111111111111111111111111112")).toBe(true);
     expect(isListed("Salt Flats")).toBe(true);
     expect(isListed(null)).toBe(true);
+  });
+  it("uses same-origin images only for metadata hosted by this site", async () => {
+    const { tokenImage } = await import("@/lib/meteora/tokenImage");
+    expect(tokenImage("https://armory-ten.vercel.app/tokens/moon-mace.json")).toBe("/tokens/moon-mace.png");
+    expect(tokenImage("https://evil.example/tokens/moon-mace.json")).toBeNull();
+    expect(tokenImage("https://armory-ten.vercel.app/tokens/../x.json")).toBeNull();
+    expect(tokenImage("")).toBeNull();
   });
 });

@@ -28,6 +28,8 @@ export interface TokenView {
   readonly mintAuthority: string | null;
   readonly freezeAuthority: string | null;
   readonly supplyWhole: bigint;
+  /** Same-origin token image, when the metadata is hosted by this site. */
+  readonly image?: string | null;
 }
 
 const TNAME: Record<TokenType, string> = { plain: "Launch", hybrid: "Hybrid", burn: "Burn" };
@@ -51,8 +53,13 @@ export function TokenHeader({ v, priceSol = null }: { v: TokenView; priceSol?: n
   const addr = "border-border text-muted hover:text-fg rounded-control border px-2 py-1 font-mono text-xs";
   return (
     <header className="border-border grid gap-4 border-b pb-6 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-start lg:gap-6" data-testid="token-header">
-      <div className="bg-surface-2 border-border flex size-16 items-center justify-center rounded-2xl border lg:mt-12" aria-hidden="true">
-        <span className="hd text-dim text-2xl">{v.name.slice(0, 1)}</span>
+      <div className="bg-surface-2 border-border flex size-16 items-center justify-center overflow-hidden rounded-2xl border lg:mt-12" aria-hidden="true">
+        {v.image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={v.image} alt="" className="size-full object-cover" data-testid="token-image" />
+        ) : (
+          <span className="hd text-dim text-2xl">{v.name.slice(0, 1)}</span>
+        )}
       </div>
       <div className="min-w-0 space-y-2.5">
         <h1 className="hd text-3xl md:text-4xl">

@@ -19,8 +19,8 @@ const STEPS = [
 
 export default async function HomePage() {
   const [launches, plains] = await Promise.all([cachedRead("launches", 30_000, fetchLaunches), cachedRead("plain-launches", 20_000, fetchPlainLaunches)]);
-  const plainList = plains.ok ? plains.value.filter((p) => isListed(p.name)).slice(0, 3) : [];
-  const hybrids = launches.ok ? launches.value.filter((l) => isListed(l.collectionName)) : [];
+  const plainList = plains.ok ? plains.value.filter((p) => isListed(p.name, p.mint)).slice(0, 6) : [];
+  const hybrids = launches.ok ? launches.value.filter((l) => isListed(l.collectionName, l.mint)) : [];
   return (
     <div className="mx-auto max-w-(--container-site) space-y-20 px-4 py-10 md:py-16">
       <section className="grid items-center gap-8 lg:grid-cols-[1.05fr_1fr] lg:gap-6">
