@@ -1,0 +1,123 @@
+====================================================================================================
+PART 1 — per-attempt cost and break-even rarity premium after graduation
+  floor F = R * FDV_grad / 1B (SOL). Attempt cost = 0.02*F + s (s = SOL minimum).
+  Expected attempts to hit a tier with pool share p ~ 1/p (ignores pool drift).
+  Break-even premium m* (in floors) = (0.02 + s/F) / p. Grinding is +EV iff market premium > m*.
+
+  Graduation FDV = 100 SOL (example)
+      ratio  floor SOL |      s  cost/att SOL share |  m* p=1% m* p=0.1% m* 1-of-maxN cost 1/1 (SOL)
+     10,000     0.0010 |  0.000   0.00002       0% |      2.0      20.0        2,000            2.0
+     10,000     0.0010 |  0.003   0.00302      99% |    302.0    3020.0      302,000          302.0
+     10,000     0.0010 |  0.010   0.01002     100% |   1002.0   10020.0    1,002,000        1,002.0
+    100,000     0.0100 |  0.000   0.00020       0% |      2.0      20.0          200            2.0
+    100,000     0.0100 |  0.003   0.00320      94% |     32.0     320.0        3,200           32.0
+    100,000     0.0100 |  0.010   0.01020      98% |    102.0    1020.0       10,200          102.0
+  1,000,000     0.1000 |  0.000   0.00200       0% |      2.0      20.0           20            2.0
+  1,000,000     0.1000 |  0.003   0.00500      60% |      5.0      50.0           50            5.0
+  1,000,000     0.1000 |  0.010   0.01200      83% |     12.0     120.0          120           12.0
+  5,000,000     0.5000 |  0.000   0.01000       0% |      2.0      20.0            4            2.0
+  5,000,000     0.5000 |  0.003   0.01300      23% |      2.6      26.0            5            2.6
+  5,000,000     0.5000 |  0.010   0.02000      50% |      4.0      40.0            8            4.0
+
+  Graduation FDV = 400 SOL (example)
+      ratio  floor SOL |      s  cost/att SOL share |  m* p=1% m* p=0.1% m* 1-of-maxN cost 1/1 (SOL)
+     10,000     0.0040 |  0.000   0.00008       0% |      2.0      20.0        2,000            8.0
+     10,000     0.0040 |  0.003   0.00308      97% |     77.0     770.0       77,000          308.0
+     10,000     0.0040 |  0.010   0.01008      99% |    252.0    2520.0      252,000        1,008.0
+    100,000     0.0400 |  0.000   0.00080       0% |      2.0      20.0          200            8.0
+    100,000     0.0400 |  0.003   0.00380      79% |      9.5      95.0          950           38.0
+    100,000     0.0400 |  0.010   0.01080      93% |     27.0     270.0        2,700          108.0
+  1,000,000     0.4000 |  0.000   0.00800       0% |      2.0      20.0           20            8.0
+  1,000,000     0.4000 |  0.003   0.01100      27% |      2.8      27.5           28           11.0
+  1,000,000     0.4000 |  0.010   0.01800      56% |      4.5      45.0           45           18.0
+  5,000,000     2.0000 |  0.000   0.04000       0% |      2.0      20.0            4            8.0
+  5,000,000     2.0000 |  0.003   0.04300       7% |      2.1      21.5            4            8.6
+  5,000,000     2.0000 |  0.010   0.05000      20% |      2.5      25.0            5           10.0
+
+  Graduation FDV = 1500 SOL (example)
+      ratio  floor SOL |      s  cost/att SOL share |  m* p=1% m* p=0.1% m* 1-of-maxN cost 1/1 (SOL)
+     10,000     0.0150 |  0.000   0.00030       0% |      2.0      20.0        2,000           30.0
+     10,000     0.0150 |  0.003   0.00330      91% |     22.0     220.0       22,000          330.0
+     10,000     0.0150 |  0.010   0.01030      97% |     68.7     686.7       68,667        1,030.0
+    100,000     0.1500 |  0.000   0.00300       0% |      2.0      20.0          200           30.0
+    100,000     0.1500 |  0.003   0.00600      50% |      4.0      40.0          400           60.0
+    100,000     0.1500 |  0.010   0.01300      77% |      8.7      86.7          867          130.0
+  1,000,000     1.5000 |  0.000   0.03000       0% |      2.0      20.0           20           30.0
+  1,000,000     1.5000 |  0.003   0.03300       9% |      2.2      22.0           22           33.0
+  1,000,000     1.5000 |  0.010   0.04000      25% |      2.7      26.7           27           40.0
+  5,000,000     7.5000 |  0.000   0.15000       0% |      2.0      20.0            4           30.0
+  5,000,000     7.5000 |  0.003   0.15300       2% |      2.0      20.4            4           30.6
+  5,000,000     7.5000 |  0.010   0.16000       6% |      2.1      21.3            4           32.0
+  [PASS] at R=10k, FDV=100 SOL the 2% token part is 0.00002 SOL/attempt (<1% of a 0.003 SOL min): SOL min dominates
+
+====================================================================================================
+PART 2 — farming a whole tier: cost rises as the tier depletes (coupon-collector, pool = N)
+  expected attempts to take all c items of a tier from pool N ~ N * H_c; last item alone ~ N attempts
+  R=   10,000 N=100,000 floor=0.0040 s=0.003: tier c=   1: total      308.0 SOL (308.0/item avg, first 308.00, last 308.00)
+  R=   10,000 N=100,000 floor=0.0040 s=0.003: tier c=  10: total      902.1 SOL (90.2/item avg, first 30.80, last 308.00)
+  R=   10,000 N=100,000 floor=0.0040 s=0.003: tier c= 100: total    1,597.7 SOL (16.0/item avg, first 3.08, last 308.00)
+  R=1,000,000 N=  1,000 floor=0.4000 s=0.003: tier c=   1: total       11.0 SOL (11.0/item avg, first 11.00, last 11.00)
+  R=1,000,000 N=  1,000 floor=0.4000 s=0.003: tier c=  10: total       32.2 SOL (3.2/item avg, first 1.10, last 11.00)
+  R=  100,000 N= 10,000 floor=0.0400 s=0.01: tier c=   1: total      108.0 SOL (108.0/item avg, first 108.00, last 108.00)
+  R=  100,000 N= 10,000 floor=0.0400 s=0.01: tier c=  10: total      316.3 SOL (31.6/item avg, first 10.80, last 108.00)
+
+====================================================================================================
+PART 3 — INSIDER: the fee owner pays the 2% token fee to itself
+  If the fee address (or anyone it funds) re-rolls, the token fee round-trips to the same owner.
+  Its marginal cost per attempt = s_to_third_party + VRF cost only. If the SOL min ALSO goes to the fee
+  owner, the insider's marginal cost is VRF cost only.
+  Assumes the VRF cost (VRF_COST) is paid out of the SOL minimum s.
+  R=   10,000 s=0.003: public cost per 1-of-100,000 =     308.0 SOL | insider if SOL min -> owner:   200.0 SOL | insider if SOL min -> non-owner sink:   300.0 SOL
+  R=   10,000 s=0.01: public cost per 1-of-100,000 =   1,008.0 SOL | insider if SOL min -> owner:   200.0 SOL | insider if SOL min -> non-owner sink: 1,000.0 SOL
+  R=1,000,000 s=0.003: public cost per 1-of-1,000 =      11.0 SOL | insider if SOL min -> owner:     2.0 SOL | insider if SOL min -> non-owner sink:     3.0 SOL
+  R=1,000,000 s=0.01: public cost per 1-of-1,000 =      18.0 SOL | insider if SOL min -> owner:     2.0 SOL | insider if SOL min -> non-owner sink:    10.0 SOL
+  [PASS] insider grind cost < 25% of public cost when SOL min goes to the fee owner (R=1M, s=0.003)
+
+====================================================================================================
+PART 4 — release + capture as a substitute re-roll (bypass of the re-roll SOL minimum)
+  R=   10,000 s=0.003: re-roll 0.00308 SOL vs release+capture 0.00008 SOL -> bypass saves 97%
+  R=   10,000 s=0.01: re-roll 0.01008 SOL vs release+capture 0.00008 SOL -> bypass saves 99%
+  R=  100,000 s=0.003: re-roll 0.00380 SOL vs release+capture 0.00080 SOL -> bypass saves 79%
+  R=  100,000 s=0.01: re-roll 0.01080 SOL vs release+capture 0.00080 SOL -> bypass saves 93%
+  R=1,000,000 s=0.003: re-roll 0.01100 SOL vs release+capture 0.00800 SOL -> bypass saves 27%
+  R=1,000,000 s=0.01: re-roll 0.01800 SOL vs release+capture 0.00800 SOL -> bypass saves 56%
+  [PASS] without a capture SOL minimum >= re-roll SOL minimum, release+capture is cheaper than re-roll
+
+====================================================================================================
+PART 5 — rounding: fee = 2% of ratio in base units
+  [PASS] every allowed ratio x decimals 0..9: 2% is exact and > 0 (min = 200 tokens at R=10k, d=0)
+  Hypothetical ratios outside the allowed set (why ceil + nonzero floor must still be coded):
+    ratio_base=     1: floor=   0 ceil=   1
+    ratio_base=    25: floor=   0 ceil=   1
+    ratio_base=    49: floor=   0 ceil=   1
+    ratio_base=    50: floor=   1 ceil=   1
+    ratio_base=    99: floor=   1 ceil=   2
+    ratio_base= 12345: floor= 246 ceil= 247
+  [PASS] floor rounding gives a ZERO fee for ratio_base < 50 (free re-rolls) — ceil gives >= 1
+  [PASS] u64 intermediate R_base*bps overflows for R=5M, d=9 only if bps > 3689 (safe at 200, but compute in u128)
+
+====================================================================================================
+PART 6 — tokens accrued at the fee address (sell-pressure disclosure)
+  fee tokens = 2% * R * (captures + re-rolls). As % of 1B supply for a max-size collection (N*R = 1B):
+    full capture +  0 re-rolls per NFT on average -> 2% of total supply sent to the fee address
+    full capture +  1 re-rolls per NFT on average -> 4% of total supply sent to the fee address
+    full capture +  3 re-rolls per NFT on average -> 8% of total supply sent to the fee address
+    full capture + 10 re-rolls per NFT on average -> 22% of total supply sent to the fee address
+  Price impact of the fee address selling X tokens into a constant-product pool holding T_lp tokens:
+    LP tokens  100M, sell  10M -> spot price -17.4%
+    LP tokens  100M, sell  20M -> spot price -30.6%
+    LP tokens  100M, sell  60M -> spot price -60.9%
+    LP tokens  200M, sell  10M -> spot price -9.3%
+    LP tokens  200M, sell  20M -> spot price -17.4%
+    LP tokens  200M, sell  60M -> spot price -40.8%
+  [PASS] a full capture of a max-size collection alone routes 20,000,000 tokens (2% of supply) to one address
+
+====================================================================================================
+PART 7 — SOL minimum vs rent-exempt minimum for the SOL leg
+  SOL min 0.000500 SOL: a lamport transfer to an EMPTY system-account fee wallet FAILS (InsufficientFundsForRent) -> re-roll DoS until someone funds it
+  SOL min 0.000891 SOL: a lamport transfer to an EMPTY system-account fee wallet succeeds
+  SOL min 0.003000 SOL: a lamport transfer to an EMPTY system-account fee wallet succeeds
+  [PASS] a SOL minimum below 890,880 lamports can DoS re-rolls if the SOL receiver is emptied
+
+====================================================================================================
+SUMMARY: 8/8 checks PASS

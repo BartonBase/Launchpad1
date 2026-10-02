@@ -1,0 +1,3 @@
+P1 real escrow backing 1000000 -> 0; attacker real tokens 0 -> 1000000 (paid only junk)
+P2 user capture fee: attacker fee ATA +20000, disclosed fee address +0; NFT owner=user
+B13 EXECUTED: PASS (A-02 full drain loop + fee-destination hijack confirmed)

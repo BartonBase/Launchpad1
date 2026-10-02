@@ -1,0 +1,747 @@
+{
+  "address": "9Loc4hQZJh4SuBCGPiPs1wAfwywUAM7av5upyGHfc6Q8",
+  "metadata": {
+    "name": "hybrid_launch",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Track A (SPL-404): classic SPL Token launch with fixed 1B supply and immutable LaunchConfig. Engine-independent. Devnet/localnet only."
+  },
+  "instructions": [
+    {
+      "name": "launch",
+      "docs": [
+        "Create the mint, mint the fixed 1B supply, revoke authorities and record",
+        "the immutable LaunchConfig (see `instructions::launch`)."
+      ],
+      "discriminator": [
+        153,
+        241,
+        93,
+        225,
+        22,
+        69,
+        74,
+        61
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "docs": [
+            "Pays rent. Recorded as `creator`; holds no powers."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mint",
+          "docs": [
+            "Fresh keypair for the new mint. Must sign. The address may hold lamports",
+            "(pre-funding is tolerated) but must be system-owned with no data, so an",
+            "existing mint (classic or Token-2022) can never be \"onboarded\"."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "launch_config",
+          "docs": [
+            "Immutable launch record; `init` => one launch per mint, no re-init."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  97,
+                  117,
+                  110,
+                  99,
+                  104,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "launch_config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "launch_vault",
+          "docs": [
+            "destination. Program-derived, NOT caller-chosen; hybrid_launch has no",
+            "instruction that signs with it, so nobody can withdraw the supply."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  97,
+                  117,
+                  110,
+                  99,
+                  104,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              },
+              {
+                "kind": "account",
+                "path": "launch_config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "launch_destination",
+          "writable": true
+        },
+        {
+          "name": "fee_recipient",
+          "docs": [
+            "yet exist, which is also system-owned) and not executable, so fee transfers can always credit it."
+          ],
+          "address": "7J3AajxfajAMgGmmwzfZeYGNieRtHRCuEgNTfd4gTjDN"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "LaunchParams"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "register_dbc_launch",
+      "docs": [
+        "Register a Meteora DBC-created token as a hybrid launch (ADR-014). Verifies DBC's pool, config",
+        "and mint, and creates the locked buffer ATA. Signed by the DBC pool creator, before graduation."
+      ],
+      "discriminator": [
+        9,
+        83,
+        227,
+        117,
+        86,
+        39,
+        147,
+        183
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "docs": [
+            "Pays rent; must be the DBC pool's `creator`. Holds no powers afterwards."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mint",
+          "docs": [
+            "The mint DBC created. Typed as a classic SPL Token mint, so a Token-2022 mint is rejected."
+          ]
+        },
+        {
+          "name": "dbc_config"
+        },
+        {
+          "name": "dbc_pool"
+        },
+        {
+          "name": "launch_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  97,
+                  117,
+                  110,
+                  99,
+                  104,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "buffer_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  98,
+                  99,
+                  95,
+                  98,
+                  117,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "buffer_tokens",
+          "writable": true
+        },
+        {
+          "name": "fee_recipient",
+          "address": "7J3AajxfajAMgGmmwzfZeYGNieRtHRCuEgNTfd4gTjDN"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "RegisterDbcParams"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "LaunchConfig",
+      "discriminator": [
+        18,
+        161,
+        9,
+        224,
+        102,
+        145,
+        29,
+        94
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidDecimals",
+      "msg": "decimals must be <= 9"
+    },
+    {
+      "code": 6001,
+      "name": "RatioNotAllowed",
+      "msg": "ratio must be one of 50_000, 100_000, 200_000, 500_000, 1_000_000, 2_500_000, 5_000_000"
+    },
+    {
+      "code": 6002,
+      "name": "ZeroCollectionSize",
+      "msg": "collection_size must be >= 1"
+    },
+    {
+      "code": 6003,
+      "name": "CollectionTooLargeForSupply",
+      "msg": "collection_size * ratio exceeds the 1B supply"
+    },
+    {
+      "code": 6004,
+      "name": "ReservedFeeAboveCap",
+      "msg": "reserved (removed: token fee bps cap; there is no token fee)"
+    },
+    {
+      "code": 6005,
+      "name": "ReservedCaptureFeeBelowRerollFee",
+      "msg": "reserved (removed: capture vs re-roll fee ordering)"
+    },
+    {
+      "code": 6006,
+      "name": "ReservedFeeDestinationNotBurn",
+      "msg": "reserved (removed: burn fee destination)"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidLaunchDestination",
+      "msg": "launch_destination is not the classic-SPL ATA of the launch_vault PDA for this mint"
+    },
+    {
+      "code": 6008,
+      "name": "MathOverflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6009,
+      "name": "PostLaunchCheckFailed",
+      "msg": "Post-launch invariant check failed"
+    },
+    {
+      "code": 6010,
+      "name": "CollectionBelowMinimum",
+      "msg": "collection_size must be >= MIN_COLLECTION_SIZE (100)"
+    },
+    {
+      "code": 6011,
+      "name": "MintAccountInUse",
+      "msg": "mint address already holds data or is owned by a program"
+    },
+    {
+      "code": 6012,
+      "name": "SolFeeOutOfRange",
+      "msg": "tier SOL fee outside [MIN_FEE_LAMPORTS, MAX_FEE_LAMPORTS]"
+    },
+    {
+      "code": 6013,
+      "name": "CollectionAboveCap",
+      "msg": "collection_size above MAX_COLLECTION_SIZE (10,000)"
+    },
+    {
+      "code": 6014,
+      "name": "GraduationThresholdOutOfRange",
+      "msg": "graduation threshold outside [10 SOL, 100,000 SOL]"
+    },
+    {
+      "code": 6015,
+      "name": "ReservedGraduationUnfundable",
+      "msg": "Reserved (was GraduationUnfundable; affordability rule dropped with lazy minting, ADR-016)"
+    },
+    {
+      "code": 6016,
+      "name": "MintCostConstantStale",
+      "msg": "live rent for a Core asset exceeds the conservative constant"
+    },
+    {
+      "code": 6017,
+      "name": "FeeRecipientInvalid",
+      "msg": "fee recipient must be PLATFORM_FEE_RECIPIENT, system-owned, data-less and not executable"
+    },
+    {
+      "code": 6018,
+      "name": "DbcAccountInvalid",
+      "msg": "not a DBC pool/config account (owner, length or discriminator), or pool/config/mint don't match"
+    },
+    {
+      "code": 6019,
+      "name": "DbcConfigRejected",
+      "msg": "DBC config rejected: needs SOL quote, SPL token type, fixed 1B supply with no burn, immutable authority, our buffer as leftover receiver, and the launch's decimals and threshold"
+    },
+    {
+      "code": 6020,
+      "name": "DbcMintRejected",
+      "msg": "DBC mint rejected: needs classic Token, mint + freeze authority None, supply exactly 1B, the launch's decimals"
+    },
+    {
+      "code": 6021,
+      "name": "DbcCreatorMismatch",
+      "msg": "the signer must be the DBC pool's creator"
+    },
+    {
+      "code": 6022,
+      "name": "DbcAlreadyGraduated",
+      "msg": "the DBC pool has already migrated; register before graduation"
+    },
+    {
+      "code": 6023,
+      "name": "DbcConfigNotApproved",
+      "msg": "DBC config is not on the platform allowlist (APPROVED_DBC_CONFIGS)"
+    }
+  ],
+  "types": [
+    {
+      "name": "LaunchConfig",
+      "docs": [
+        "Immutable launch record for one Track A mint. PDA `[\"launch_config\", mint]`.",
+        "",
+        "There is NO instruction that modifies or closes this account: ratio,",
+        "collection size, SOL fees, fee recipient and mint are fixed at launch",
+        "(Stonk.fun lesson: no mutable economics after launch)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "mint_authority_bump",
+            "type": "u8"
+          },
+          {
+            "name": "creator",
+            "docs": [
+              "Who paid for the launch. Holds no powers."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "docs": [
+              "Classic SPL Token mint; mint + freeze authority are `None`."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "launch_destination",
+            "docs": [
+              "ATA(launch_vault, mint): received the full supply. Owned by the PDA below;",
+              "no instruction can move tokens out of it (distribution mechanism TBD)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "launch_vault",
+            "docs": [
+              "PDA `[\"launch_vault\", mint, launch_config]` owning `launch_destination`."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "launch_vault_bump",
+            "type": "u8"
+          },
+          {
+            "name": "decimals",
+            "type": "u8"
+          },
+          {
+            "name": "total_supply_base",
+            "docs": [
+              "1_000_000_000 * 10^decimals."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "ratio_whole_tokens",
+            "docs": [
+              "Whole tokens per NFT (one of ALLOWED_RATIOS)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "ratio_base",
+            "docs": [
+              "ratio_whole_tokens * 10^decimals."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "collection_size",
+            "docs": [
+              "Number of NFTs in the collection."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "max_tokens_in_nft_form",
+            "docs": [
+              "collection_size * ratio_base (<= total_supply_base)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "fee_lamports",
+            "docs": [
+              "The flat SOL fee (lamports) charged on EVERY capture, release and re-roll, fixed forever",
+              "(ADR-013) = fee_for_ratio(ratio_whole_tokens) at launch; <= MAX_FEE_LAMPORTS (0.01 SOL).",
+              "There is no token fee."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "fee_recipient",
+            "docs": [
+              "PLATFORM_FEE_RECIPIENT at launch time: the only address any fee can reach (F-06 / M-05)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "graduation_threshold_lamports",
+            "docs": [
+              "Graduation threshold (lamports raised; DBC migration threshold). `graduation_slice_pct` is",
+              "always 0 since lazy minting (ADR-016); the field stays for the append-only layout."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "graduation_slice_pct",
+            "type": "u8"
+          },
+          {
+            "name": "launched_at",
+            "type": "i64"
+          },
+          {
+            "name": "dbc_config",
+            "docs": [
+              "DBC config of the curve (`register_dbc_launch`); default for native `launch` (never opens)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "dbc_pool",
+            "docs": [
+              "DBC virtual pool of the curve. `hybrid_vault::graduation::verify` only accepts this pool, and",
+              "only once DBC reports it migrated. Default for native `launch` => the vault can never open."
+            ],
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LaunchParams",
+      "docs": [
+        "Creator-chosen launch parameters (ADR-013 flat SOL fee model)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "decimals",
+            "type": "u8"
+          },
+          {
+            "name": "ratio_whole_tokens",
+            "type": "u64"
+          },
+          {
+            "name": "collection_size",
+            "type": "u64"
+          },
+          {
+            "name": "graduation_threshold_lamports",
+            "docs": [
+              "Graduation threshold (SOL raised on the curve), lamports. Default 85 SOL."
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RegisterDbcParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "ratio_whole_tokens",
+            "type": "u64"
+          },
+          {
+            "name": "collection_size",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ],
+  "constants": [
+    {
+      "name": "DBC_BUFFER_SEED",
+      "docs": [
+        "Seeds of the single buffer-authority PDA named as every DBC config's `leftover_receiver`.",
+        "NO instruction signs with it (T-GRAD-03)."
+      ],
+      "type": "bytes",
+      "value": "[100, 98, 99, 95, 98, 117, 102, 102, 101, 114]"
+    },
+    {
+      "name": "DEFAULT_GRADUATION_THRESHOLD_LAMPORTS",
+      "docs": [
+        "Default graduation threshold (DBC migration_quote_threshold): 85 SOL. DECIDED."
+      ],
+      "type": "u64",
+      "value": "85000000000"
+    },
+    {
+      "name": "LAUNCH_CONFIG_SEED",
+      "docs": [
+        "`[\"launch_config\", mint]`: one immutable config per launched mint. Its",
+        "existence proves the mint was created by this launchpad."
+      ],
+      "type": "bytes",
+      "value": "[108, 97, 117, 110, 99, 104, 95, 99, 111, 110, 102, 105, 103]"
+    },
+    {
+      "name": "LAUNCH_VAULT_SEED",
+      "docs": [
+        "`[\"launch_vault\", mint, launch_config]`: data-less PDA that OWNS the launch",
+        "destination token account (its ATA) holding the full 1B supply. No instruction",
+        "in this program signs with it, so no person can withdraw (QA-HL-02 / N2).",
+        "Distribution (bonding curve) is TBD and must be added under the program's",
+        "multisig + timelock upgrade process."
+      ],
+      "type": "bytes",
+      "value": "[108, 97, 117, 110, 99, 104, 95, 118, 97, 117, 108, 116]"
+    },
+    {
+      "name": "MAX_COLLECTION_SIZE",
+      "docs": [
+        "Hard cap on collection size for batched pre-mint at graduation (graduation-design §2.3/§4.2:",
+        "measured 0.00509 SOL per NFT). DECIDED (Barton 2026-09-25 4:55 PM MT): 10,000.",
+        "Effective max N = min(1B / ratio, MAX_COLLECTION_SIZE)."
+      ],
+      "type": "u64",
+      "value": "10000"
+    },
+    {
+      "name": "MAX_DECIMALS",
+      "docs": [
+        "1e9 * 10^9 = 1e18 < u64::MAX."
+      ],
+      "type": "u8",
+      "value": "9"
+    },
+    {
+      "name": "MAX_FEE_LAMPORTS",
+      "docs": [
+        "HARD CAP on the fee (M-08): exactly 0.01 SOL. A code constant: no launch parameter, instruction",
+        "or multisig action can raise it (only a program upgrade, 3-of-5 + 7-day timelock until the",
+        "post-audit freeze). hybrid_vault re-asserts it on every use."
+      ],
+      "type": "u64",
+      "value": "10000000"
+    },
+    {
+      "name": "MAX_GRADUATION_SLICE_PCT",
+      "docs": [
+        "Reference only since ADR-016 (was the max graduation slice for the pre-mint)."
+      ],
+      "type": "u8",
+      "value": "10"
+    },
+    {
+      "name": "MAX_GRADUATION_THRESHOLD_LAMPORTS",
+      "type": "u64",
+      "value": "100000000000000"
+    },
+    {
+      "name": "MINT_AUTHORITY_SEED",
+      "docs": [
+        "`[\"mint_authority\", launch_config]`: temporary mint authority, revoked",
+        "(set to `None`) inside `launch` right after minting the fixed supply."
+      ],
+      "type": "bytes",
+      "value": "[109, 105, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121]"
+    },
+    {
+      "name": "MIN_COLLECTION_SIZE",
+      "docs": [
+        "Minimum collection size for every ratio (Barton, 2026-09-24)."
+      ],
+      "type": "u64",
+      "value": "100"
+    },
+    {
+      "name": "MIN_FEE_LAMPORTS",
+      "docs": [
+        "FLOOR (M-26 / M-30): the lowest tier. It must stay >= the 890_880-lamport rent-exempt minimum of",
+        "a 0-data system account so a transfer to an empty/missing recipient creates it instead of failing."
+      ],
+      "type": "u64",
+      "value": "2000000"
+    },
+    {
+      "name": "TOTAL_SUPPLY_WHOLE_TOKENS",
+      "docs": [
+        "Fixed total supply in WHOLE tokens (BRIEF hard requirement #1)."
+      ],
+      "type": "u64",
+      "value": "1000000000"
+    }
+  ]
+}

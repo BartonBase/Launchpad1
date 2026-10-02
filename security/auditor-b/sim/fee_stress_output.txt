@@ -1,0 +1,256 @@
+
+==============================================================================================================
+Part A: cost of one draw (capture or re-roll) = 2% x F + s + tx, and the share paid by the SOL minimum
+==============================================================================================================
+F = R x FDV/1B.  Columns: s = SOL minimum per draw.
+
+-- graduation FDV 100 SOL (EXAMPLE)
+         R    maxN   F (SOL)    2% fee |          s=0.001          s=0.003          s=0.005           s=0.01           s=0.02           s=0.05
+    10,000 100,000    0.0010  0.000020 |   0.00112 ( 89%)   0.00312 ( 96%)   0.00512 ( 98%)   0.01012 ( 99%)   0.02012 ( 99%)   0.05012 (100%)
+    50,000  20,000    0.0050  0.000100 |   0.00120 ( 83%)   0.00320 ( 94%)   0.00520 ( 96%)   0.01020 ( 98%)   0.02020 ( 99%)   0.05020 (100%)
+   100,000  10,000    0.0100  0.000200 |   0.00130 ( 77%)   0.00330 ( 91%)   0.00530 ( 94%)   0.01030 ( 97%)   0.02030 ( 99%)   0.05030 ( 99%)
+   200,000   5,000    0.0200  0.000400 |   0.00150 ( 67%)   0.00350 ( 86%)   0.00550 ( 91%)   0.01050 ( 95%)   0.02050 ( 98%)   0.05050 ( 99%)
+   500,000   2,000    0.0500  0.001000 |   0.00210 ( 48%)   0.00410 ( 73%)   0.00610 ( 82%)   0.01110 ( 90%)   0.02110 ( 95%)   0.05110 ( 98%)
+ 1,000,000   1,000    0.1000  0.002000 |   0.00310 ( 32%)   0.00510 ( 59%)   0.00710 ( 70%)   0.01210 ( 83%)   0.02210 ( 90%)   0.05210 ( 96%)
+ 2,500,000     400    0.2500  0.005000 |   0.00610 ( 16%)   0.00810 ( 37%)   0.01010 ( 50%)   0.01510 ( 66%)   0.02510 ( 80%)   0.05510 ( 91%)
+ 5,000,000     200    0.5000  0.010000 |   0.01110 (  9%)   0.01310 ( 23%)   0.01510 ( 33%)   0.02010 ( 50%)   0.03010 ( 66%)   0.06010 ( 83%)
+
+-- graduation FDV 410 SOL (EXAMPLE)
+         R    maxN   F (SOL)    2% fee |          s=0.001          s=0.003          s=0.005           s=0.01           s=0.02           s=0.05
+    10,000 100,000    0.0041  0.000082 |   0.00118 ( 85%)   0.00318 ( 94%)   0.00518 ( 96%)   0.01018 ( 98%)   0.02018 ( 99%)   0.05018 (100%)
+    50,000  20,000    0.0205  0.000410 |   0.00151 ( 66%)   0.00351 ( 85%)   0.00551 ( 91%)   0.01051 ( 95%)   0.02051 ( 98%)   0.05051 ( 99%)
+   100,000  10,000    0.0410  0.000820 |   0.00192 ( 52%)   0.00392 ( 77%)   0.00592 ( 84%)   0.01092 ( 92%)   0.02092 ( 96%)   0.05092 ( 98%)
+   200,000   5,000    0.0820  0.001640 |   0.00274 ( 36%)   0.00474 ( 63%)   0.00674 ( 74%)   0.01174 ( 85%)   0.02174 ( 92%)   0.05174 ( 97%)
+   500,000   2,000    0.2050  0.004100 |   0.00520 ( 19%)   0.00720 ( 42%)   0.00920 ( 54%)   0.01420 ( 70%)   0.02420 ( 83%)   0.05420 ( 92%)
+ 1,000,000   1,000    0.4100  0.008200 |   0.00930 ( 11%)   0.01130 ( 27%)   0.01330 ( 38%)   0.01830 ( 55%)   0.02830 ( 71%)   0.05830 ( 86%)
+ 2,500,000     400    1.0250  0.020500 |   0.02160 (  5%)   0.02360 ( 13%)   0.02560 ( 20%)   0.03060 ( 33%)   0.04060 ( 49%)   0.07060 ( 71%)
+ 5,000,000     200    2.0500  0.041000 |   0.04210 (  2%)   0.04410 (  7%)   0.04610 ( 11%)   0.05110 ( 20%)   0.06110 ( 33%)   0.09110 ( 55%)
+
+-- graduation FDV 1500 SOL (EXAMPLE)
+         R    maxN   F (SOL)    2% fee |          s=0.001          s=0.003          s=0.005           s=0.01           s=0.02           s=0.05
+    10,000 100,000    0.0150  0.000300 |   0.00140 ( 71%)   0.00340 ( 88%)   0.00540 ( 93%)   0.01040 ( 96%)   0.02040 ( 98%)   0.05040 ( 99%)
+    50,000  20,000    0.0750  0.001500 |   0.00260 ( 38%)   0.00460 ( 65%)   0.00660 ( 76%)   0.01160 ( 86%)   0.02160 ( 93%)   0.05160 ( 97%)
+   100,000  10,000    0.1500  0.003000 |   0.00410 ( 24%)   0.00610 ( 49%)   0.00810 ( 62%)   0.01310 ( 76%)   0.02310 ( 87%)   0.05310 ( 94%)
+   200,000   5,000    0.3000  0.006000 |   0.00710 ( 14%)   0.00910 ( 33%)   0.01110 ( 45%)   0.01610 ( 62%)   0.02610 ( 77%)   0.05610 ( 89%)
+   500,000   2,000    0.7500  0.015000 |   0.01610 (  6%)   0.01810 ( 17%)   0.02010 ( 25%)   0.02510 ( 40%)   0.03510 ( 57%)   0.06510 ( 77%)
+ 1,000,000   1,000    1.5000  0.030000 |   0.03110 (  3%)   0.03310 (  9%)   0.03510 ( 14%)   0.04010 ( 25%)   0.05010 ( 40%)   0.08010 ( 62%)
+ 2,500,000     400    3.7500  0.075000 |   0.07610 (  1%)   0.07810 (  4%)   0.08010 (  6%)   0.08510 ( 12%)   0.09510 ( 21%)   0.12510 ( 40%)
+ 5,000,000     200    7.5000  0.150000 |   0.15110 (  1%)   0.15310 (  2%)   0.15510 (  3%)   0.16010 (  6%)   0.17010 ( 12%)   0.20010 ( 25%)
+
+==============================================================================================================
+Part B (settles D6): TOP tier = a 1-of-N. Break-even premium m* (in floors) = N x (0.02 + (s+tx)/F).
+Farming the top tier is unprofitable while its premium < m*. 'g' = floor growth after graduation (farm at
+the graduation floor, sell at g x floor): unprofitable iff m x g < m*.
+==============================================================================================================
+EXAMPLE realistic top-tier premium band: 10x .. 1000x floor.
+
+-- flat s = 0.001 SOL
+         R       N |      FDV 100      FDV 410     FDV 1500 | verdict @FDV410 (g=1 / g=10)
+    10,000 100,000 |      112,000       28,829        9,333 | safe / safe
+    50,000  20,000 |        4,800        1,473          693 | safe / +EV if m>147x
+   100,000  10,000 |        1,300          468          273 | safe<468x / +EV if m>47x
+   200,000   5,000 |          375          167          118 | safe<167x / +EV if m>17x
+   500,000   2,000 |           84           51           43 | safe<50x / +EV if m>5x
+ 1,000,000   1,000 |           31           23           21 | safe<22x / +EV if m>2x
+ 2,500,000     400 |           10            8            8 | safe<8x / +EV if m>1x
+ 5,000,000     200 |            4            4            4 | safe<4x / +EV if m>0x
+
+-- flat s = 0.005 SOL
+         R       N |      FDV 100      FDV 410     FDV 1500 | verdict @FDV410 (g=1 / g=10)
+    10,000 100,000 |      512,000      126,390       36,000 | safe / safe
+    50,000  20,000 |       20,800        5,376        1,760 | safe / +EV if m>538x
+   100,000  10,000 |        5,300        1,444          540 | safe / +EV if m>144x
+   200,000   5,000 |        1,375          411          185 | safe<410x / +EV if m>41x
+   500,000   2,000 |          244           90           54 | safe<89x / +EV if m>9x
+ 1,000,000   1,000 |           71           32           23 | safe<32x / +EV if m>3x
+ 2,500,000     400 |           16           10            9 | safe<9x / +EV if m>1x
+ 5,000,000     200 |            6            4            4 | safe<4x / +EV if m>0x
+
+-- flat s = 0.02 SOL
+         R       N |      FDV 100      FDV 410     FDV 1500 | verdict @FDV410 (g=1 / g=10)
+    10,000 100,000 |    2,012,000      492,244      136,000 | safe / safe
+    50,000  20,000 |       80,800       20,010        5,760 | safe / safe
+   100,000  10,000 |       20,300        5,102        1,540 | safe / +EV if m>510x
+   200,000   5,000 |        5,125        1,326          435 | safe / +EV if m>133x
+   500,000   2,000 |          844          236           94 | safe<236x / +EV if m>24x
+ 1,000,000   1,000 |          221           69           33 | safe<69x / +EV if m>7x
+ 2,500,000     400 |           40           16           10 | safe<15x / +EV if m>2x
+ 5,000,000     200 |           12            6            5 | safe<5x / +EV if m>1x
+
+B's round-1 fix (c) 's >= k / p_rarest' (p_rarest = 1/N => s = k x N) for comparison, k = 1e-6 SOL:
+   R=   10,000 N=100,000: s = 0.1000 SOL  -> largest where m* is ALREADY largest (big N); smallest where m* is smallest (small N). Wrong direction.
+   R=   50,000 N= 20,000: s = 0.0200 SOL
+   R=  100,000 N= 10,000: s = 0.0100 SOL
+   R=  200,000 N=  5,000: s = 0.0050 SOL
+   R=  500,000 N=  2,000: s = 0.0020 SOL
+   R=1,000,000 N=  1,000: s = 0.0010 SOL
+   R=2,500,000 N=    400: s = 0.0004 SOL
+   R=5,000,000 N=    200: s = 0.0002 SOL  -> largest where m* is ALREADY largest (big N); smallest where m* is smallest (small N). Wrong direction.
+
+Conclusion printed by the model:
+  * m* for the top tier grows linearly with N, so a flat s already scales cost-per-hit with rarity (A is right).
+  * Where m* is small (N = 200..2,000, i.e. R >= 500k), F is large and s is a tiny share of the cost: NO flat s
+    and NO rarest-tier scaling changes m*; only the token fee does (m* -> 0.02 x N = 4x..40x floor).
+
+==============================================================================================================
+Part C: all tiers. Minimum FIXED s that makes grinding a tier unprofitable: s_req = F x (p x m x g - 0.02) - tx.
+EXAMPLE tiers: 1/1 = 1/N at 100x, legendary 0.1% at 20x, epic 1% at 5x, rare 5% at 1x. g = post-graduation growth.
+==============================================================================================================
+
+-- g = 1
+         R    F@410 |     1/1(1/N)    legendary         epic         rare |  ALL tiers s/F burden
+    10,000   0.0041 |      0.00000      0.00000      0.00002      0.00002 |    0.00031       7.7%
+    50,000   0.0205 |      0.00000      0.00000      0.00052      0.00052 |    0.00205      10.0%
+   100,000   0.0410 |      0.00000      0.00000      0.00113      0.00113 |    0.00441      10.8%
+   200,000   0.0820 |      0.00000      0.00000      0.00236      0.00236 |    0.00974      11.9%
+   500,000   0.2050 |      0.00605      0.00000      0.00605      0.00605 |    0.03065      15.0%
+ 1,000,000   0.4100 |      0.03270      0.00000      0.01220      0.01220 |    0.08190      20.0%
+ 2,500,000   1.0250 |      0.23565      0.00000      0.03065      0.03065 |    0.35865      35.0%
+ 5,000,000   2.0500 |      0.98390      0.00000      0.06140      0.06140 |    1.22990      60.0%
+
+-- g = 3
+         R    F@410 |     1/1(1/N)    legendary         epic         rare |  ALL tiers s/F burden
+    10,000   0.0041 |      0.00000      0.00006      0.00043      0.00043 |    0.00131      31.9%
+    50,000   0.0205 |      0.00000      0.00072      0.00257      0.00257 |    0.00718      35.0%
+   100,000   0.0410 |      0.00031      0.00154      0.00523      0.00523 |    0.01507      36.8%
+   200,000   0.0820 |      0.00318      0.00318      0.01056      0.01056 |    0.03270      39.9%
+   500,000   0.2050 |      0.02655      0.00810      0.02655      0.02655 |    0.10035      49.0%
+ 1,000,000   0.4100 |      0.11470      0.01630      0.05320      0.05320 |    0.26230      64.0%
+ 2,500,000   1.0250 |      0.74815      0.04090      0.13315      0.13315 |    1.11715     109.0%
+ 5,000,000   2.0500 |      3.03390      0.08190      0.26640      0.26640 |    3.77190     184.0%
+
+-- g = 10
+         R    F@410 |     1/1(1/N)    legendary         epic         rare |  ALL tiers s/F burden
+    10,000   0.0041 |      0.00000      0.00064      0.00187      0.00187 |    0.00478     116.6%
+    50,000   0.0205 |      0.00052      0.00359      0.00974      0.00974 |    0.02512     122.5%
+   100,000   0.0410 |      0.00318      0.00728      0.01958      0.01958 |    0.05238     127.8%
+   200,000   0.0820 |      0.01466      0.01466      0.03926      0.03926 |    0.11306     137.9%
+   500,000   0.2050 |      0.09830      0.03680      0.09830      0.09830 |    0.34430     168.0%
+ 1,000,000   0.4100 |      0.40170      0.07370      0.19670      0.19670 |    0.89370     218.0%
+ 2,500,000   1.0250 |      2.54190      0.18440      0.49190      0.49190 |    3.77190     368.0%
+ 5,000,000   2.0500 |     10.20890      0.36890      0.98390      0.98390 |   12.66890     618.0%
+
+Reading: at g=1 only tiers with p x m > 2% need s > 0 (epic 5%, rare 5%); the required s is proportional to F,
+so a FIXED s that covers R=5M (F~2 SOL) is 500x the floor at R=10k. The token fee already covers p x m <= 2%.
+
+==============================================================================================================
+Part D: fixed s vs floor-tracking s across the price range (epic 1% at 5x, the worst EXAMPLE tier at g=1)
+==============================================================================================================
+  F (SOL)     s_req | fixed s=0.005:   EV/draw     s/F | tracking s=k F (k=0.03):   EV/draw
+    0.001   0.00000 |                 -0.00507  500.0% |                            -0.00107
+    0.004   0.00002 |                 -0.00498  125.0% |                            -0.00098
+    0.020   0.00050 |                 -0.00450   25.0% |                            -0.00050
+    0.040   0.00110 |                 -0.00390   12.5% |                            -0.00010
+    0.200   0.00590 |                  0.00090    2.5% |                            -0.00010
+    0.410   0.01220 |                  0.00720    1.2% |                            -0.00010
+    1.000   0.02990 |                  0.02490    0.5% |                            -0.00010
+    2.050   0.06140 |                  0.05640    0.2% |                            -0.00010
+    5.000   0.14990 |                  0.14490    0.1% |                            -0.00010
+   20.000   0.59990 |                  0.59490    0.0% |                            -0.00010
+A fixed s cannot bound mid-tier grinding at high floors without being prohibitive at low floors. A k x F term
+does, but it is economically a higher percentage fee (2% + k): it conflicts with the '2% hard cap' copy.
+
+==============================================================================================================
+Part E: graduation window. Draws exist only after graduation (converting closed on the curve), so the lowest-price
+draws happen at the graduation floor F_g. Farming a 1-of-N at F_g and selling after growth g.
+==============================================================================================================
+         R       N      F_g  E[cost] 1/1 | premium needed for +EV at g=1 / 3 / 10 (floors of F_g)
+    10,000 100,000   0.0041       518.20 | 126390.2 /  42130.1 /  12639.0
+    50,000  20,000   0.0205       110.20 |   5375.6 /   1791.9 /    537.6
+   100,000  10,000   0.0410        59.20 |   1443.9 /    481.3 /    144.4
+   200,000   5,000   0.0820        33.70 |    411.0 /    137.0 /     41.1
+   500,000   2,000   0.2050        18.40 |     89.8 /     29.9 /      9.0
+ 1,000,000   1,000   0.4100        13.30 |     32.4 /     10.8 /      3.2
+ 2,500,000     400   1.0250        10.24 |     10.0 /      3.3 /      1.0
+ 5,000,000     200   2.0500         9.22 |      4.5 /      1.5 /      0.4
+
+Optional decaying graduation surcharge on ALL draws: s(t) = s + k_g x F_g x max(0, 1 - t/72h), k_g = 0.10, F_g =
+final curve price x R written on-chain at graduation (no oracle). Effect at t=0 on the 1/1 break-even (FDV 410):
+   R=  100,000: m*   1443.9x ->   2443.9x floor during the first hours
+   R=1,000,000: m*     32.4x ->    132.4x floor during the first hours
+   R=5,000,000: m*      4.5x ->     24.5x floor during the first hours
+
+==============================================================================================================
+Part F: bypass and insider paths (cost of one draw, FDV 410)
+==============================================================================================================
+         R    reroll  release+capture (capture s=0)  discount  insider (fee+s to self)  insider, s to sink
+    10,000   0.00518                        0.00018       96%                  0.00110             0.00510
+    50,000   0.00551                        0.00051       91%                  0.00110             0.00510
+   100,000   0.00592                        0.00092       84%                  0.00110             0.00510
+   200,000   0.00674                        0.00174       74%                  0.00110             0.00510
+   500,000   0.00920                        0.00420       54%                  0.00110             0.00510
+ 1,000,000   0.01330                        0.00830       38%                  0.00110             0.00510
+ 2,500,000   0.02560                        0.02060       20%                  0.00110             0.00510
+ 5,000,000   0.04610                        0.04110       11%                  0.00110             0.00510
+insider = fee owner (or a wallet it funds): the 2% returns to itself; if s also goes to the fee owner its marginal
+cost is only tx + the VRF/oracle cost (EXAMPLE 0.001 SOL). Working tree enforces capture_sol >= reroll_sol (bypass
+closed) but pays the SOL fee to the fee owner (insider path open).
+
+==============================================================================================================
+Part G: abort/refund economics. Draws obtained per fee paid, legendary (0.1%), R=1M, FDV 410, s=0.005
+==============================================================================================================
+   design docs / committed WIP 977f8f2: fee refunded on expire   : E[cost]/legendary =     1.10 SOL (honest 13.30)
+   fee at request, never refunded (A M-04 / working tree)        : E[cost]/legendary =    13.30 SOL (honest 13.30)
+   A's ATOMIC reveal+settle, IF the requester can make settle fail at will, recommit cap 1: up to 2 draws/fee -> E[cost]/legendary ~ 6.65 SOL
+   A's ATOMIC reveal+settle, IF the requester can make settle fail at will, recommit cap 3: up to 4 draws/fee -> E[cost]/legendary ~ 3.32 SOL
+   Separate reveal (value recorded on-chain, then settle) + recommit only while unrevealed: no extra draws.
+
+==============================================================================================================
+Part H: escrow invariant under the fee design (Monte-Carlo, integer base units, decimals 6)
+==============================================================================================================
+   R=   10,000: fee=    200 tokens (exact=True)  vault==R x (outside+pending): True  supply conserved: True  capture->release round trip loses 200 tokens (2%) + SOL
+   R=   50,000: fee=  1,000 tokens (exact=True)  vault==R x (outside+pending): True  supply conserved: True  capture->release round trip loses 1,000 tokens (2%) + SOL
+   R=  100,000: fee=  2,000 tokens (exact=True)  vault==R x (outside+pending): True  supply conserved: True  capture->release round trip loses 2,000 tokens (2%) + SOL
+   R=  200,000: fee=  4,000 tokens (exact=True)  vault==R x (outside+pending): True  supply conserved: True  capture->release round trip loses 4,000 tokens (2%) + SOL
+   R=  500,000: fee= 10,000 tokens (exact=True)  vault==R x (outside+pending): True  supply conserved: True  capture->release round trip loses 10,000 tokens (2%) + SOL
+   R=1,000,000: fee= 20,000 tokens (exact=True)  vault==R x (outside+pending): True  supply conserved: True  capture->release round trip loses 20,000 tokens (2%) + SOL
+   R=2,500,000: fee= 50,000 tokens (exact=True)  vault==R x (outside+pending): True  supply conserved: True  capture->release round trip loses 50,000 tokens (2%) + SOL
+   R=5,000,000: fee=100,000 tokens (exact=True)  vault==R x (outside+pending): True  supply conserved: True  capture->release round trip loses 100,000 tokens (2%) + SOL
+   NOTE: a first version counted only pending CAPTURES as owed (as the WIP invariant does: required = ratio x
+   (assets_outside + pending_captures), with assets_outside decremented at request_reroll). That check FAILS as an
+   equality: each pending re-roll hand-in leaves R of unaccounted backing. '>=' still passes, so it is not exploitable,
+   but the on-chain invariant is looser than it should be by R x pending_rerolls (see fee doc F-13).
+   Release pays no fee; re-roll moves no backing; fee never enters the vault. Round trip cannot be arbitraged against
+   the protocol (it always loses 2% + SOL); it only bounds the NFT floor band [R x P, 1.02 x R x P + s].
+
+==============================================================================================================
+Part I: fee-token accumulation at the fee address and market impact if sold (EXAMPLE volumes)
+==============================================================================================================
+EXAMPLE post-graduation CP AMM: 206.9M tokens / 85.0 SOL. Fee tokens/draw = 0.02 x R. % of supply per draw = 0.02 x R / 1B.
+
+-- R=10,000 (max N=100,000); scenario = captures/day and re-rolls/day as fractions of N
+   quiet       :     3,000 draws/day ->    0.60M tokens/day ( 0.06% supply); 30d   1.8%; dump 1 day at once: price  -0.6%; 30-day pile dumped: -15.4%
+   normal      :    20,000 draws/day ->    4.00M tokens/day ( 0.40% supply); 30d  12.0%; dump 1 day at once: price  -3.8%; 30-day pile dumped: -59.9%
+   hot         :    80,000 draws/day ->   16.00M tokens/day ( 1.60% supply); 30d  48.0%; dump 1 day at once: price -13.8%; 30-day pile dumped: -90.9%
+   farm frenzy :   350,000 draws/day ->   70.00M tokens/day ( 7.00% supply); 30d 210.0%; dump 1 day at once: price -44.2%; 30-day pile dumped: -99.2%
+
+-- R=100,000 (max N=10,000); scenario = captures/day and re-rolls/day as fractions of N
+   quiet       :       300 draws/day ->    0.60M tokens/day ( 0.06% supply); 30d   1.8%; dump 1 day at once: price  -0.6%; 30-day pile dumped: -15.4%
+   normal      :     2,000 draws/day ->    4.00M tokens/day ( 0.40% supply); 30d  12.0%; dump 1 day at once: price  -3.8%; 30-day pile dumped: -59.9%
+   hot         :     8,000 draws/day ->   16.00M tokens/day ( 1.60% supply); 30d  48.0%; dump 1 day at once: price -13.8%; 30-day pile dumped: -90.9%
+   farm frenzy :    35,000 draws/day ->   70.00M tokens/day ( 7.00% supply); 30d 210.0%; dump 1 day at once: price -44.2%; 30-day pile dumped: -99.2%
+
+-- R=1,000,000 (max N=1,000); scenario = captures/day and re-rolls/day as fractions of N
+   quiet       :        30 draws/day ->    0.60M tokens/day ( 0.06% supply); 30d   1.8%; dump 1 day at once: price  -0.6%; 30-day pile dumped: -15.4%
+   normal      :       200 draws/day ->    4.00M tokens/day ( 0.40% supply); 30d  12.0%; dump 1 day at once: price  -3.8%; 30-day pile dumped: -59.9%
+   hot         :       800 draws/day ->   16.00M tokens/day ( 1.60% supply); 30d  48.0%; dump 1 day at once: price -13.8%; 30-day pile dumped: -90.9%
+   farm frenzy :     3,500 draws/day ->   70.00M tokens/day ( 7.00% supply); 30d 210.0%; dump 1 day at once: price -44.2%; 30-day pile dumped: -99.2%
+
+Farming cost -> fee tokens: farming all 10 legendaries in a 10,000 pool ~29,290 draws -> 0.02 x 29,290 x R
+   R=100,000: 58.6M tokens = 5.86% of supply to the fee address; dump impact -39.3%
+
+Streaming vs dumping 20M tokens (2% of supply) into the EXAMPLE pool (arbitrage refills between tranches ignored: conservative):
+     1 tranches of  20.00M: per-tranche impact -16.85%
+    10 tranches of   2.00M: per-tranche impact -1.91%
+    30 tranches of   0.67M: per-tranche impact -0.64%
+   100 tranches of   0.20M: per-tranche impact -0.19%
+Stonk.fun reference (Bitquery via stonkfun-lessons.md): 160 coins lost >50% of supply to tax; ZCAT 20% in hour one.
+
+==============================================================================================================
+Part J: rounding / small amounts
+==============================================================================================================
+   All allowed ratios x decimals {0,6,9} x bps {100,200}: fee exact and > 0 (floor == ceil). Min fee = 100 tokens
+   (R=10k at 1%). u64 headroom: R=5M, d=9 -> R_base x 200 = 1e18 < 1.8e19.
+   SOL leg: reroll SOL min must be >= rent-exempt minimum 0.000891 SOL if paid to a possibly-empty system
+   account (working tree MIN_REROLL_SOL_FEE_LAMPORTS = 1,000,000 satisfies this).
+   'Near zero' in SOL terms: 2% of F at R=10k, FDV 100 = 0.0000200 SOL per draw.

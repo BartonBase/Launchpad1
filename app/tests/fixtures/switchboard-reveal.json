@@ -1,0 +1,145 @@
+{
+  "_note": "Captured from @switchboard-xyz/on-demand 3.10.6 Gateway.fetchRandomnessReveal (local stub gateway) and an Anchor 0.31.1 reveal_randomness ix built like scripts/devnet-e2e/e2e.cjs. Regenerating needs the SDK, which was removed on purpose.",
+  "input": {
+    "randomness": "wyNtrAWDo7gtAjUA9mXcRcdK1v78K3unREsyy5chN5U",
+    "oracle": "2pvDkmDdufydhLz4q31UPoeYV5eit8ya3iuQjufQQhGf",
+    "queue": "3hs4cgGmbYqaWXEfVvFRBBgTf9PLdxuEK2ZwVrFC82PS",
+    "vault": "4aouUbKuHRhXKhVGAoVMxZiNqD7xPnptaLEUFnpxM2pM",
+    "request": "5TkkLWP2yJZU8sjrqgjJjwkJ1Gra9ckYqdu11jJCXXsG",
+    "payer": "6LhbCRSAfBRQx3zTWZyFXKnDBLbBuSgD6wZVZh8LLTNw",
+    "seedSlothash": "002a4f7499bee3082d52779cc1e60b30557a9fc4e90e33587da2c7ec11365b80",
+    "seedSlot": 504424323,
+    "rpc": "https://api.devnet.solana.com"
+  },
+  "gatewayRequest": {
+    "method": "POST",
+    "path": "/gateway/api/v1/randomness_reveal",
+    "contentType": "application/json",
+    "body": "{\"slothash\":[0,42,79,116,153,190,227,8,45,82,119,156,193,230,11,48,85,122,159,196,233,14,51,88,125,162,199,236,17,54,91,128],\"randomness_key\":\"0e151c232a31383f464d545b626970777e858c939aa1a8afb6bdc4cbd2d9e0e7\",\"slot\":504424323,\"rpc\":\"https://api.devnet.solana.com\"}"
+  },
+  "gatewayResponseText": "{\"signature\":\"Aw4ZJC86RVBbZnF8h5KdqLO+ydTf6vUACxYhLDdCTVhjbnmEj5qlsLvG0dzn8v0IEx4pND9KVWBrdoGMl6KtuA==\",\"recovery_id\":1,\"value\":[7,36,65,94,123,152,181,210,239,12,41,70,99,128,157,186,215,244,17,46,75,104,133,162,191,220,249,22,51,80,109,138]}",
+  "sdkParsed": {
+    "signature": "Aw4ZJC86RVBbZnF8h5KdqLO+ydTf6vUACxYhLDdCTVhjbnmEj5qlsLvG0dzn8v0IEx4pND9KVWBrdoGMl6KtuA==",
+    "recovery_id": 1,
+    "value": [
+      7,
+      36,
+      65,
+      94,
+      123,
+      152,
+      181,
+      210,
+      239,
+      12,
+      41,
+      70,
+      99,
+      128,
+      157,
+      186,
+      215,
+      244,
+      17,
+      46,
+      75,
+      104,
+      133,
+      162,
+      191,
+      220,
+      249,
+      22,
+      51,
+      80,
+      109,
+      138
+    ]
+  },
+  "ix": {
+    "programId": "BEfL9dccCUtgBVfLmJieeSr3ju29fpVqLM3NgttxqXqG",
+    "keys": [
+      {
+        "pubkey": "6LhbCRSAfBRQx3zTWZyFXKnDBLbBuSgD6wZVZh8LLTNw",
+        "isSigner": true,
+        "isWritable": true
+      },
+      {
+        "pubkey": "4aouUbKuHRhXKhVGAoVMxZiNqD7xPnptaLEUFnpxM2pM",
+        "isSigner": false,
+        "isWritable": false
+      },
+      {
+        "pubkey": "5TkkLWP2yJZU8sjrqgjJjwkJ1Gra9ckYqdu11jJCXXsG",
+        "isSigner": false,
+        "isWritable": true
+      },
+      {
+        "pubkey": "tpHiXay8e6Dkws2XtKkak7n2WRMmX1r45G9PmEL7b8e",
+        "isSigner": false,
+        "isWritable": false
+      },
+      {
+        "pubkey": "wyNtrAWDo7gtAjUA9mXcRcdK1v78K3unREsyy5chN5U",
+        "isSigner": false,
+        "isWritable": true
+      },
+      {
+        "pubkey": "B9tPpfLr5m4rrsXfGcYf4WKCR6KxTZwKyUt7zPaMRqSN",
+        "isSigner": false,
+        "isWritable": false
+      },
+      {
+        "pubkey": "2pvDkmDdufydhLz4q31UPoeYV5eit8ya3iuQjufQQhGf",
+        "isSigner": false,
+        "isWritable": false
+      },
+      {
+        "pubkey": "3hs4cgGmbYqaWXEfVvFRBBgTf9PLdxuEK2ZwVrFC82PS",
+        "isSigner": false,
+        "isWritable": false
+      },
+      {
+        "pubkey": "8XbN5vwuuURqV1Rak8iLWXUxeGDqwU9a4hHpczhS9acV",
+        "isSigner": false,
+        "isWritable": true
+      },
+      {
+        "pubkey": "SysvarS1otHashes111111111111111111111111111",
+        "isSigner": false,
+        "isWritable": false
+      },
+      {
+        "pubkey": "11111111111111111111111111111111",
+        "isSigner": false,
+        "isWritable": false
+      },
+      {
+        "pubkey": "3u71Rbtr5ZKKDFpLk6TpTMxNxBChfbanCwvRZ6HQuYPW",
+        "isSigner": false,
+        "isWritable": true
+      },
+      {
+        "pubkey": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "isSigner": false,
+        "isWritable": false
+      },
+      {
+        "pubkey": "So11111111111111111111111111111111111111112",
+        "isSigner": false,
+        "isWritable": false
+      },
+      {
+        "pubkey": "4UFmCebEmzESoDTtHrmaftXj7YAsAH4HMios3yMWyVUT",
+        "isSigner": false,
+        "isWritable": false
+      },
+      {
+        "pubkey": "Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2",
+        "isSigner": false,
+        "isWritable": false
+      }
+    ],
+    "dataHex": "1e8255dcd0501ca9030e19242f3a45505b66717c87929da8b3bec9d4dfeaf5000b16212c37424d58636e79848f9aa5b0bbc6d1dce7f2fd08131e29343f4a55606b76818c97a2adb8010724415e7b98b5d2ef0c294663809dbad7f4112e4b6885a2bfdcf91633506d8a"
+  }
+}

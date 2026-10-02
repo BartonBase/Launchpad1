@@ -1,0 +1,12 @@
+setup: recipe span [0,100), rare = index < 10 (honest odds 10%), bot is NOT the authority
+attempt 1: ABORTED on-chain (slot 55) Program log: GUARD rerolled index 82 (uri u82.json) | Program log: GUARD ABORT: not rare; bot tokens 12000000 unchanged, asset still in escrow
+attempt 2: ABORTED on-chain (slot 56) Program log: GUARD rerolled index 93 (uri u93.json) | Program log: GUARD ABORT: not rare; bot tokens 12000000 unchanged, asset still in escrow
+attempt 3: ABORTED on-chain (slot 57) Program log: GUARD rerolled index 33 (uri u33.json) | Program log: GUARD ABORT: not rare; bot tokens 12000000 unchanged, asset still in escrow
+attempt 12: COMMITTED (slot 66) uri=u4.json owner=bot:true Program log: GUARD rerolled index 4 (uri u4.json) | Program log: GUARD COMMIT: rare
+attempt 13: COMMITTED (slot 67) uri=u4.json owner=bot:true Program log: GUARD rerolled index 4 (uri u4.json) | Program log: GUARD COMMIT: rare
+attempt 18: COMMITTED (slot 72) uri=u6.json owner=bot:true Program log: GUARD rerolled index 6 (uri u6.json) | Program log: GUARD COMMIT: rare
+
+attempts=18 aborts=15 commits=3; every committed index < 10: true; abort left state unchanged: true
+observed rare rate among committed = 3/3 vs honest 10%; cost of aborts = tx fees only
+POC 13 EXECUTED: PASS (on-chain predict-and-abort: only rare rerolls ever commit)
+EXIT 0

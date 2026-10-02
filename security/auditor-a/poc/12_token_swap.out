@@ -1,0 +1,4 @@
+recipe.token before = GGtUaUvYuYPFpPRHZfZJjCJf1cMrK4xDjs54AV2PiE1b (real)
+recipe.token after empty update = J94TxbvVxX3x6L1SsEb4eY1YsKqTVSJgjBZBBzVd6qFE (junk = J94TxbvVxX3x6L1SsEb4eY1YsKqTVSJgjBZBBzVd6qFE)
+NFT owner after capture paid in junk = CjUan6B4ULZMKCWYxW1Zpmix1iarcKe64GbxpV8UbSct ; recipe.token restored = GGtUaUvYuYPFpPRHZfZJjCJf1cMrK4xDjs54AV2PiE1b
+POC 12 EXECUTED: PASS (recipe.token overwritten by an update with no token field; NFT captured with worthless mint)

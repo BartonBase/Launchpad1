@@ -1,0 +1,409 @@
+@import "tailwindcss";
+@import "../styles/tokens.css";
+@import "../styles/breakpoints.css";
+@import "../styles/wallet-adapter.css";
+
+/*
+ * Tailwind v4 is configured CSS-first: this @theme block maps utilities to the generated
+ * Armory design tokens (src/styles/tokens.css <- design/system/tokens.json).
+ * Fonts are self-hosted by next/font (see src/app/fonts.ts); --font-* vars come from there.
+ */
+@theme inline {
+  --color-bg: var(--arm-color-bg-page);
+  --color-nav: var(--arm-color-bg-nav);
+  --color-surface: var(--arm-color-surface-1);
+  --color-surface-2: var(--arm-color-surface-2);
+  --color-surface-3: var(--arm-color-surface-3);
+  --color-glass: var(--arm-color-surface-glass);
+  --color-fg: var(--arm-color-text-primary);
+  --color-muted: var(--arm-color-text-muted);
+  --color-dim: var(--arm-color-text-dim);
+  --color-border: var(--arm-color-border-default);
+  --color-border-strong: var(--arm-color-border-strong);
+  --color-accent: var(--arm-color-accent-default);
+  --color-accent-text: var(--arm-color-accent-text);
+  --color-accent-fg: var(--arm-color-accent-on-accent);
+  --color-accent-tint: var(--arm-color-accent-tint);
+  --color-accent-border: var(--arm-color-accent-border-default);
+  --color-positive: var(--arm-color-status-success-default);
+  --color-positive-text: var(--arm-color-status-success-text);
+  --color-positive-bg: var(--arm-color-status-success-tint);
+  --color-negative: var(--arm-color-status-error-default);
+  --color-danger-bg: rgba(242, 92, 122, 0.08);
+  --color-warning: var(--arm-color-status-warn-default);
+  --color-warning-bg: var(--arm-color-status-warn-tint);
+  --color-warning-border: var(--arm-color-status-warn-border);
+  --color-demo: var(--arm-color-demo-tag-text);
+  --color-rarity-common: var(--arm-color-rarity-common);
+  --color-rarity-uncommon: var(--arm-color-rarity-uncommon);
+  --color-rarity-rare: var(--arm-color-rarity-rare);
+  --color-rarity-legendary: var(--arm-color-rarity-legendary);
+  /* Cluster badge: never themable to look like mainnet. */
+  --color-cluster-localnet: #7c3aed;
+  --color-cluster-devnet: var(--arm-color-status-warn-default);
+  --color-cluster-fg: #120805;
+
+  --font-sans: var(--font-geist), var(--arm-font-family-ui);
+  --font-mono: var(--font-geist-mono), var(--arm-font-family-mono);
+  --font-headline: var(--font-bricolage), var(--arm-font-family-headline);
+
+  --radius-tag: var(--arm-radius-tag);
+  --radius-chip: var(--arm-radius-chip);
+  --radius-control: var(--arm-radius-md);
+  --radius-card: var(--arm-radius-card);
+  --radius-panel: var(--arm-radius-panel);
+  --radius-feature: var(--arm-radius-feature);
+
+  --shadow-button: var(--arm-shadow-button-primary);
+  --shadow-float: var(--arm-shadow-float);
+  --shadow-raised: var(--arm-shadow-raised);
+  --shadow-focus: var(--arm-shadow-focus);
+
+  --container-site: var(--arm-size-container);
+}
+
+/* Motion is zero (Barton, 2026-10-01): no animation or transition anywhere, including the
+   wallet-adapter modal. */
+*,
+*::before,
+*::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+html {
+  background: var(--arm-color-bg-page);
+  color-scheme: dark;
+}
+body {
+  background: var(--arm-color-bg-page);
+  color: var(--arm-color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: var(--arm-font-letter-spacing-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  .hd {
+    font-family: var(--font-headline);
+    font-weight: 800;
+    font-stretch: var(--arm-font-headline-settings-font-stretch);
+    font-variation-settings: var(--arm-font-headline-settings-font-variation-settings);
+    letter-spacing: var(--arm-font-headline-settings-letter-spacing);
+    line-height: 1.05;
+  }
+  .wordmark {
+    font-family: var(--font-headline);
+    font-weight: 800;
+    font-stretch: 82%;
+    font-variation-settings: "opsz" 96;
+    font-size: var(--arm-typography-headline-wordmark-font-size);
+    letter-spacing: var(--arm-typography-headline-wordmark-letter-spacing);
+    line-height: 1;
+  }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: var(--arm-font-letter-spacing-eyebrow);
+    text-transform: uppercase;
+    color: var(--arm-color-text-muted);
+  }
+  /* ---- Shared components: aligned with design/system/components.html ---- */
+  /* Chips (.chip in components.html). `.tag` is the app's name for a chip. */
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 9px;
+    border-radius: var(--arm-radius-chip);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--arm-color-border-default);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--arm-color-text-muted);
+    white-space: nowrap;
+  }
+  .tag-accent, /* .chip.acc */
+  .tag-beta {
+    /* .chip.bt */
+    color: var(--arm-color-accent-text);
+    background: var(--arm-color-accent-tint);
+    border-color: rgba(255, 106, 43, 0.25);
+  }
+  .tag-beta {
+    border-color: rgba(255, 106, 43, 0.3);
+  }
+  .tag-ok {
+    /* .chip.ok2 */
+    color: var(--arm-color-status-success-text);
+    background: var(--arm-color-status-success-tint);
+    border-color: var(--arm-color-status-success-border);
+  }
+  .tag-ua {
+    /* .chip.ua: Unaudited beta */
+    color: var(--arm-color-status-warn-chip-text);
+    background: var(--arm-color-status-warn-tint);
+    border-color: var(--arm-color-status-warn-chip-border);
+  }
+  .tag-demo {
+    /* Example / Demo data / Pending: the reserved amber */
+    color: var(--arm-color-demo-tag-text);
+    background: var(--arm-color-demo-tag-bg);
+    border-color: var(--arm-color-demo-tag-border);
+  }
+  .tag-soon {
+    /* .chip.soon */
+    color: var(--arm-color-soon);
+    background: rgba(255, 255, 255, 0.03);
+    border-style: dashed;
+    border-color: var(--arm-color-border-strong);
+  }
+  .tag > i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  /* Launch-type chip (.tchip) */
+  .tchip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 9px 0 7px;
+    border-radius: var(--arm-radius-chip);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--arm-color-border-strong);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--arm-color-text-primary);
+    white-space: nowrap;
+  }
+  .tchip svg {
+    width: 14px;
+    height: 14px;
+    color: var(--arm-color-accent-text);
+  }
+  .card {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.01)), var(--arm-color-surface-1);
+    border: 1px solid var(--arm-color-border-default);
+    border-radius: var(--arm-radius-card);
+  }
+  .card-soon {
+    border-style: dashed;
+    border-color: var(--arm-color-border-strong);
+    color: var(--arm-color-soon);
+  }
+  /* Buttons: .btn = secondary (.btn.g), .btn-primary = Ember (.btn.a), .btn-ink (.btn.p),
+     .btn-ghost (.btn.gh), .btn-danger (.btn.d). */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: var(--arm-size-button);
+    padding: 0 16px;
+    border-radius: var(--arm-radius-md);
+    font-weight: 600;
+    font-size: 14px;
+    white-space: nowrap;
+    cursor: pointer;
+    border: 1px solid var(--arm-color-border-strong);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--arm-color-text-primary);
+  }
+  .btn:active {
+    background: rgba(255, 255, 255, 0.07);
+  }
+  .btn-primary {
+    background: var(--arm-color-accent-default);
+    color: var(--arm-color-accent-on-accent);
+    border-color: transparent;
+    box-shadow: var(--arm-shadow-button-primary);
+  }
+  .btn-primary:hover {
+    background: var(--arm-color-accent-state-hover);
+  }
+  .btn-primary:active {
+    background: var(--arm-color-accent-state-pressed);
+  }
+  .btn-ink {
+    background: var(--arm-color-text-primary);
+    color: #0b0c0e;
+    border-color: transparent;
+  }
+  .btn-ink:active {
+    background: #d4d7dc;
+  }
+  .btn-ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--arm-color-text-muted);
+  }
+  .btn-ghost:hover {
+    color: var(--arm-color-text-primary);
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .btn-danger {
+    background: var(--arm-color-danger-tint);
+    border-color: var(--arm-color-danger-border);
+    color: var(--arm-color-danger-text);
+  }
+  .btn-danger:active {
+    background: var(--arm-color-danger-tint-pressed);
+  }
+  .btn:disabled,
+  .btn[aria-disabled="true"] {
+    opacity: 0.45;
+    pointer-events: none;
+    box-shadow: none;
+  }
+  .btn-sm {
+    height: var(--arm-size-button-sm);
+    padding: 0 14px;
+    font-size: 13px;
+  }
+  .btn-lg {
+    height: var(--arm-size-button-lg);
+    padding: 0 22px;
+    font-size: 15px;
+    border-radius: 12px;
+  }
+  /* Inputs (.in) */
+  .input {
+    width: 100%;
+    height: 44px;
+    padding: 0 14px;
+    border-radius: 11px;
+    border: 1px solid var(--arm-color-border-strong);
+    background: var(--arm-color-surface-1);
+    color: var(--arm-color-text-primary);
+    font-weight: 500;
+    font-size: 14px;
+  }
+  .input:focus-visible {
+    outline: var(--arm-size-focus-outline-width) solid var(--arm-color-accent-state-focus-outline);
+    outline-offset: 1px;
+  }
+  .input[aria-invalid="true"] {
+    border-color: rgba(232, 176, 75, 0.6);
+    box-shadow: 0 0 0 3px rgba(232, 176, 75, 0.12);
+  }
+  /* Segmented control (.seg) */
+  .seg {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 12px;
+    background: var(--arm-color-surface-1);
+    border: 1px solid var(--arm-color-border-default);
+  }
+  .seg > button,
+  .seg > a {
+    flex: 1;
+    text-align: center;
+    padding: 9px 4px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 13.5px;
+    color: var(--arm-color-text-muted);
+    cursor: pointer;
+  }
+  .seg > [aria-selected="true"],
+  .seg > [aria-current="page"] {
+    background: var(--arm-color-surface-3);
+    color: var(--arm-color-text-primary);
+    box-shadow: 0 0 0 1px rgba(255, 106, 43, 0.45) inset;
+  }
+  /* Deposit cap slot (.capslot) */
+  .capslot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    border-radius: var(--arm-radius-md);
+    border: 1px dashed var(--arm-color-border-strong);
+    background: rgba(255, 255, 255, 0.015);
+    font-size: 12px;
+    color: var(--arm-color-text-muted);
+  }
+  .capslot b {
+    color: var(--arm-color-text-primary);
+    font-weight: 500;
+  }
+  /* Beta banner (.bbar) */
+  .bbar {
+    background: var(--arm-color-banner-bg);
+    border-bottom: 1px solid var(--arm-color-banner-border);
+    color: var(--arm-color-banner-text);
+    font-size: 12.5px;
+  }
+  .bbar b {
+    color: var(--arm-color-text-primary);
+    font-weight: 600;
+  }
+  .fact {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    padding: 9px 0;
+    font-size: 13px;
+  }
+  .fact + .fact {
+    border-top: 1px solid var(--arm-color-border-default);
+  }
+  .fact > dt {
+    color: var(--arm-color-text-muted);
+  }
+  .fact > dd {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+  .mascot img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .progress {
+    position: relative;
+    height: var(--arm-size-progress);
+    border-radius: 99px;
+    background: var(--arm-color-surface-3);
+  }
+  .progress > span {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 99px;
+    background: var(--arm-color-accent-default);
+  }
+}
+
+:focus-visible {
+  /* design/system/a11y.md §2: static outline, no transition */
+  outline: var(--arm-size-focus-outline-width) solid var(--arm-color-accent-state-focus-outline);
+  outline-offset: var(--arm-size-focus-outline-offset);
+}
+.skip-link {
+  position: absolute;
+  left: 8px;
+  top: -100px;
+  z-index: 100;
+  padding: 8px 14px;
+  border-radius: var(--arm-radius-md);
+  background: var(--arm-color-accent-default);
+  color: #120805;
+  font-weight: 600;
+}
+.skip-link:focus {
+  top: 8px;
+}

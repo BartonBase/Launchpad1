@@ -1,0 +1,276 @@
+
+======================================================================================================================
+Part A: what the OLD 'ratio' figures meant (fee_stress.py Part B, 2% token fee + s = 0.005, FDV 410)
+======================================================================================================================
+The old table varied R (tokens per NFT) and set C = 1B/R (the MAX collection size for that ratio), FDV 410,
+so each row moves THREE things at once: ratio R, collection size C (odds 1/C) and floor F = R x 0.41e-6.
+ R (tokens/NFT)  C = 1B/R   F (SOL)  old m* (repro)  flat 0.01, no token fee  allowed if C<=10k?
+         10,000   100,000    0.0041       126,390.2                246,342.5       NO (C capped)
+         50,000    20,000    0.0205         5,375.6                  9,854.7       NO (C capped)
+        100,000    10,000    0.0410         1,443.9                  2,464.4                 yes
+        200,000     5,000    0.0820           411.0                    616.9                 yes
+        500,000     2,000    0.2050            89.8                     99.5                 yes
+      1,000,000     1,000    0.4100            32.4                     25.6                 yes
+      2,500,000       400    1.0250            10.0                      4.9                 yes
+      5,000,000       200    2.0500             4.5                      2.0                 yes
+Restated: '126,390x at a 10k ratio' = R 10,000 tokens/NFT, C 100,000 NFTs, floor 0.0041 SOL. The huge multiple
+comes mostly from the 1-in-100,000 odds and the tiny floor, not from the ratio as such. Under a 10,000-NFT cap
+the R=10k and R=50k rows at max size no longer exist.
+
+======================================================================================================================
+Part B: re-roll farm break-even premium m* (x floor) per tier, collection size and floor. s = 0.01 SOL.
+Row 'closed' = fee paid at request, never refunded (working tree). Row 'VRF sep' = requester also pays VRF.
+Row 'open' = OLD expire loophole (fee refunded on expire; attacker withholds reveal on bad draws => bad draw
+costs TX + VRF only; good draw pays s + TX + VRF). Verdict vs EXAMPLE bands: PROT / mid / LOTT.
+======================================================================================================================
+
+-- 1/1   (example premium band 10x..1000x)
+      C     case |      F=0.01      F=0.02      F=0.05       F=0.1      F=0.25       F=0.5       F=1.0       F=2.0       F=5.0
+  1,000   closed |      1,011P        506m        203m        102m         41m         21m         11m       6.05L       3.02L
+  1,000  VRF sep |      1,211P        606m        243m        122m         49m         25m         13m       7.05L       3.42L
+  1,000     open |        212m        106m         43m         22m       9.44L       5.22L       3.11L       2.05L       1.42L
+  5,000   closed |      5,051P      2,526P      1,011P        506m        203m        102m         51m         26m         11m
+  5,000  VRF sep |      6,051P      3,026P      1,211P        606m        243m        122m         61m         31m         13m
+  5,000     open |      1,052P        526m        211m        106m         43m         22m         12m       6.25L       3.10L
+ 10,000   closed |     10,101P      5,051P      2,021P      1,011P        405m        203m        102m         51m         21m
+ 10,000  VRF sep |     12,101P      6,051P      2,421P      1,211P        485m        243m        122m         61m         25m
+ 10,000     open |      2,102P      1,051P        421m        211m         85m         43m         22m         12m       5.20L
+
+-- legendary 0.1%   (example premium band 5x..50x)
+      C     case |      F=0.01      F=0.02      F=0.05       F=0.1      F=0.25       F=0.5       F=1.0       F=2.0       F=5.0
+  1,000   closed |      1,011P        506P        203P        102P         41m         21m         11m       6.05m       3.02L
+  1,000  VRF sep |      1,211P        606P        243P        122P         49m         25m         13m       7.05m       3.42L
+  1,000     open |        212P        106P         43m         22m       9.44m       5.22m       3.11L       2.05L       1.42L
+  5,000   closed |      1,011P        506P        203P        102P         41m         21m         11m       6.05m       3.02L
+  5,000  VRF sep |      1,211P        606P        243P        122P         49m         25m         13m       7.05m       3.42L
+  5,000     open |        212P        106P         43m         22m       9.44m       5.22m       3.11L       2.05L       1.42L
+ 10,000   closed |      1,011P        506P        203P        102P         41m         21m         11m       6.05m       3.02L
+ 10,000  VRF sep |      1,211P        606P        243P        122P         49m         25m         13m       7.05m       3.42L
+ 10,000     open |        212P        106P         43m         22m       9.44m       5.22m       3.11L       2.05L       1.42L
+
+-- epic 1%   (example premium band 2x..10x)
+      C     case |      F=0.01      F=0.02      F=0.05       F=0.1      F=0.25       F=0.5       F=1.0       F=2.0       F=5.0
+  1,000   closed |        102P         51P         21P         11P       5.04m       3.02m       2.01m       1.50L       1.20L
+  1,000  VRF sep |        122P         61P         25P         13P       5.84m       3.42m       2.21m       1.60L       1.24L
+  1,000     open |         23P         12P       5.40m       3.20m       1.88L       1.44L       1.22L       1.11L       1.04L
+  5,000   closed |        102P         51P         21P         11P       5.04m       3.02m       2.01m       1.50L       1.20L
+  5,000  VRF sep |        122P         61P         25P         13P       5.84m       3.42m       2.21m       1.60L       1.24L
+  5,000     open |         23P         12P       5.40m       3.20m       1.88L       1.44L       1.22L       1.11L       1.04L
+ 10,000   closed |        102P         51P         21P         11P       5.04m       3.02m       2.01m       1.50L       1.20L
+ 10,000  VRF sep |        122P         61P         25P         13P       5.84m       3.42m       2.21m       1.60L       1.24L
+ 10,000     open |         23P         12P       5.40m       3.20m       1.88L       1.44L       1.22L       1.11L       1.04L
+
+Suffix letter: P = protected (m* above the band), m = inside band (depends on market), L = lottery (m* below band).
+Loophole-open vs closed: the abort makes a 1/1 at C=10k ~5x cheaper (TX+VRF 0.0021 vs 0.0101 per miss).
+
+======================================================================================================================
+Part B2: expected SOL cost to farm ONE hit (closed loophole, s = 0.01, outsider) and EV per draw at EXAMPLE
+premiums 1/1 = 100x, legendary = 20x, epic = 5x (EV = p x (m-1) x F - c).
+======================================================================================================================
+      C            tier  E[cost/hit] SOL | EV per draw (SOL) at F =     0.01     0.02     0.05      0.1     0.25      0.5      1.0      2.0      5.0
+  1,000             1/1            10.10 |                           -0.0091  -0.0081  -0.0051  -0.0002   0.0147   0.0394   0.0889   0.1879   0.4849
+  1,000  legendary 0.1%            10.10 |                           -0.0099  -0.0097  -0.0092  -0.0082  -0.0053  -0.0006   0.0089   0.0279   0.0849
+  1,000         epic 1%             1.01 |                           -0.0097  -0.0093  -0.0081  -0.0061  -0.0001   0.0099   0.0299   0.0699   0.1899
+  5,000             1/1            50.50 |                           -0.0099  -0.0097  -0.0091  -0.0081  -0.0051  -0.0002   0.0097   0.0295   0.0889
+  5,000  legendary 0.1%            10.10 |                           -0.0099  -0.0097  -0.0092  -0.0082  -0.0053  -0.0006   0.0089   0.0279   0.0849
+  5,000         epic 1%             1.01 |                           -0.0097  -0.0093  -0.0081  -0.0061  -0.0001   0.0099   0.0299   0.0699   0.1899
+ 10,000             1/1           101.00 |                           -0.0100  -0.0099  -0.0096  -0.0091  -0.0076  -0.0051  -0.0002   0.0097   0.0394
+ 10,000  legendary 0.1%            10.10 |                           -0.0099  -0.0097  -0.0092  -0.0082  -0.0053  -0.0006   0.0089   0.0279   0.0849
+ 10,000         epic 1%             1.01 |                           -0.0097  -0.0093  -0.0081  -0.0061  -0.0001   0.0099   0.0299   0.0699   0.1899
+
+Floor F at which each tier turns +EV for a given premium m: F* = c / (p x (m-1)).
+   C= 1,000: 1/1 @100x: F* =    0.102 SOL | legendary 0.1% @20x: F* =    0.532 SOL | epic 1% @5x: F* =    0.253 SOL
+   C= 5,000: 1/1 @100x: F* =    0.510 SOL | legendary 0.1% @20x: F* =    0.532 SOL | epic 1% @5x: F* =    0.253 SOL
+   C=10,000: 1/1 @100x: F* =    1.020 SOL | legendary 0.1% @20x: F* =    0.532 SOL | epic 1% @5x: F* =    0.253 SOL
+
+======================================================================================================================
+Part B3: sensitivity to the fee amount s (closed loophole): m* for the 1/1 and epic at C = 10k / 1k, and
+the s needed to protect a tier at premium m: s_req = p x (m-1) x F - TX.
+======================================================================================================================
+  s=0.005   1/1 C=10k:    5,101    2,551    1,021      511      205      103       52       26       11
+            1/1 C=1k :    511.0    256.0    103.0     52.0     21.4     11.2      6.1      3.6      2.0
+            epic 1%  :    52.00    26.50    11.20     6.10     3.04     2.02     1.51     1.25     1.10
+  s=0.01    1/1 C=10k:   10,101    5,051    2,021    1,011      405      203      102       51       21
+            1/1 C=1k :  1,011.0    506.0    203.0    102.0     41.4     21.2     11.1      6.0      3.0
+            epic 1%  :   102.00    51.50    21.20    11.10     5.04     3.02     2.01     1.50     1.20
+  s=0.02    1/1 C=10k:   20,101   10,051    4,021    2,011      805      403      202      102       41
+            1/1 C=1k :  2,011.0  1,006.0    403.0    202.0     81.4     41.2     21.1     11.0      5.0
+            epic 1%  :   202.00   101.50    41.20    21.10     9.04     5.02     3.01     2.00     1.40
+  s=0.05    1/1 C=10k:   50,101   25,051   10,021    5,011    2,005    1,003      502      252      101
+            1/1 C=1k :  5,011.0  2,506.0  1,003.0    502.0    201.4    101.2     51.1     26.1     11.0
+            epic 1%  :   502.00   251.50   101.20    51.10    21.04    11.02     6.01     3.51     2.00
+  (columns: F = [0.01, 0.02, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0])
+
+  s_req (SOL) to keep grinding unprofitable:
+   1/1 C=10k @100x   :   0.0000   0.0001   0.0004   0.0009   0.0024   0.0049   0.0098   0.0197   0.0494
+   1/1 C=1k @100x    :   0.0009   0.0019   0.0049   0.0098   0.0247   0.0494   0.0989   0.1979   0.4949
+   legendary @20x    :   0.0001   0.0003   0.0008   0.0018   0.0046   0.0094   0.0189   0.0379   0.0949
+   epic @5x          :   0.0003   0.0007   0.0019   0.0039   0.0099   0.0199   0.0399   0.0799   0.1999
+
+======================================================================================================================
+Part B4: pool depletion. Odds are drawn from the CURRENT pool, not the census. If only a fraction phi of the
+collection is in the vault and the rare is among them, p_pool = count / (phi x C). Pool floor r = max(5, 2% C).
+======================================================================================================================
+   C= 1,000 phi= 1.00 (pool   1,000) 1/1 m*:  1,011.0    506.0    203.0    102.0     41.4     21.2     11.1      6.0      3.0
+   C= 1,000 phi= 0.25 (pool     250) 1/1 m*:    253.5    127.2     51.5     26.2     11.1      6.0      3.5      2.3      1.5
+   C= 1,000 phi= 0.05 (pool      50) 1/1 m*:     51.5     26.2     11.1      6.0      3.0      2.0      1.5      1.3      1.1
+   C= 1,000 phi= 0.02 (pool      20) 1/1 m*:     21.2     11.1      5.0      3.0      1.8      1.4      1.2      1.1      1.0
+   C= 5,000 phi= 1.00 (pool   5,000) 1/1 m*:  5,051.0  2,526.0  1,011.0    506.0    203.0    102.0     51.5     26.2     11.1
+   C= 5,000 phi= 0.25 (pool   1,250) 1/1 m*:  1,263.5    632.2    253.5    127.2     51.5     26.2     13.6      7.3      3.5
+   C= 5,000 phi= 0.05 (pool     250) 1/1 m*:    253.5    127.2     51.5     26.2     11.1      6.0      3.5      2.3      1.5
+   C= 5,000 phi= 0.02 (pool     100) 1/1 m*:    102.0     51.5     21.2     11.1      5.0      3.0      2.0      1.5      1.2
+   C=10,000 phi= 1.00 (pool  10,000) 1/1 m*: 10,101.0  5,051.0  2,021.0  1,011.0    405.0    203.0    102.0     51.5     21.2
+   C=10,000 phi= 0.25 (pool   2,500) 1/1 m*:  2,526.0  1,263.5    506.0    253.5    102.0     51.5     26.2     13.6      6.0
+   C=10,000 phi= 0.05 (pool     500) 1/1 m*:    506.0    253.5    102.0     51.5     21.2     11.1      6.0      3.5      2.0
+   C=10,000 phi= 0.02 (pool     200) 1/1 m*:    203.0    102.0     41.4     21.2      9.1      5.0      3.0      2.0      1.4
+   (columns: F = [0.01, 0.02, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0]). A 1/1 sitting in a thin pool is up to 50x cheaper to farm than the census implies.
+
+======================================================================================================================
+Part C: release trap. Value of an NFT's tokens V = R x FDV/1e9. Release fee s_rel = 0.01 SOL.
+Underwater on release when V x (1 - sell_cost) < s_rel + TX. sell_cost = AMM fee + slippage (EXAMPLE 1%).
+======================================================================================================================
+         R |  token price P* (SOL/token)  FDV* (SOL) | V at FDV       50      100      400    1,000    5,000   20,000
+    10,000 |                   1.020e-06     1,020.2 |            0.0005   0.0010   0.0040   0.0100   0.0500   0.2000
+    50,000 |                   2.040e-07       204.0 |            0.0025   0.0050   0.0200   0.0500   0.2500   1.0000
+   100,000 |                   1.020e-07       102.0 |            0.0050   0.0100   0.0400   0.1000   0.5000   2.0000
+   200,000 |                   5.101e-08        51.0 |            0.0100   0.0200   0.0800   0.2000   1.0000   4.0000
+   500,000 |                   2.040e-08        20.4 |            0.0250   0.0500   0.2000   0.5000   2.5000  10.0000
+ 1,000,000 |                   1.020e-08        10.2 |            0.0500   0.1000   0.4000   1.0000   5.0000  20.0000
+ 2,500,000 |                   4.081e-09         4.1 |            0.1250   0.2500   1.0000   2.5000  12.5000  50.0000
+ 5,000,000 |                   2.040e-09         2.0 |            0.2500   0.5000   2.0000   5.0000  25.0000 100.0000
+
+Release fee as % of V (>=100% = underwater, holder should not release):
+         R |      FDV 50     FDV 100     FDV 400   FDV 1,000   FDV 5,000  FDV 20,000
+    10,000 |     2020.0%     1010.0%      252.5%      101.0%       20.2%        5.0%
+    50,000 |      404.0%      202.0%       50.5%       20.2%        4.0%        1.0%
+   100,000 |      202.0%      101.0%       25.2%       10.1%        2.0%        0.5%
+   200,000 |      101.0%       50.5%       12.6%        5.0%        1.0%        0.3%
+   500,000 |       40.4%       20.2%        5.0%        2.0%        0.4%        0.1%
+ 1,000,000 |       20.2%       10.1%        2.5%        1.0%        0.2%        0.1%
+ 2,500,000 |        8.1%        4.0%        1.0%        0.4%        0.1%        0.0%
+ 5,000,000 |        4.0%        2.0%        0.5%        0.2%        0.0%        0.0%
+
+Crash from graduation FDV 400: release fee as % of V after a drawdown
+   R=  100,000: -0%:  25.2% | -50%:  50.5% | -75%: 101.0% | -90%: 252.5% | -95%: 505.0% | -99%: 2525.0%
+   R=  200,000: -0%:  12.6% | -50%:  25.2% | -75%:  50.5% | -90%: 126.3% | -95%: 252.5% | -99%: 1262.5%
+   R=  500,000: -0%:   5.0% | -50%:  10.1% | -75%:  20.2% | -90%:  50.5% | -95%: 101.0% | -99%: 505.0%
+   R=1,000,000: -0%:   2.5% | -50%:   5.0% | -75%:  10.1% | -90%:  25.2% | -95%:  50.5% | -99%: 252.5%
+
+Max loss per floor NFT from the release fee = min(V, s_rel) <= 0.01 SOL (the holder can always choose not to
+release, or sell the NFT on Tensor/ME; an arbitrageur bids at most V - s_rel - TX, so the fee is priced into
+the NFT's exit value either way).
+
+Fee-wallet income if every NFT is released in a panic vs the tokens those NFTs back (R=100k, C=10k):
+   FDV  400: holders' tokens N x V =   400.0 SOL; release fees N x 0.01 = 100.0 SOL ( 25.0% of the value exiting)
+   FDV  100: holders' tokens N x V =   100.0 SOL; release fees N x 0.01 = 100.0 SOL (100.0% of the value exiting)
+   FDV   50: holders' tokens N x V =    50.0 SOL; release fees N x 0.01 = 100.0 SOL (200.0% of the value exiting)
+   FDV   20: holders' tokens N x V =    20.0 SOL; release fees N x 0.01 = 100.0 SOL (500.0% of the value exiting)
+
+Insider band arbitrage: the NFT bid floor sits at V - s_rel - TX for outsiders. The fee wallet (or a wallet
+it funds) releases at net cost TX (the fee returns to itself): it can buy every NFT listed between V - s_rel and V
+and redeem it, earning up to s_rel per NFT that nobody else can. Same on the capture side (sell NFTs up to V + s).
+
+======================================================================================================================
+Part D: small ratios. Capture fee and round trip (capture + release) as % of V, flat 0.01 each; and with a
+zero release fee (round trip = 0.01). Max C under a 10,000 cap; share of supply that can be in NFT form.
+======================================================================================================================
+         R maxC (1B/R) maxC cap10k % supply | capture fee % of V at FDV       50      100      400    1,000    5,000   20,000
+    10,000     100,000      10,000      10% |                            2020.0%  1010.0%   252.5%   101.0%    20.2%     5.0%
+    50,000      20,000      10,000      50% |                             404.0%   202.0%    50.5%    20.2%     4.0%     1.0%
+   100,000      10,000      10,000     100% |                             202.0%   101.0%    25.2%    10.1%     2.0%     0.5%
+   200,000       5,000       5,000     100% |                             101.0%    50.5%    12.6%     5.0%     1.0%     0.3%
+   500,000       2,000       2,000     100% |                              40.4%    20.2%     5.0%     2.0%     0.4%     0.1%
+ 1,000,000       1,000       1,000     100% |                              20.2%    10.1%     2.5%     1.0%     0.2%     0.1%
+ 2,500,000         400         400     100% |                               8.1%     4.0%     1.0%     0.4%     0.1%     0.0%
+ 5,000,000         200         200     100% |                               4.0%     2.0%     0.5%     0.2%     0.0%     0.0%
+
+         R | round trip 0.02 (capture+release) % of V at FDV       50      100      400    1,000    5,000   20,000
+    10,000 |                                                 4040.0%  2020.0%   505.0%   202.0%    40.4%    10.1%
+    50,000 |                                                  808.0%   404.0%   101.0%    40.4%     8.1%     2.0%
+   100,000 |                                                  404.0%   202.0%    50.5%    20.2%     4.0%     1.0%
+   200,000 |                                                  202.0%   101.0%    25.2%    10.1%     2.0%     0.5%
+   500,000 |                                                   80.8%    40.4%    10.1%     4.0%     0.8%     0.2%
+ 1,000,000 |                                                   40.4%    20.2%     5.0%     2.0%     0.4%     0.1%
+ 2,500,000 |                                                   16.2%     8.1%     2.0%     0.8%     0.2%     0.0%
+ 5,000,000 |                                                    8.1%     4.0%     1.0%     0.4%     0.1%     0.0%
+
+Minimum FDV (SOL) for the round trip to be <= 10% / <= 25% of V:
+   R=   10,000: 0.02 round trip: <=10% needs FDV    20,200, <=25% needs    8,080;  with release fee 0 (0.01 round trip): <=10% needs   10,200
+   R=   50,000: 0.02 round trip: <=10% needs FDV     4,040, <=25% needs    1,616;  with release fee 0 (0.01 round trip): <=10% needs    2,040
+   R=  100,000: 0.02 round trip: <=10% needs FDV     2,020, <=25% needs      808;  with release fee 0 (0.01 round trip): <=10% needs    1,020
+   R=  200,000: 0.02 round trip: <=10% needs FDV     1,010, <=25% needs      404;  with release fee 0 (0.01 round trip): <=10% needs      510
+   R=  500,000: 0.02 round trip: <=10% needs FDV       404, <=25% needs      162;  with release fee 0 (0.01 round trip): <=10% needs      204
+   R=1,000,000: 0.02 round trip: <=10% needs FDV       202, <=25% needs       81;  with release fee 0 (0.01 round trip): <=10% needs      102
+   R=2,500,000: 0.02 round trip: <=10% needs FDV        81, <=25% needs       32;  with release fee 0 (0.01 round trip): <=10% needs       41
+   R=5,000,000: 0.02 round trip: <=10% needs FDV        40, <=25% needs       16;  with release fee 0 (0.01 round trip): <=10% needs       20
+
+Arbitrage band for the NFT price (outsider): [V - s_rel - TX, V + s_cap + TX]. Width 0.02 SOL flat;
+relative width at FDV 400: R=10k 500%, R=50k 100%, R=100k 50%, R=200k 25%, R=500k 10%, R=1000k 5%, R=2500k 2%, R=5000k 1%
+
+Per-NFT Core mint cost (graduation-design.md, measured) 0.00509 SOL vs V at FDV 400:
+   R=10k V=0.0040, R=50k V=0.0200, R=100k V=0.0400, R=200k V=0.0800
+
+Wash-convert cost (outsider) per round trip: 0.02 SOL (or 0.01 with free release); insider: 2 x TX.
+Rare farming at small ratios (C<=10k, 1/1): m* at FDV 400 -> R=10k: 25,251x, R=50k: 5,051x, R=100k: 2,526x, R=200k: 632x, R=500k: 102x, R=1000k: 26x, R=2500k: 5x, R=5000k: 2x
+
+======================================================================================================================
+Part E: insider (fee wallet) vs outsider cost per draw, and sybil/DoS costs at 0.01
+======================================================================================================================
+   VRF paid by requester=False: outsider 0.0101 SOL/draw, insider (true cost) 0.0021 (insider pays 21%; 4.8x cheaper)
+   VRF paid by requester=True: outsider 0.0121 SOL/draw, insider (true cost) 0.0021 (insider pays 17%; 5.8x cheaper)
+   Split alternative: 0.005 to Barton + 0.005 to incinerator/sink: insider cost 0.0071 (70% of outsider 0.0101).
+
+   1/1 at C=10k, F=1 SOL: outsider m* = 102x; insider m* = 22x
+   epic 1% at F=0.25: outsider m* = 5.04x; insider m* = 1.84x
+   Insider band arbitrage per NFT (release fee 0.01): outsider needs a discount > 0.0101 below V; insider > 0.0001.
+
+   Queue spam: each request pays 0.01 non-refundable; 1,000 junk requests = 10 SOL + principal locked until settle.
+   Crank cost per request (reveal + settle txs + Switchboard ~0.002): ~0.0022 SOL -> 0.01 fee covers it ~4.5x.
+   Cornering C=1,000 R=100,000 FDV 400: capture 980 NFTs =    39.20 SOL of tokens +   9.80 SOL fees (9.8% of supply; price impact not included)
+   Cornering C=10,000 R=100,000 FDV 400: capture 9,800 NFTs =   392.00 SOL of tokens +  98.00 SOL fees (98.0% of supply; price impact not included)
+   Cornering C=1,000 R=1,000,000 FDV 400: capture 980 NFTs =   392.00 SOL of tokens +   9.80 SOL fees (98.0% of supply; price impact not included)
+   Cornering C=200 R=5,000,000 FDV 400: capture 195 NFTs =   390.00 SOL of tokens +   1.95 SOL fees (97.5% of supply; price impact not included)
+
+======================================================================================================================
+Part F: candidate fee schedules (capture / re-roll / release, SOL). Checks: bypass (capture+release >= re-roll),
+VRF coverage (draw fee >= VRF + TX + margin), rent (>= 890,880 lamports or exactly 0), release trap FDV at R=100k,
+1/1 m* at C=10k and C=1k (F = 0.25 and 1 SOL), epic m* at F=0.25, capture fee % of V at R=100k/FDV 400.
+======================================================================================================================
+   BRIEF default         0.01/ 0.01/  0.01: bypass OK  VRF OK  rent OK  | release underwater below FDV    102 | 1/1 C10k    405x/  102x C1k    41x/11.1x | epic 5.04x | capture 25.2% of V
+   REC: free release     0.01/ 0.01/   0.0: bypass OK  VRF OK  rent OK  | release underwater below FDV   never | 1/1 C10k    405x/  102x C1k    41x/11.1x | epic 5.04x | capture 25.2% of V
+   low                  0.005/0.005/   0.0: bypass OK  VRF OK  rent OK  | release underwater below FDV   never | 1/1 C10k    205x/   52x C1k    21x/ 6.1x | epic 3.04x | capture 12.8% of V
+   high                  0.02/ 0.02/   0.0: bypass OK  VRF OK  rent OK  | release underwater below FDV   never | 1/1 C10k    805x/  202x C1k    81x/21.1x | epic 9.04x | capture 50.2% of V
+   bad: capture<reroll    0.0/ 0.01/   0.0: bypass FAIL VRF FAIL rent OK  | release underwater below FDV   never | 1/1 C10k    405x/  102x C1k    41x/11.1x | epic 5.04x | capture  0.2% of V
+   bad: dust release     0.01/ 0.01/0.0005: bypass OK  VRF OK  rent FAIL* | release underwater below FDV      6 | 1/1 C10k    405x/  102x C1k    41x/11.1x | epic 5.04x | capture 25.2% of V
+
+======================================================================================================================
+Part G: Barton's 4:52 PM TIERED schedule (same fee on capture, release, re-roll; cap 0.01). C = min(1B/R, 10,000).
+Floors at FDV 400 (~graduation) and 2,000 (5x). m* = break-even premium (x floor), loophole closed, VRF paid by crank.
+======================================================================================================================
+         R    fee      C |   F@400      1/1     leg   epic |  F@2000     1/1    leg   epic | cap %V@400 RT %V@400 rel. underwater FDV | VRF margin insider/outsider
+    10,000  0.002 10,000 |   0.004    5,251   526.0  53.50 |   0.020   1,051  106.0  11.50 |      52.5%    105.0%                 212 |    -0.0002             100%
+    50,000  0.002 10,000 |   0.020    1,051   106.0  11.50 |   0.100     211   22.0   3.10 |      10.5%     21.0%                  42 |    -0.0002             100%
+   100,000  0.005 10,000 |   0.040    1,276   128.5  13.75 |   0.200     256   26.5   3.55 |      12.8%     25.5%                  52 |    +0.0028              41%
+   200,000  0.005  5,000 |   0.080      320    64.8   7.38 |   0.400      65   13.8   2.28 |       6.4%     12.8%                  26 |    +0.0028              41%
+   500,000  0.010  2,000 |   0.200      102    51.5   6.05 |   1.000      21   11.1   2.01 |       5.0%     10.1%                  20 |    +0.0078              21%
+ 1,000,000  0.010  1,000 |   0.400       26    26.2   3.52 |   2.000       6    6.0   1.50 |       2.5%      5.0%                  10 |    +0.0078              21%
+ 2,500,000  0.010    400 |   1.000        5    11.1   2.01 |   5.000       2    3.0   1.20 |       1.0%      2.0%                   4 |    +0.0078              21%
+ 5,000,000  0.010    200 |   2.000        2     6.0   1.50 |  10.000       1    2.0   1.10 |       0.5%      1.0%                   2 |    +0.0078              21%
+
+VRF margin = tier fee - VRF (0.002 EXAMPLE) - crank txs (0.0002). Negative = Barton's crank subsidises every draw
+if it pays the oracle; a spammer then costs Barton ~0.0002 SOL per draw at a cost to itself of 0.0021.
+insider/outsider = fee-wallet's true cost per draw (TX + VRF) / outsider's (fee + TX). ~100% at the 0.002 tier means
+no insider discount there, but only because the fee barely covers VRF.
+
+Re-roll <= capture + release in every tier: True; re-roll <= capture (needed if release fee -> 0): True
+
+Same tiers with release fee = 0 (recommended): release never underwater; round trip = one fee:
+   R=   10,000: round trip 0.0022 SOL =  55.0% of V at FDV 400
+   R=   50,000: round trip 0.0022 SOL =  11.0% of V at FDV 400
+   R=  100,000: round trip 0.0052 SOL =  13.0% of V at FDV 400
+   R=  200,000: round trip 0.0052 SOL =   6.5% of V at FDV 400
+   R=  500,000: round trip 0.0102 SOL =   5.1% of V at FDV 400
+   R=1,000,000: round trip 0.0102 SOL =   2.6% of V at FDV 400
+   R=2,500,000: round trip 0.0102 SOL =   1.0% of V at FDV 400
+   R=5,000,000: round trip 0.0102 SOL =   0.5% of V at FDV 400
+   * rent FAIL = a sub-890,880-lamport transfer fails only while the fee wallet is empty/below rent-exempt (M-30).

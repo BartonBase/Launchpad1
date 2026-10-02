@@ -1,0 +1,475 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Launch a token · Armory</title>
+<meta name="description" content="Launch a Solana memecoin as Plain, Hybrid (coin and NFT, both ways) or Burn (burn to mint). See the math for each type before you sign. Unaudited beta on devnet.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,700..800&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#08090a;--s1:#0e0f11;--s2:#131417;--s3:#1a1b1f;--line:rgba(255,255,255,.07);--line2:rgba(255,255,255,.12);
+--ink:#eceef1;--mute:#a0a5ae;--dim:#858a94;--acc:#ff6a2b;--acc2:#ff9a62;--accp:#e85a1e;--accbg:rgba(255,106,43,.12);--accglow:rgba(255,106,43,.45);--up:#3ecf8e;--down:#f25c7a;
+--r:14px;--sans:"Geist","Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,monospace;--hd:"Bricolage Grotesque","Geist",ui-sans-serif,sans-serif}
+*{box-sizing:border-box}html{background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 14px/1.5 var(--sans);-webkit-font-smoothing:antialiased;letter-spacing:-.005em}
+a{color:inherit;text-decoration:none}svg{display:block}
+.wrap{max-width:1312px;margin:0 auto;padding:0 32px}
+.mono{font-family:var(--mono);font-feature-settings:"zero" 0}.num{font-variant-numeric:tabular-nums}
+.mute{color:var(--mute)}.dim{color:var(--dim)}.up{color:var(--up)}.down{color:var(--down)}.acc{color:var(--acc2)}
+sub{font-size:.62em;vertical-align:-.25em;line-height:0;margin:0 .04em;color:var(--mute)}
+/* nav */
+.nav{position:sticky;top:0;z-index:10;background:rgba(8,9,10,.72);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;height:64px;gap:28px}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--hd);font-weight:800;font-stretch:82%;font-variation-settings:"opsz" 96;font-size:22px;letter-spacing:-.015em;line-height:1}.brand .tagwn{font-stretch:100%;font-variation-settings:normal;letter-spacing:.04em}
+.tagwn{font:500 10.5px/1 var(--mono);color:var(--dim);border:1px solid var(--line2);border-radius:99px;padding:4px 7px;text-transform:uppercase;letter-spacing:.04em}
+.tagwn.beta{color:var(--acc2);border-color:rgba(255,106,43,.35);background:var(--accbg)}
+.links{display:flex;gap:4px}.links a{color:var(--mute);padding:7px 12px;border-radius:8px;font-weight:500}.links a.on,.links a:hover{color:var(--ink);background:rgba(255,255,255,.04)}
+.navr{margin-left:auto;display:flex;align-items:center;gap:10px}
+.search{display:flex;align-items:center;gap:8px;width:260px;height:36px;border:1px solid var(--line);background:var(--s1);border-radius:10px;padding:0 10px;color:var(--dim)}
+.search kbd{margin-left:auto;font:500 11px var(--mono);border:1px solid var(--line2);border-radius:5px;padding:1px 5px;color:var(--mute)}
+.pill{display:inline-flex;align-items:center;gap:6px;font:500 12px/1 var(--sans);color:var(--mute);border:1px solid var(--line);border-radius:99px;padding:6px 10px;white-space:nowrap}
+.pill i{width:6px;height:6px;border-radius:50%;background:#e8b04b;display:block}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 16px;border-radius:10px;font:600 14px var(--sans);border:1px solid transparent;cursor:pointer;white-space:nowrap}
+.btn.p{background:var(--ink);color:#0b0c0e}.btn.a{background:var(--acc);color:#120805;box-shadow:0 0 0 1px rgba(255,255,255,.08) inset,0 8px 24px -8px rgba(255,106,43,.6)}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--acc2);outline-offset:2px}
+.in:focus-visible{outline-offset:1px}
+.skip{position:absolute;left:12px;top:-60px;z-index:20;padding:10px 14px;border-radius:10px;background:var(--acc);color:#120805;font-weight:600}.skip:focus{top:8px}
+button.search{appearance:none;font:inherit;text-align:left;cursor:pointer;color:var(--dim)}
+.menub{display:none;place-items:center;width:40px;height:40px;border-radius:10px;border:1px solid var(--line2);background:var(--s1);color:var(--ink);cursor:pointer}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.btn.a:active{background:var(--accp)}.btn.p:active{background:#d4d7dc}
+.btn.g{background:rgba(255,255,255,.03);border-color:var(--line2);color:var(--ink)}.btn.g:active{background:rgba(255,255,255,.07)}
+.btn.gh{background:transparent;color:var(--mute)}.btn.gh:hover{color:var(--ink);background:rgba(255,255,255,.04)}
+.btn.d{background:rgba(242,92,122,.1);border-color:rgba(242,92,122,.35);color:#ff9fb2}.btn.d:active{background:rgba(242,92,122,.18)}
+.btn.off,.btn[disabled]{opacity:.45;pointer-events:none;box-shadow:none}
+.bbar{background:#15100c;border-bottom:1px solid rgba(255,106,43,.22);font-size:12.5px;color:#d9c6ba}.bbar .wrap{display:flex;align-items:center;gap:12px;height:38px}
+.bbar b{color:var(--ink);font-weight:600}.bbar a{margin-left:auto;color:var(--acc2);font-weight:500}.bbar .sep{color:#5a4a40}
+.chip.ok2{background:rgba(62,207,142,.08);border-color:rgba(62,207,142,.25);color:#8fe0b9}.chip.ok2 i,.chip.acc i{width:6px;height:6px;border-radius:50%;background:currentColor;display:block}
+.chip.soon{background:rgba(255,255,255,.03);border-style:dashed;border-color:var(--line2);color:var(--dim)}.chip.pd{background:transparent;border-style:dashed;border-color:rgba(232,176,75,.4);color:#e8c27a}.chip.pd i{width:6px;height:6px;border-radius:50%;border:1.5px solid currentColor;background:transparent;display:inline-block}
+.chip.ua{background:rgba(232,176,75,.08);border-color:rgba(232,176,75,.28);color:#e8c27a}
+.chip.bt{background:var(--accbg);border-color:rgba(255,106,43,.3);color:var(--acc2)}
+.tchip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px 0 7px;border-radius:7px;background:rgba(255,255,255,.05);border:1px solid var(--line2);font-size:12px;color:var(--ink);font-weight:500;white-space:nowrap}.tchip svg{width:14px;height:14px;color:var(--acc2)}
+.capslot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;border-radius:10px;border:1px dashed var(--line2);background:rgba(255,255,255,.015);font-size:12px;color:var(--mute)}.capslot b{color:var(--ink);font-weight:500}.btn.sm{height:36px;padding:0 14px;font-size:13px}.btn.lg{height:48px;padding:0 22px;font-size:15px;border-radius:12px}
+.demo{font:500 10.5px/1 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:#e8b04b;background:rgba(232,176,75,.08);border:1px solid rgba(232,176,75,.2);border-radius:6px;padding:4px 7px;white-space:nowrap}
+.card{background:linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,.01));border:1px solid var(--line);border-radius:var(--r)}
+.eyebrow{font:500 12px/1 var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--mute)}
+h1,h2,h3{margin:0;letter-spacing:-.035em;font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:7px;background:rgba(255,255,255,.05);border:1px solid var(--line);font-size:12px;color:var(--mute);font-weight:500;white-space:nowrap}
+.chip.acc{background:var(--accbg);border-color:rgba(255,106,43,.25);color:var(--acc2)}
+.hd,.hero h1,.shead h2,.trust h2,.feat h2,.band h3,.tname h1,.grad h4{font-family:var(--hd);font-weight:800;font-stretch:82%;font-variation-settings:"opsz" 96;letter-spacing:-.02em}
+.mph{position:relative;display:block;flex:none;margin:0;container-type:size}.mph img{display:block;width:100%;height:calc(100% - 14px);object-fit:contain}.mph figcaption{position:absolute;left:0;right:0;bottom:0;text-align:center;font:500 9.5px/1.2 var(--mono);color:var(--dim);letter-spacing:.04em}@container (max-height:119px){.mph img{height:100%}.mph figcaption{display:none}}
+
+/* progress bar: clean track, accent fill, still accent tip. No animation. */
+.bar{position:relative;height:4px;border-radius:99px;background:rgba(255,255,255,.07)}.bar i{position:relative;display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,rgba(255,106,43,.45),var(--acc))}.bar i:after{content:"";position:absolute;right:-4px;top:50%;width:8px;height:8px;margin-top:-4px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 2px rgba(255,106,43,.25),0 0 10px var(--accglow)}
+.bar.done{background:rgba(255,255,255,.07)}.bar.done i{background:var(--up)}.bar.done i:after{display:none}
+.footer{border-top:1px solid var(--line);margin-top:120px;padding:56px 0 40px;color:var(--mute)}
+.fgrid{display:grid;grid-template-columns:1.4fr repeat(4,1fr);gap:32px}
+.fgrid h4{margin:0 0 14px;font:500 12px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
+.fgrid a{display:block;padding:4px 0;color:var(--mute)}.fgrid a.brand{display:flex;padding:0}
+.risk{margin-top:44px;padding:18px 20px;border:1px solid var(--line);border-radius:12px;background:var(--s1);display:flex;gap:14px;align-items:flex-start;font-size:13px;line-height:1.6}
+.risk b{color:var(--ink);font-weight:600}
+.legal{display:flex;justify-content:space-between;margin-top:24px;font-size:12px;color:var(--dim)}
+
+.lhead{padding:44px 0 32px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-end;gap:32px}
+.lhead h1{font-size:44px;letter-spacing:-.04em;margin:14px 0 10px}
+.lhead p{margin:0;color:var(--mute);font-size:16px;max-width:620px;line-height:1.6}
+.lgrid{display:grid;grid-template-columns:208px minmax(0,1fr) 372px;gap:28px;padding-top:32px;align-items:start}
+.rail{position:sticky;top:96px;display:flex;flex-direction:column;gap:2px}
+.rail a{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;color:var(--mute);font-weight:500}
+.rail a.on{background:rgba(255,255,255,.04);color:var(--ink);box-shadow:0 0 0 1px var(--line) inset}
+.rail .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:500 11.5px var(--mono);border:1px solid var(--line2);color:var(--mute);flex:none}
+.rail a.on .n{border-color:var(--acc);color:var(--acc2);background:var(--accbg)}
+.rail a.done .n{background:rgba(62,207,142,.12);border-color:rgba(62,207,142,.35);color:var(--up)}
+.rail .hint{margin:18px 12px 0;padding-top:16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--dim);line-height:1.55}
+.form{display:flex;flex-direction:column;gap:24px;min-width:0}
+.sec{padding:26px 28px 28px}
+.sh{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:22px}
+.sh .k{font:500 12px var(--mono);color:var(--dim);letter-spacing:.06em;text-transform:uppercase}
+.sh h2{font-size:21px;letter-spacing:-.025em;margin:6px 0 4px}
+.sh p{margin:0;color:var(--mute);font-size:13.5px;line-height:1.55;max-width:560px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.f{display:flex;flex-direction:column;gap:7px;margin-bottom:18px}
+.f label{font-size:13px;font-weight:500;color:var(--ink);display:flex;justify-content:space-between}
+.f label span{color:var(--dim);font-weight:400}
+.in{height:44px;border-radius:11px;background:var(--s1);border:1px solid var(--line2);color:var(--ink);font:500 14px var(--sans);padding:0 14px;outline:none;width:100%}
+.in:focus{border-color:rgba(255,106,43,.6);box-shadow:0 0 0 3px rgba(255,106,43,.15)}
+.pre{position:relative}.pre b{position:absolute;left:14px;top:12px;color:var(--dim);font-weight:500}.pre .in{padding-left:28px}
+textarea.in{height:88px;padding:12px 14px;resize:none;line-height:1.55;font-weight:400}
+.help{font-size:12.5px;color:var(--mute);line-height:1.5}
+.help.warn{color:#e8b04b}
+.in.warn{border-color:rgba(232,176,75,.6);box-shadow:0 0 0 3px rgba(232,176,75,.12)}
+.drop{display:grid;grid-template-columns:120px 1fr;gap:18px;align-items:center;padding:16px;border:1px dashed var(--line2);border-radius:14px;background:rgba(255,255,255,.015)}
+.drop .pv{width:120px;height:120px;border-radius:12px;overflow:hidden;border:1px solid var(--line2)}
+.drop b{font-weight:600;display:block;margin-bottom:4px}
+.drop .sm{font-size:12.5px;color:var(--mute);line-height:1.55}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px}
+.fact{padding:12px 13px;border-radius:12px;background:var(--s1);border:1px solid var(--line)}
+.fact{display:grid;grid-template-columns:28px 1fr;column-gap:10px}.fact .ic{color:var(--up);grid-row:span 2;margin-top:1px}
+.fact b{display:block;font-size:12.5px;font-weight:600;line-height:1.35}
+.fact span{display:block;font-size:11.5px;color:var(--mute);margin-top:3px;line-height:1.4}
+.rgroups{display:flex;flex-direction:column;gap:14px}
+.rgh{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px}.rgh b{font-size:13px;font-weight:600}.rgh span{font-size:12px;color:var(--mute)}
+.rtiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rtiles button{all:unset;cursor:pointer;padding:11px 14px;border-radius:12px;background:var(--s1);border:1px solid var(--line);display:grid;grid-template-columns:auto 1fr;align-items:baseline;row-gap:3px}
+.rtiles button b{font:600 16px var(--sans);letter-spacing:-.02em;color:var(--ink)}
+.rtiles button .mx{font-size:12px;color:var(--mute);text-align:right}
+.rtiles button .es{grid-column:1/3;font:500 11px var(--mono);color:var(--dim)}
+.rtiles button .es.fe{color:var(--mute)}.rtiles button.on .es.fe{color:var(--acc2)}
+.rtiles.c3{grid-template-columns:repeat(3,1fr)}.rtiles.c3 button{grid-template-columns:1fr}.rtiles.c3 button .mx{text-align:left}.rtiles.c3 button .es{grid-column:1}
+.gradw{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px;align-items:start}
+.lazybox{margin-top:27px;padding:12px 14px;border-radius:11px;border:1px solid var(--line);background:var(--s1);display:flex;flex-direction:column;gap:5px}
+.lazybox .rl{display:flex;justify-content:space-between;font-size:12px;color:var(--mute)}.lazybox .rl .mono{font-size:11px}
+.lazybox b{font-size:13px;font-weight:600;color:var(--ink);line-height:1.4}.lazybox p{margin:0;font-size:12px;color:var(--mute);line-height:1.5}
+.stepnav{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}
+.btn.a[aria-disabled=true]{opacity:.45;pointer-events:none;box-shadow:none}
+.rtiles button:hover{border-color:var(--line2)}
+.rtiles button.on{background:var(--s3);border-color:rgba(255,106,43,.55);box-shadow:0 6px 20px -10px rgba(255,106,43,.5)}
+.rtiles button.on .mx{color:var(--acc2)}
+.explain{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.explain div{padding:12px 14px;border-radius:12px;border:1px solid var(--line);font-size:12.5px;color:var(--mute);line-height:1.55}
+.explain b{color:var(--ink);font-weight:600;display:block;margin-bottom:2px;font-size:13px}
+.sizew{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:22px;align-items:start}
+.suffix{position:relative}.suffix em{position:absolute;right:14px;top:12px;font-style:normal;color:var(--dim);font-size:13px}
+.maxline{display:flex;justify-content:space-between;align-items:center;height:44px;padding:0 14px;border-radius:11px;border:1px solid var(--line);background:rgba(255,255,255,.02);font-size:13px;color:var(--mute)}
+.maxline b{color:var(--ink);font-weight:600}
+.ref{margin-top:14px;padding:12px 14px;border:1px dashed rgba(232,176,75,.35);border-radius:12px;display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center}
+.ref .lbl{font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--dim);grid-column:1/-1;margin-bottom:-4px}
+.ref .in{height:38px;width:130px;font-size:13px}
+.toggle{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-radius:12px;border:1px solid var(--line);background:var(--s1);margin-bottom:18px}
+.toggle b{font-weight:600}.toggle span{display:block;font-size:12.5px;color:var(--mute);margin-top:2px}
+.sw{width:40px;height:24px;border-radius:99px;background:var(--acc);position:relative;flex:none}.sw i{position:absolute;right:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff}
+.seg{display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--s1);border:1px solid var(--line)}
+.seg button{all:unset;cursor:pointer;flex:1;text-align:center;padding:9px 0;border-radius:8px;font-weight:600;font-size:13.5px;color:var(--mute)}
+.seg button.on{background:var(--s3);color:var(--ink);box-shadow:0 0 0 1px rgba(255,106,43,.45) inset}
+.rule{margin-top:6px;padding:16px 18px;border-radius:14px;background:var(--s1);border:1px solid var(--line)}
+.rule .fx{font:500 14px var(--mono);color:var(--ink)}
+.rule .fx em{font-style:normal;color:var(--acc2)}
+.rule ul{margin:12px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+.rule li{display:flex;gap:10px;font-size:13px;color:var(--mute);line-height:1.5}.rule li svg{color:var(--up);flex:none;margin-top:1px}
+.rule li b{color:var(--ink);font-weight:500}
+.fn{font-size:11.5px;color:var(--dim);margin-top:14px;line-height:1.5}
+.quiet{display:flex;gap:18px;align-items:center;padding:18px;border-radius:14px;border:1px dashed var(--line2)}
+.quiet .ico{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--s2);border:1px solid var(--line2);color:var(--mute);flex:none}
+.quiet b{font-weight:600}.quiet p{margin:3px 0 0;font-size:12.5px;color:var(--mute);line-height:1.55}
+.review{display:grid;grid-template-columns:1fr 1fr;gap:0 28px;border-top:1px solid var(--line)}
+.review div{display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line);font-size:13px}
+.review span{color:var(--mute)}.review b{font-weight:500;text-align:right}
+.rrseg button span{display:block;font:500 10.5px var(--mono);color:var(--dim);margin-top:2px}.rrseg{display:grid!important;grid-template-columns:repeat(3,1fr)}.rrseg button{height:auto;padding:9px 12px;line-height:1.3;white-space:nowrap}
+.fees{margin-top:18px;padding:14px 16px;border-radius:12px;background:var(--s1);border:1px solid var(--line)}
+.fees .t{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.fees div.r{display:flex;justify-content:space-between;padding:6px 0;font-size:13px}.fees div.r span{color:var(--mute)}
+.ack{display:flex;gap:10px;align-items:flex-start;margin-top:18px;font-size:13px;color:var(--mute);line-height:1.5}
+.ack i{width:18px;height:18px;border-radius:5px;background:var(--acc);display:grid;place-items:center;flex:none;margin-top:1px}
+.lbtn{display:flex;gap:12px;align-items:center;margin-top:20px}
+.lbtn .btn{height:48px;padding:0 26px;font-size:15px;border-radius:12px}
+.btn.a[aria-disabled=true]{opacity:.45;pointer-events:none;box-shadow:none}
+.riskin{margin-top:20px;display:flex;gap:10px;padding:14px 16px;border-radius:12px;border:1px solid rgba(232,176,75,.22);background:rgba(232,176,75,.05);font-size:12.5px;color:var(--mute);line-height:1.6}
+.riskin b{color:var(--ink);font-weight:600}
+.cos{display:flex;gap:10px;padding:14px 16px;border-radius:12px;background:var(--accbg);border:1px solid rgba(255,106,43,.25);font-size:13px;color:#ffd3bd;line-height:1.55}
+.cos b{color:#fff;font-weight:600}
+.upl{display:flex;gap:14px;align-items:flex-start;padding:14px 16px;border-radius:12px;border:1px solid var(--line2);background:var(--s1)}
+.upl .fi{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;background:var(--s2);border:1px solid var(--line2);color:var(--mute);flex:none}
+.upl b{font-weight:600}.trs{display:flex;gap:5px;flex-wrap:wrap}
+.offc{padding:14px 16px;border:1px solid var(--line2);border-radius:12px;background:var(--s1);font-size:13px;line-height:1.55;color:var(--mute)}.offc b{color:var(--ink);font-weight:600}.offc ol{margin:8px 0 0;padding-left:18px}.offc li{margin:3px 0}.tiers{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.tiers .th,.tiers .tr,.tiers .tf2{display:grid;grid-template-columns:1fr 120px 100px;align-items:center;padding:9px 14px;gap:12px}
+.tiers .th{font:500 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--dim);background:var(--s1);border-bottom:1px solid var(--line)}
+.tiers .tr{border-bottom:1px solid var(--line)}.tiers .tr b,.tiers .tf2 b{text-align:right;font-weight:500}
+.tiers .th span:last-child{text-align:right}
+.tiers .tf2{background:var(--s1)}
+.in.sm2{height:32px;font-size:13px;padding:0 10px;width:84px;border-radius:8px}
+.dist{display:flex;gap:2px;height:6px;border-radius:99px;overflow:hidden}.dist i{display:block;height:100%;opacity:.8}
+/* live math */
+.aside{position:sticky;top:96px;display:flex;flex-direction:column;gap:16px}
+.math{padding:22px}
+.cl{padding:18px 20px}.cl h4{margin:0 0 10px;font-size:14px;font-weight:600;letter-spacing:-.015em}
+.cl div{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:13px;color:var(--mute)}.cl div b{margin-left:auto;font-weight:500;font-size:12px}
+.cl .c{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;flex:none;border:1px solid var(--line2)}
+.cl .c.y{background:rgba(62,207,142,.12);border-color:rgba(62,207,142,.35);color:var(--up)}
+.eg2 div{display:block}.eg2 div b{margin:0;display:block;color:var(--ink);font-size:13px;font-weight:600}.eg2 div span{display:block;font-size:12.5px;line-height:1.5;margin-top:2px}
+.math .k{font:500 12px var(--mono);color:var(--dim);letter-spacing:.06em;text-transform:uppercase}
+.math .eq{font-size:30px;font-weight:600;letter-spacing:-.04em;margin:12px 0 2px;line-height:1.1}
+.math .eq span{display:block;font-size:14px;letter-spacing:-.01em;color:var(--mute);font-weight:500;margin-top:4px}
+.math .lead2{margin-top:12px!important}
+.math .lead2{font-size:13.5px;color:var(--mute);line-height:1.55;margin:0}
+.math .lead2 b{color:var(--ink);font-weight:600}
+.alloc{display:flex;height:6px;border-radius:99px;overflow:hidden;margin:18px 0 12px;background:rgba(255,255,255,.07);gap:2px}
+.alloc i{display:block;height:100%;background:linear-gradient(90deg,#c94a16,var(--acc2));border-radius:99px}
+.alloc s{display:block;height:100%;flex:1;background:rgba(255,255,255,.14);border-radius:99px}
+.lg{display:flex;flex-direction:column;gap:8px}
+.lg div{display:flex;align-items:center;gap:10px;font-size:13px}
+.lg .dot{width:8px;height:8px;border-radius:2px;flex:none}
+.lg b{margin-left:auto;font-weight:600}.lg small{color:var(--dim);font-size:12px;width:40px;text-align:right}
+.mrows{margin-top:18px;border-top:1px solid var(--line)}
+.mrows div{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);font-size:13px}
+.mrows span{color:var(--mute)}.mrows b{font-weight:500}
+.status{margin-top:14px;display:flex;gap:9px;align-items:flex-start;padding:11px 13px;border-radius:11px;font-size:12.5px;line-height:1.5}
+.status.ok{background:rgba(62,207,142,.07);border:1px solid rgba(62,207,142,.22);color:#a8e8c9}
+.status.bad{background:rgba(232,176,75,.07);border:1px solid rgba(232,176,75,.3);color:#f0c877}
+.status svg{flex:none;margin-top:1px}
+.est{margin-top:16px;padding:14px;border-radius:12px;background:var(--accbg);border:1px solid rgba(255,106,43,.22)}
+.est .t{display:flex;justify-content:space-between;align-items:center}
+.est .t span{font-size:12px;color:var(--acc2);font-weight:500}
+.est .p{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.est .p div span{display:block;font-size:11.5px;color:var(--mute)}.est .p div b{display:block;font-size:16px;font-weight:600;letter-spacing:-.02em;margin-top:2px}.est .p div small{font-size:11.5px;color:var(--dim)}
+.est p{margin:10px 0 0;font-size:11.5px;color:var(--mute);line-height:1.5}
+.forholders{margin-top:16px;font-size:12.5px;color:var(--mute);line-height:1.6}
+.forholders b{color:var(--ink);font-weight:600}
+
+.types{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.types button{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:6px;padding:16px;border-radius:14px;border:1px solid var(--line2);background:var(--s1)}
+.types button svg{color:var(--acc2);margin-bottom:6px}.types button b{font-size:15px;font-weight:600;letter-spacing:-.01em}.types button em{font-style:normal;font-size:12px;color:var(--acc2);font-weight:500}
+.types button span{font-size:12px;color:var(--mute);line-height:1.45}.types button.on{box-shadow:0 0 0 1px var(--acc) inset;background:var(--accbg);border-color:transparent}
+.types2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-top:10px}.types2>div>div{min-width:0;flex:1;display:block;padding:0;border:0}.types2>div>svg{flex:none}
+.types2>div{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:12px;border:1px dashed var(--line2);color:var(--dim)}
+.types2>div b{display:block;font-size:13.5px;color:var(--mute);font-weight:600}.types2>div span{font-size:12px;line-height:1.45}.types2 .chip{margin-left:auto;flex:none}
+.rfx{display:grid;grid-template-columns:1fr 1fr;gap:10px}.rfx .fact .ic{color:var(--acc2)}
+.both{margin-top:10px;padding:12px 14px;border-radius:12px;background:var(--s1);border:1px solid var(--line);font-size:12.5px;color:var(--mute);line-height:1.55}.both b{color:var(--ink);font-weight:600}
+.plainbox{padding:14px 16px;border-radius:12px;background:var(--s1);border:1px solid var(--line);font-size:13px;color:var(--mute);line-height:1.6;margin-bottom:18px}.plainbox b{color:var(--ink);font-weight:600}
+.cl h3{margin:0 0 10px;font-size:14px;font-weight:600;letter-spacing:-.015em}
+.tier{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:6px;font:500 11px/1 var(--sans);color:color-mix(in srgb,var(--t) 88%,#fff);background:color-mix(in srgb,var(--t) 13%,transparent);border:1px solid color-mix(in srgb,var(--t) 28%,transparent);white-space:nowrap}
+.tier i{width:5px;height:5px;border-radius:50%;background:var(--t);display:block}
+.tier.sm{height:18px;font-size:10.5px;padding:0 6px}
+.tdot{position:absolute;right:3px;bottom:3px;width:7px;height:7px;border-radius:50%;background:var(--t);box-shadow:0 0 0 2px rgba(8,9,10,.85);display:block}
+.trait{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:6px;font-size:11px;color:var(--mute);background:rgba(255,255,255,.04);border:1px solid var(--line);white-space:nowrap}
+.trait b{color:var(--ink);font-weight:500;margin-left:4px}
+
+/* Responsive: tokens.json breakpoints (sm 640, md 900, lg 1200, xl 1440). Desktop-first: max-width = next breakpoint - .02px. No motion. */
+.fgrid h2.fh,.cl h2.fh,.fh{margin:0 0 14px;font:500 12px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
+@media (max-width:1199.98px){
+ .layout{grid-template-columns:minmax(0,1fr) 330px}.lgrid{grid-template-columns:minmax(0,1fr) 340px}.rail{display:none}
+ .grid{grid-template-columns:repeat(2,1fr)}.hgrid{gap:40px}.hero h1{font-size:52px}.switch{left:-24px}
+ .doc{grid-template-columns:minmax(0,1fr)}.toc{display:none}.sumg{grid-template-columns:repeat(2,1fr)}.fgrid{grid-template-columns:repeat(3,1fr)}
+ .stats{grid-template-columns:repeat(3,1fr)}.fc{grid-template-columns:repeat(2,1fr)}.sw2{grid-template-columns:repeat(4,1fr)}
+}
+@media (max-width:899.98px){
+ .wrap{padding:0 20px}.nav .wrap{gap:12px}.links,.search,.navr .pill{display:none}.menub{display:grid}
+ .hgrid,.feat,.explain,.trust,.layout,.lgrid,.two,.psum,.cols2,.mkt,.pv,.soonrow,.sg,.cdemo,.tl3,.gwrap{grid-template-columns:minmax(0,1fr)}
+ .psum>div+div{border-left:0;border-top:1px solid var(--line)}.aside,.rail,.toc{position:static}
+ .mosaic{height:440px}.switch{left:12px;bottom:12px}
+ .steps{grid-template-columns:1fr 1fr}.step{border-bottom:1px solid var(--line)}
+ .cmp,.pt,.at,.card table{display:block;overflow-x:auto;max-width:100%}.cmp th,.cmp td{min-width:150px}
+ .lhead,.phd,.shead,.band,.sysh{flex-direction:column;align-items:flex-start}.band{gap:18px}
+ .trow{flex-wrap:wrap}.tpr{margin-left:0;text-align:left;width:100%}.kst{grid-template-columns:1fr 1fr}.fgrid{grid-template-columns:1fr 1fr}
+ .types{grid-template-columns:minmax(0,1fr)}.types2{grid-template-columns:minmax(0,1fr)}
+ .auth>div{grid-template-columns:1fr auto}.auth p{grid-column:1/-1}.mph.curve-m{display:none}.curve{grid-template-columns:auto minmax(0,1fr)}
+ .gsteps,.lst,.fnfts{grid-template-columns:1fr 1fr}.srch{min-width:0;width:100%}
+}
+@media (max-width:639.98px){
+ main{overflow-x:clip}.fa{overflow:hidden}.fctas{flex-wrap:wrap}.fctas .chip{white-space:normal}.shead>div{display:flex;flex-wrap:wrap;gap:10px}.tabs{max-width:100%;overflow-x:auto}.ch{flex-wrap:wrap;gap:10px}.mkb .btn{white-space:normal;height:auto;min-height:40px;padding-top:9px;padding-bottom:9px}.mkb .btn>*{min-width:0}
+ .wrap{padding:0 16px}.bbar .bx,.bbar .demo{display:none}.bbar .wrap{gap:8px;font-size:12px}
+ .nav .wrap{height:58px}.navr .btn.sm{padding:0 10px}
+ .hero{padding:40px 0 48px}.hero h1{font-size:40px}.mph.hero-m{width:96px;height:96px}.lead{font-size:16px}
+ .ctas{flex-wrap:wrap}.ctas .btn{flex:1}.hstats{gap:20px;flex-wrap:wrap;margin-top:32px}
+ .mosaic{display:block;height:auto}.mosaic .tile:not(.big){display:none}.tile.big{height:360px}.switch{position:relative;left:0;bottom:0;width:auto;margin-top:12px}
+ .feat .fa{min-height:300px}.feat .fb{padding:22px}.feat h2{font-size:32px}.fstats{grid-template-columns:1fr 1fr}.fnfts{grid-template-columns:repeat(3,1fr)}
+ .shead h2,.trust h2{font-size:28px}.phd h1,.lhead h1{font-size:34px}.explain{padding:22px}.dgm{grid-template-columns:1fr}.dgm .ar{flex-direction:row;justify-content:center}
+ .grid,.steps,.locks,.gsteps,.fc,.sumg,.row2,.sizew,.gradw,.rfx,.lgrid .facts,.review,.cgive,.rtiles,.rtiles.c3,.est .p,.stat3,.owned,.lst,.icx,.bpx,.fgrid,.explain{grid-template-columns:minmax(0,1fr)}
+ .stats{grid-template-columns:1fr 1fr}.stats div{border-bottom:1px solid var(--line)}.sw2{grid-template-columns:repeat(2,1fr)}
+ .step{border-right:0}.band{padding:26px}.dsec,.sec{padding:20px}.pad{padding:18px}.ti .v b{font-size:24px}.tname h1{font-size:30px}
+ .fbar{gap:8px}.fg{overflow-x:auto;max-width:100%}.drop{grid-template-columns:1fr}.tiers .th,.tiers .tr,.tiers .tf2{grid-template-columns:1fr 84px 70px}
+ .auth{margin:0 -18px}.auth>div{padding:12px 18px}.stats{margin:18px -18px -18px}.locks{margin:0 -18px -18px}.lk{padding:14px 18px}.locks:has(>.lk.card){margin:0}
+ .types2>div{flex-wrap:wrap}.lbtn{flex-wrap:wrap}.psum>div{padding:20px}.pv2{font-size:32px}
+}
+
+</style></head><body><a class="skip" href="#main">Skip to content</a><div class="bbar" role="note"><div class="wrap"><span class="chip ua" style="height:22px">Unaudited beta</span><span class="bx">Programs are <b>not audited</b> yet. Devnet only, demo data.</span><span class="sep bx">·</span><span>Deposit cap <b>not enforced yet</b></span><a href="trust.html"><span class="bx">How Armory is secured </span>→ Trust</a></div></div><header class="nav"><div class="wrap">
+<a class="brand" href="home.html">Armory<span class="tagwn beta">Beta</span></a>
+<nav class="links" aria-label="Main"><a href="explore.html" class="">Explore</a><a href="launch.html" class="on">Launch</a><a href="portfolio.html" class="">Portfolio</a><a href="trust.html" class="">Trust</a><a href="faq.html" class="">FAQ</a></nav>
+<div class="navr"><button type="button" class="search" aria-label="Search launches"><svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search launches<kbd>⌘K</kbd></button>
+<span class="pill"><i></i>Devnet preview</span><a class="btn p sm" href="#">Connect wallet</a><button type="button" class="menub" aria-label="Open menu" aria-expanded="false"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button></div></div></header><main id="main"><div class="wrap">
+<div class="lhead"><div><span class="pill"><i></i>Unaudited beta · Devnet · test tokens only</span><h1>Launch a token</h1>
+<p>Pick a launch type, then set it up. Plain is just the coin; Hybrid and Burn add an NFT collection. Every launch starts on a bonding curve (a formula that raises the price as people buy) and graduates to a DEX pool once it raises its SOL target. Take your time: the type and anything marked with a lock are permanent once you launch.</p></div>
+<div style="display:flex;gap:10px"><a class="btn g" href="#">Save draft</a><a class="btn g" href="#">Launch guide</a></div></div>
+
+<div class="lgrid">
+<nav class="rail"><a class="done" href="#type"><span class="n"><svg aria-hidden="true" focusable="false" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg></span>Launch type</a><a class="done" href="#basics"><span class="n"><svg aria-hidden="true" focusable="false" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg></span>Basics</a><a class="on" href="#supply"><span class="n">3</span><span data-t="hybrid burn">Supply &amp; conversion</span><span data-t="plain">Token &amp; curve</span></a>
+<a href="#traits" data-t="hybrid burn"><span class="n">4</span>Art commitment</a><a href="#review"><span class="n">5</span>Review &amp; launch</a>
+<div class="hint">Nothing is created until you press Launch and approve it in your wallet. Drafts are only stored on this device.</div></nav>
+
+<div class="form">
+<section class="card sec" id="type"><div class="sh"><div><div class="k">Step 1</div><h2>Launch type</h2><p>The type decides what holders can do with your token. It's fixed on-chain once you launch.</p></div><span class="chip acc">Permanent</span></div>
+<div class="types" id="types" role="group" aria-label="Launch type"><button type="button" data-type="plain" class=""><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/></svg><b>Plain</b><em>Just the coin</em><span>A classic Solana memecoin on a bonding curve. No NFT collection.</span><span class="chip pd" style="height:20px"><i></i>Pending deploy</span></button><button type="button" data-type="hybrid" class="on"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="7.5" r="4"/><rect x="13" y="12" width="7.5" height="9" rx="1.6"/><path d="M13.5 5.5h3.5a2 2 0 0 1 2 2V10"/><path d="m17 8.5 2 2 2-2"/><path d="M10.5 18.5H7a2 2 0 0 1-2-2V14"/><path d="m7 15.5-2-2-2 2"/></svg><b>Hybrid</b><em>Coin and NFT, both ways</em><span>Lock a fixed number of tokens to get a random NFT, and return the NFT for exactly those tokens, any time after graduation.</span><span class="chip ok2" style="height:20px"><i></i>Live on devnet</span></button><button type="button" data-type="burn" class=""><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21c-3.9 0-6.5-2.6-6.5-6.2 0-3.3 2.3-5.4 3.6-7.9.4 1.6 1.3 2.7 2.4 3.2.1-3.1 1.3-5.5 3.5-7.1-.3 2.9.7 4.9 2 6.6 1 1.4 1.5 2.8 1.5 4.7 0 3.9-2.6 6.7-6.5 6.7Z"/><path d="M12 21c-1.6 0-2.7-1.1-2.7-2.6 0-1.4.9-2.3 1.6-3.5.6.8 1.3 1 2 .6.4 1 1.8 1.7 1.8 3.1 0 1.4-1.1 2.4-2.7 2.4Z"/></svg><b>Burn</b><em>Burn coins to mint an NFT</em><span>Burn a fixed number of tokens to mint the next NFT in the collection. One-way: the tokens are gone and the NFT can't be turned back.</span><span class="chip pd" style="height:20px"><i></i>Pending deploy</span></button></div>
+<div class="types2"><div><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5V12l6 6"/><path d="M12 12l-6.4 5.6"/></svg><div><b>Tax split <span class="chip soon" style="height:20px;margin-left:6px;vertical-align:1px">Coming soon</span></b><span>A fee on every transfer, fixed at launch, buys back tokens that are shared equally across minted NFTs.</span></div></div><div><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 9V7a1 1 0 0 1 1-1h15a1 1 0 0 1 1 1v2a3 3 0 0 0 0 6v2a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-2a3 3 0 0 0 0-6Z"/><path d="M14.5 6.5v1.5M14.5 11.25v1.5M14.5 16v1.5"/></svg><div><b>Raffle <span class="chip soon" style="height:20px;margin-left:6px;vertical-align:1px">Coming soon</span></b><span>A fee on every transfer, fixed at launch, builds a pot. Each round, verifiable randomness picks one minted NFT to receive it.</span></div></div></div>
+<div class="help" style="margin-top:10px">Tax split and Raffle aren't available yet. They're listed so you know what's planned.</div></section>
+
+<section class="card sec" id="basics"><div class="sh"><div><div class="k">Step 2</div><h2><span data-t="hybrid burn">Collection basics</span><span data-t="plain">Token basics</span></h2><p>How your <span data-t="hybrid burn">collection</span><span data-t="plain">token</span> appears across Armory and in wallets.</p></div></div>
+<div class="row2"><div class="f"><label for="fld1">Name <span>9 / 32</span></label><input id="fld1" class="in" value="Low Orbit"></div>
+<div class="f"><label for="fld2">Ticker <span>3 to 6 letters</span></label><div class="pre"><b>$</b><input id="fld2" class="in" value="ORBIT"></div></div></div>
+<div class="f" style="margin-bottom:0"><label for="tokUri">Token metadata URI <span>Hosted off-chain</span></label><input class="in" id="tokUri" value="ipfs://bafy…orbit/token.json"><div class="help">The token's image and description live in a metadata file you host yourself (IPFS or Arweave). It's set when the curve pool is created and can't be edited afterwards. Armory has no upload step and doesn't host files. <span class="demo" style="margin-left:4px">Example</span></div></div></section>
+
+<section class="card sec" id="supply"><div class="sh"><div><div class="k">Step 3</div><h2><span data-t="hybrid">Supply and conversion</span><span data-t="burn">Supply and burn rate</span><span data-t="plain">Token and curve</span></h2><p><span data-t="hybrid">Choose how many tokens make one NFT, then how many NFTs the collection has.</span><span data-t="burn">Choose how many tokens are burned to mint one NFT, then how many NFTs the collection has.</span><span data-t="plain">A Plain launch only needs a graduation target. Everything else is fixed.</span></p></div><span class="chip acc">Permanent</span></div>
+<div class="facts"><div class="fact"><div class="ic"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div><b>Supply starts at 1,000,000,000</b><span>Mint authority revoked at launch, so nobody can mint more</span></div><div class="fact"><div class="ic"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div><b>Freeze authority revoked</b><span>Nobody can freeze holders' tokens</span></div><div class="fact" data-t="hybrid"><div class="ic"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div><b>Conversion rate set at launch</b><span>Stored once, with no instruction to change it</span></div><div class="fact" data-t="burn"><div class="ic"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div><b>Burn rate set at launch</b><span>Supply only goes down, one burn at a time</span></div><div class="fact" data-t="plain"><div class="ic"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div><b>Launch settings can't be edited</b><span>The program has no instruction to change a Plain launch</span></div><div class="fact"><div class="ic"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div><b>No transfer tax</b><span>A classic SPL token. No tax on any transfer</span></div></div>
+<div class="cos" data-t="hybrid" style="margin-top:0px"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="flex:none;margin-top:2px"><path d="M4 17 10 11l4 4 6-7"/><path d="M15 8h5v5"/></svg><span><b>Converting opens when your token graduates.</b> Until then, people trade the token and can preview your traits. NFTs are minted one at a time, the first time someone captures them. The collector's refundable deposit covers the small mint cost.<br><b>Captures and re-rolls carry a <span class="feeX">0.01 SOL</span> platform fee.</b> Converting back is free. Tokens are never taken.</span></div><div class="cos" data-t="burn" style="margin-top:0px"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="flex:none;margin-top:2px"><path d="M4 17 10 11l4 4 6-7"/><path d="M15 8h5v5"/></svg><span><b>Burning opens when your token graduates.</b> Each burn destroys exactly the ratio and mints the next NFT in collection order. The burner pays the mint cost.<br><b>Each burn carries a <span class="feeX">0.01 SOL</span> platform fee.</b> There's no converting back and no re-roll.</span></div><div class="cos" data-t="plain" style="margin-top:0px"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="flex:none;margin-top:2px"><path d="M4 17 10 11l4 4 6-7"/><path d="M15 8h5v5"/></svg><span><b>When the curve reaches your target, liquidity moves to a DEX.</b> Unsold curve tokens stay locked by the program. A Plain launch has no NFT side and no per-NFT fees.</span></div>
+<div style="height:22px"></div>
+<div class="plainbox" data-t="plain"><b>A Plain launch is just the token:</b> 1,000,000,000 SPL tokens on a bonding curve, mint and freeze authority revoked, no NFT collection, no conversion and no per-NFT fees. It can't add a collection later.</div>
+<div data-t="hybrid burn">
+<div class="f" style="margin-bottom:0"><label><span data-t="hybrid" style="color:var(--ink);font-weight:500">Tokens per NFT</span><span data-t="burn" style="color:var(--ink);font-weight:500">Tokens burned per NFT</span> <span>Each option shows its max collection size</span></label><div class="rgroups" id="ratios" role="group" aria-label="Tokens per NFT"><div class="rg"><div class="rgh"><b>Large collections</b><span>50K to 200K · more NFTs, each one cheaper</span></div><div class="rtiles c3"><button type="button" data-r="50000" class=""><b>50,000</b><span class="mx">max 10,000 NFTs</span><span class="es">≈ 0.0014 SOL per NFT (est.)</span><span class="es fe">Fee 0.002 SOL</span></button><button type="button" data-r="100000" class=""><b>100,000</b><span class="mx">max 10,000 NFTs</span><span class="es">≈ 0.0028 SOL per NFT (est.)</span><span class="es fe">Fee 0.005 SOL</span></button><button type="button" data-r="200000" class=""><b>200,000</b><span class="mx">max 5,000 NFTs</span><span class="es">≈ 0.0056 SOL per NFT (est.)</span><span class="es fe">Fee 0.005 SOL</span></button></div></div><div class="rg"><div class="rgh"><b>Small, scarce collections</b><span>500K to 5M · fewer NFTs, each one takes more tokens</span></div><div class="rtiles"><button type="button" data-r="500000" class=""><b>500,000</b><span class="mx">max 2,000 NFTs</span><span class="es">≈ 0.014 SOL per NFT (est.)</span><span class="es fe">Fee 0.01 SOL</span></button><button type="button" data-r="1000000" class="on"><b>1,000,000</b><span class="mx">max 1,000 NFTs</span><span class="es">≈ 0.028 SOL per NFT (est.)</span><span class="es fe">Fee 0.01 SOL</span></button><button type="button" data-r="2500000" class=""><b>2,500,000</b><span class="mx">max 400 NFTs</span><span class="es">≈ 0.07 SOL per NFT (est.)</span><span class="es fe">Fee 0.01 SOL</span></button><button type="button" data-r="5000000" class=""><b>5,000,000</b><span class="mx">max 200 NFTs</span><span class="es">≈ 0.14 SOL per NFT (est.)</span><span class="es fe">Fee 0.01 SOL</span></button></div></div></div>
+<div class="help">Platform fee per <span data-t="hybrid">capture or re-roll</span><span data-t="burn">burn</span> is set by ratio and fixed at launch: 0.002 SOL (50K), 0.005 SOL (100K, 200K), 0.01 SOL (500K and up). Per-NFT prices are estimates: tokens per NFT × the example launch price of 0.000000028 SOL per token. Real prices move with trading.</div></div>
+<div class="explain"><div><b>Smaller ratio</b>More, cheaper NFTs. Holders reach a whole NFT sooner.</div><div><b>Larger ratio</b>Fewer, scarcer NFTs. Each one takes more tokens.</div></div>
+<div class="sizew"><div class="f" style="margin:0"><label for="sizeIn">Collection size <span>Minimum 100 NFTs</span></label><div class="suffix"><input class="in" id="sizeIn" value="500" inputmode="numeric"><em>NFTs</em></div>
+<div class="help" id="sizeHelp">1,000 × 1,000,000 = 1,000,000,000 tokens, within the 1,000,000,000 supply.</div></div>
+<div class="f" style="margin:0"><label>Allowed size for this ratio</label><div class="maxline"><span>Any size from</span><b id="maxv">100 to 1,000 NFTs</b></div>
+<div class="help">At least 100 NFTs, at most 10,000, and size × tokens per NFT can't exceed the supply.</div></div></div>
+</div>
+<div class="gradw"><div class="f" style="margin:0"><label for="tgtIn">Graduation target <span>Default 85 SOL · minimum 10 SOL</span></label><div class="suffix"><input class="in" id="tgtIn" value="85" inputmode="decimal"><em>SOL</em></div>
+<div class="help" id="tgtHelp">SOL raised on the bonding curve before your token graduates. Default 85 SOL; the programs accept 10 SOL or more. It must match one of the platform's approved curve settings.</div></div>
+<div class="lazybox" data-t="hybrid"><div class="rl"><span>Mint deposit per capture</span><span class="mono dim">paid by the collector</span></div><b>0.0063 SOL, mostly refunded</b><p>Each capture or re-roll puts up a 0.0063 SOL deposit. About 0.003–0.004 SOL is kept only if the pick is minted for the first time (Solana rent + Metaplex fee); the rest is refunded. Nothing comes out of your graduation proceeds.</p></div>
+<div class="lazybox" data-t="burn"><div class="rl"><span>Mint cost per NFT</span><span class="mono dim">paid by the burner</span></div><b>About 0.003–0.004 SOL, every burn</b><p>Every burn mints a new NFT, so the burner pays Solana rent and the Metaplex Core fee directly. No deposit. Nothing comes out of your proceeds.</p></div>
+<div class="lazybox" data-t="plain"><div class="rl"><span>After graduation</span><span class="mono dim">automatic</span></div><b>Liquidity moves to a DEX</b><p>The SOL raised and the tokens set aside for the pool go into a public DEX pool. Unsold curve tokens stay locked.</p></div></div>
+<div class="stepnav"><span class="dim" style="font-size:12.5px"><span data-t="hybrid burn">Any size from 100 up to the maximum for your ratio works at any graduation target.</span><span data-t="plain">The graduation target is the only setting.</span></span><a class="btn a" id="nextBtn" href="#traits"><span data-t="hybrid burn">Next: art commitment</span><span data-t="plain">Next: review</span></a></div>
+</section>
+
+<section class="card sec" id="traits" data-t="hybrid burn"><div class="sh"><div><div class="k">Step 4</div><h2>Art commitment and randomness</h2><p>Your art is prepared off-chain. Here you enter its addresses and fingerprints, which are locked in for good. Rarity is cosmetic.</p></div><span class="chip acc">Permanent</span></div>
+<div class="cos"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="flex:none;margin-top:2px"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg><span><span data-t="hybrid">Every NFT in this collection converts back for exactly <b><span id="rrRatio">100,000</span> ORBIT</b>, whatever its traits.</span><span data-t="burn">Every NFT costs the same to mint, whatever its traits, and none converts back to tokens.</span> Any premium for rare traits is set by buyers and sellers, not guaranteed.</span></div>
+<div class="offc"><b>Prepare the art off-chain first. Armory has no upload step.</b><ol><li>Upload each NFT's image and metadata JSON to IPFS or Arweave.</li><li>Build a Merkle tree with one leaf per NFT: its 8 trait values, a salt, the SHA-256 of its image and JSON, and its metadata URI.</li><li>Enter the results below. Keep the full leaf list available: each capture is settled with that NFT's leaf and proof.</li></ol></div>
+<div class="row2" style="margin-top:16px"><div class="f"><label for="colName">Collection name <span>Up to 32 characters</span></label><input class="in" id="colName" value="Low Orbit"></div>
+<div class="f"><label for="colUri">Collection metadata URI <span>ipfs:// or ar:// only</span></label><input class="in" id="colUri" value="ar://Qm7x…orbit-collection"></div></div>
+<div class="row2"><div class="f"><label for="trRoot">Trait root <span>Merkle root, 32 bytes</span></label><input class="in mono" id="trRoot" value="0x7f3a…c91e"></div>
+<div class="f"><label for="trSchema">Trait schema hash <span>32 bytes</span></label><input class="in mono" id="trSchema" value="0x1b44…08d2"></div></div>
+<div class="help" style="margin:-4px 0 16px">These four values are committed when the collection vault is created, before converting opens. No instruction can change them afterwards. <span class="demo" style="margin-left:4px">Example values</span></div>
+<div class="f"><label>How NFTs are assigned <span>Fixed for this type, not a setting</span></label>
+<div class="rfx"><div class="fact"><div class="ic"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div><b>Art and traits committed before converting opens</b><span>A fingerprint (Merkle root) of every NFT's art and traits is published when the collection vault is created. Nobody can swap or edit a piece afterwards.</span></div>
+<div class="fact" data-t="hybrid"><div class="ic"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div><b>Switchboard VRF picks which NFT you get</b><span>VRF is a verifiable random function: a random number that comes with a proof anyone can check. Used at every capture and re-roll; nobody, including you, can choose a piece or see the next one.</span></div>
+<div class="fact" data-t="burn"><div class="ic"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div><b>NFTs go out in collection order</b><span>#0, #1, #2 and so on, one per burn. No randomness, so the next piece is always public.</span></div></div>
+<div class="both" data-t="hybrid"><b>Hybrid uses both, always.</b> The commitment fixes what's in the collection; VRF decides who gets which piece. There's nothing to choose here.</div>
+<div class="both" data-t="burn"><b>The order is public.</b> Anyone can see which NFT comes next, including rare ones, and time a burn for it. If that matters to you, spread rare pieces through your leaf order.</div></div>
+<div class="tiers" hidden><div class="th"><span>Tier</span><span>Share</span><span>NFTs</span></div>
+<div class="tr"><span><span class="tier" style="--t:#9aa3ae"><i></i>Common</span></span><span><input class="in sm2" value="60%" readonly aria-label="Common share"></span><b class="num" id="tc0">3,000</b></div><div class="tr"><span><span class="tier" style="--t:#86c5a6"><i></i>Uncommon</span></span><span><input class="in sm2" value="25%" readonly aria-label="Uncommon share"></span><b class="num" id="tc1">1,250</b></div><div class="tr"><span><span class="tier" style="--t:#a697ff"><i></i>Rare</span></span><span><input class="in sm2" value="12%" readonly aria-label="Rare share"></span><b class="num" id="tc2">600</b></div><div class="tr"><span><span class="tier" style="--t:#d6b67c"><i></i>Legendary</span></span><span><input class="in sm2" value="3%" readonly aria-label="Legendary share"></span><b class="num" id="tc3">150</b></div>
+<div class="tf2"><span class="help">Total</span><b>100%</b><b id="tTot">5,000</b></div></div>
+<div class="help" style="margin-top:8px">Rarity comes from the trait values in your leaves. Tiers are labels for how often traits appear; they don't change conversion or fees.</div>
+<div class="both" data-t="hybrid" style="margin-top:18px"><b>Re-rolls are built in. There's nothing to set.</b> Any holder can swap an NFT for a different random one. A re-roll costs this collection's platform fee (<span class="feeX">0.01 SOL</span>, the same as a capture) plus the refundable 0.0063 SOL mint deposit, and the result may be more common than the NFT given up.</div>
+<div class="both" data-t="burn" style="margin-top:18px"><b>No re-rolls, no converting back.</b> Burn NFTs are final once minted.</div></section>
+
+<section class="card sec" id="review"><div class="sh"><div><div class="k">Step 5</div><h2>Review and launch</h2><p>Check everything once more. Locked settings can't be changed after launch, by you or by us.</p></div><span class="demo">Devnet</span></div>
+<div class="review"><div><span>Launch type</span><b id="rType">Hybrid</b></div><div><span>Token</span><b>Low Orbit · $ORBIT</b></div>
+<div><span>Supply at launch</span><b>1,000,000,000</b></div><div><span>Graduation target</span><b id="rTgt">85 SOL raised</b></div>
+<div><span>Bonding curve</span><b>Platform-approved curve settings</b></div><div><span>Decimals</span><b>6</b></div><div><span>Unsold curve tokens</span><b>Locked by the program</b></div>
+<div><span>Mint authority</span><b style="color:var(--up)">Revoked at launch</b></div><div><span>Freeze authority</span><b style="color:var(--up)">Revoked at launch</b></div>
+<div><span>Tax</span><b>No transfer tax</b></div><div data-t="plain"><span>NFT collection</span><b>None</b></div>
+<div data-t="hybrid"><span>Conversion rate</span><b id="rRatio">1,000,000 tokens = 1 NFT</b></div><div data-t="burn"><span>Burn rate</span><b class="rRatioB">1,000,000 tokens = 1 NFT</b></div>
+<div data-t="hybrid burn"><span>Collection size</span><b id="rSize">1,000 NFTs (range 100 to 1,000)</b></div><div data-t="hybrid"><span>Max in NFT form</span><b id="rNft">1,000,000,000 (100%)</b></div>
+<div data-t="burn"><span>Most that can be burned</span><b id="rBurn">—</b></div><div data-t="hybrid burn"><span>NFT minting</span><b><span data-t="hybrid">On first capture</span><span data-t="burn">On each burn</span></b></div>
+<div data-t="hybrid burn"><span>Art commitment</span><b>Trait root 0x7f3a…c91e · ar://… (Example)</b></div><div data-t="hybrid"><span>Randomness</span><b>Committed art + Switchboard VRF</b></div><div data-t="burn"><span>NFT order</span><b>Collection order, public</b></div>
+<div data-t="hybrid burn"><span>Platform fee</span><b><span class="feeX">0.01 SOL</span> per <span data-t="hybrid">capture or re-roll</span><span data-t="burn">burn</span></b></div><div data-t="hybrid"><span>Converting back</span><b>No platform fee</b></div>
+<div data-t="burn"><span>Converting back</span><b>Not possible, one-way</b></div><div data-t="hybrid burn"><span><span data-t="hybrid">Converting</span><span data-t="burn">Burning</span> opens</span><b>At graduation</b></div>
+<div><span>Program upgrades</span><b>Dev key now · multisig planned</b></div><div><span>Audit</span><b style="color:#e8b04b">Not yet · unaudited beta</b></div></div>
+<div class="cos" data-t="hybrid" style="margin-top:18px"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="flex:none;margin-top:2px"><path d="M4 17 10 11l4 4 6-7"/><path d="M15 8h5v5"/></svg><span><b>Converting opens when your token graduates.</b> Until then, people trade the token and can preview your traits. NFTs are minted one at a time, the first time someone captures them. The collector's refundable deposit covers the small mint cost.<br><b>Captures and re-rolls carry a <span class="feeX">0.01 SOL</span> platform fee.</b> Converting back is free. Tokens are never taken.</span></div><div class="cos" data-t="burn" style="margin-top:18px"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="flex:none;margin-top:2px"><path d="M4 17 10 11l4 4 6-7"/><path d="M15 8h5v5"/></svg><span><b>Burning opens when your token graduates.</b> Each burn destroys exactly the ratio and mints the next NFT in collection order. The burner pays the mint cost.<br><b>Each burn carries a <span class="feeX">0.01 SOL</span> platform fee.</b> There's no converting back and no re-roll.</span></div><div class="cos" data-t="plain" style="margin-top:18px"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="flex:none;margin-top:2px"><path d="M4 17 10 11l4 4 6-7"/><path d="M15 8h5v5"/></svg><span><b>When the curve reaches your target, liquidity moves to a DEX.</b> Unsold curve tokens stay locked by the program. A Plain launch has no NFT side and no per-NFT fees.</span></div>
+<div class="fees"><div class="t"><b style="font-weight:600">Fees</b><span class="demo">Curve fee: devnet setting, final pending</span></div>
+<div class="r"><span>Launch fee</span><b>None on chain today</b></div><div class="r"><span>Trade fee on the bonding curve</span><b>1%</b></div><div class="r"><span>Tax</span><b>No transfer tax</b></div>
+<div class="r" data-t="plain"><span>Per-NFT fees</span><b>None, no NFTs</b></div>
+<div class="r" data-t="hybrid"><span>Platform fee, per capture or re-roll</span><b class="feeX">0.01 SOL</b></div><div class="r" data-t="hybrid"><span>Mint deposit, per capture or re-roll</span><b>0.0063 SOL, refunded except ≈ 0.003–0.004 SOL if the NFT is minted new</b></div><div class="r" data-t="hybrid"><span>Converting back (NFT to tokens)</span><b>No platform fee</b></div><div class="r" data-t="hybrid"><span>Tokens taken on any convert or re-roll</span><b>None</b></div>
+<div class="r" data-t="burn"><span>Platform fee, per burn</span><b class="feeX">0.01 SOL</b></div><div class="r" data-t="burn"><span>Mint cost, every burn</span><b>≈ 0.003–0.004 SOL, paid by the burner, no deposit</b></div><div class="r" data-t="burn"><span>Tokens per burn</span><b>The ratio, destroyed</b></div>
+<div data-t="hybrid burn"><p class="fn" style="margin:10px 0 0" id="feeCopy">Platform fee: 0.01 SOL per capture (tokens to NFT) or re-roll, set for this collection at launch based on its ratio. Converting back is free. No setting can raise it. The programs themselves can still be upgraded while in beta: today on devnet with one development key per program, and on mainnet only through a 3-of-5 multisig with a public 7-day delay, until they're frozen after the audit.</p><p class="fn" style="margin:6px 0 0">The kept part of the deposit is Solana rent plus the Metaplex Core fee, not a Armory fee.</p><p class="fn" style="margin:6px 0 0">Fee address: <span class="mono">7xKp…3fQa</span> <span class="dim">(example)</span></p></div></div>
+<div class="riskin"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8b04b" stroke-width="1.8" style="flex:none;margin-top:2px"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17.5v.01"/></svg><span><b>Risk disclosure.</b> Memecoins and NFTs are highly volatile. You can lose everything you put in. Nothing here is financial advice. The programs are unaudited devnet software. Availability may be restricted in your country.</span></div>
+<div style="margin-top:16px"><div class="capslot"><span class="chip ua" style="height:22px">Unaudited beta</span><span>Deposit cap <b>10 SOL per wallet</b></span><span class="demo" style="padding:3px 6px">Example · not enforced yet</span><span class="dim">Per-wallet limit while the programs are unaudited</span></div></div>
+<div class="ack"><i><svg aria-hidden="true" focusable="false" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="m5 12 4.5 4.5L19 7"/></svg></i><span>I understand that the launch type<span data-t="hybrid burn">, collection size and committed art</span> can't be changed after launch, that Armory is an unaudited beta, and that the programs can still be upgraded until they're frozen after the audit (see Trust &amp; security).</span></div>
+<div class="lbtn"><a class="btn a" id="launchBtn" href="#">Launch on devnet</a><a class="btn g" style="height:48px;border-radius:12px" href="#basics">Back to edit</a><span class="dim" style="font-size:12.5px">Test network only. No real funds.</span></div></section>
+</div>
+
+<aside class="aside"><div class="card math"><div style="display:flex;justify-content:space-between;align-items:center"><span class="k">Live math · <span id="mType">Hybrid</span></span><span class="chip">Updates as you edit</span></div>
+<div data-t="plain"><div class="eq">1,000,000,000 <span>tokens, fixed</span></div>
+<p class="lead2">No NFT side. Tokens trade on the curve until it reaches <b id="pTgt">85 SOL</b>, then move to a DEX pool.</p>
+<div class="alloc"><i style="width:55%"></i></div>
+<div class="lg"><div><span class="dot" style="background:var(--acc)"></span><span class="mute">Sold on the curve</span><b>550,000,000</b><small>55%</small></div>
+<div><span class="dot" style="background:rgba(255,255,255,.25)"></span><span class="mute">Set aside for the DEX pool</span><b>200,000,000</b><small>20%</small></div>
+<div><span class="dot" style="background:rgba(255,255,255,.1)"></span><span class="mute">Unsold buffer, locked</span><b>250,000,000</b><small>25%</small></div></div>
+<p class="help" style="margin-top:8px">Split from the platform's devnet curve settings; the approved curve settings at launch decide it.</p></div>
+<div data-t="hybrid burn"><div class="eq" id="mEq">1,000 NFTs <span>× 1,000,000 tokens each</span></div>
+<p class="lead2" id="mLead">Up to <b>500,000,000</b> tokens (<b>50%</b> of the fixed supply) can be in NFT form at once. At least <b>500,000,000</b> always stay as tokens.</p>
+<div class="alloc"><i id="aBar" style="width:50%"></i><s id="aRest"></s></div>
+<div class="lg"><div><span class="dot" style="background:var(--acc)"></span><span class="mute"><span data-t="hybrid">Can become NFTs</span><span data-t="burn">Can be burned</span></span><b id="lgN">500,000,000</b><small id="lgNp">50%</small></div>
+<div><span class="dot" style="background:rgba(255,255,255,.25)"></span><span class="mute"><span data-t="hybrid">Always tokens</span><span data-t="burn">Never burned</span></span><b id="lgT">500,000,000</b><small id="lgTp">50%</small></div></div></div>
+<div class="mrows"><div><span>Supply at launch</span><b>1,000,000,000</b></div><div data-t="hybrid burn"><span>Allowed size at this ratio</span><b id="mMax">100 to 1,000 NFTs</b></div><div data-t="hybrid burn"><span>Your collection size</span><b id="mSize">1,000 NFTs</b></div><div><span>Graduation target</span><b id="mTgt">85 SOL</b></div><div data-t="hybrid burn"><span>Holder pays per NFT</span><b id="mFee">0.01 SOL</b></div><div data-t="plain"><span>Per-NFT fees</span><b>None</b></div></div>
+<div class="status ok" id="mStatus"><svg aria-hidden="true" focusable="false" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg><span id="mStatusT">Valid: 1,000 NFTs at 1,000,000 tokens each.</span></div>
+<div class="est" data-t="hybrid burn"><div class="t"><span><span data-t="hybrid">Price of 1 NFT (estimate)</span><span data-t="burn">Tokens burned per NFT, worth (estimate)</span></span><span class="mono" id="eF" style="color:var(--mute);font-size:11.5px">1,000,000 × token price</span></div>
+<div class="p"><div><span>At launch price</span><b id="eL">0.0028 SOL</b><small id="eLu">≈ $0.42</small></div><div><span>At graduation price</span><b id="eG">0.057 SOL</b><small id="eGu">≈ $8.55</small></div></div>
+<p>Estimate only: tokens per NFT × current curve price, using example curve prices (0.000000028 and ≈0.00000057 SOL per token) at $150/SOL. Real prices move with trading.</p></div>
+<div class="forholders" data-t="hybrid burn"><b>What this means for holders:</b> with a smaller ratio, holders reach a whole NFT sooner and there are more NFTs to go around. With a larger ratio, each NFT needs more tokens, so NFTs are fewer and scarcer.</div>
+</div>
+<div class="card cl"><h3>Launch checklist</h3>
+<div><span class="c y"><svg aria-hidden="true" focusable="false" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg></span>Launch type<b style="color:var(--up)">Chosen</b></div><div><span class="c y"><svg aria-hidden="true" focusable="false" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg></span>Basics<b style="color:var(--up)">Done</b></div>
+<div><span class="c y"><svg aria-hidden="true" focusable="false" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg></span>Supply and settings<b style="color:var(--up)" id="ckSupply">Valid</b></div>
+<div data-t="hybrid burn"><span class="c y"><svg aria-hidden="true" focusable="false" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4.5 4.5L19 7"/></svg></span>Art commitment<b style="color:var(--up)">Set</b></div>
+<div><span class="c"></span>Review and launch<b class="dim">Not started</b></div></div>
+<div class="card cl eg2" data-t="plain"><h3>Is Plain right for you?</h3><div><b>Choose Plain</b><span>if you want a memecoin and nothing else. Simplest to explain, no NFT costs for holders.</span></div><div><b>Choose Hybrid</b><span>if holders should be able to collect art and change their mind later.</span></div><div><b>Choose Burn</b><span>if collecting should be permanent and shrink the supply.</span></div></div>
+<div class="card cl eg2" data-t="hybrid burn"><h3>Choosing a ratio</h3>
+<div><b>50,000 to 200,000 tokens</b><span>Large collections: up to 10,000 NFTs (5,000 at 200,000). More, cheaper NFTs.</span></div>
+<div><b>500,000 or 1,000,000 tokens</b><span>Smaller collections: up to 2,000 or 1,000 NFTs.</span></div>
+<div><b>2,500,000 or 5,000,000 tokens</b><span>Small, scarce collections: 100 to 400, or 100 to 200 NFTs. Each NFT takes more tokens.</span></div>
+<div><b>Any ratio</b><span>100 to 10,000 NFTs, and never more than the supply allows. NFTs are minted as they're captured, so size doesn't depend on the graduation target.</span></div></div>
+</aside>
+</div></div>
+<script>
+const SUPPLY=1e9, LP=2.8e-08, GP=5.7e-07, SOLUSD=150, MIN=100, CAP=10000, TMIN=10, TDEF=85;
+const S={type:'hybrid',ratio:1000000,size:500,target:85};
+const TN={plain:'Plain',hybrid:'Hybrid',burn:'Burn'};
+function vis(){document.querySelectorAll('[data-t]').forEach(e=>{e.style.display=e.dataset.t.split(' ').includes(S.type)?'':'none'});
+  document.querySelectorAll('#types button').forEach(b=>b.classList.toggle('on',b.dataset.type===S.type));
+  let i=0;document.querySelectorAll('section.sec').forEach(x=>{if(x.style.display!=='none'){i++;x.querySelector('.k').textContent='Step '+i}});
+  i=0;document.querySelectorAll('.rail a').forEach(x=>{if(x.style.display!=='none'){i++;const n=x.querySelector('.n');if(!n.querySelector('svg'))n.textContent=i}});}const TP=[60,25,12,3];
+const f=n=>Math.round(n).toLocaleString('en-US');
+const s1=n=>(+n.toFixed(2)).toLocaleString('en-US',{maximumFractionDigits:2});
+const sol=n=>n>=1?n.toFixed(2):n>=0.01?n.toFixed(3):n.toPrecision(2);
+const $=id=>document.getElementById(id);
+function render(){
+  vis(); const P=S.type==='plain', B=S.type==='burn';
+  const max=Math.min(CAP,SUPPLY/S.ratio), size=S.size, low=!(size>=MIN), high=size>max, sizeOk=Number.isInteger(size)&&!low&&!high;
+  const T=S.target, tLow=!(T>=TMIN), ok=(P||sizeOk)&&!tLow;
+  document.querySelectorAll('#ratios button').forEach(b=>b.classList.toggle('on',+b.dataset.r===S.ratio));
+  $('maxv').textContent=`${f(MIN)} to ${f(max)} NFTs`;
+  const nftTok=Math.min(size*S.ratio,SUPPLY), pct=nftTok/SUPPLY*100;
+  $('sizeIn').value=size?f(size):''; $('tgtIn').value=T||'';
+  $('sizeIn').classList.toggle('warn',!sizeOk);
+  $('sizeHelp').className='help'+(sizeOk?'':' warn');
+  $('sizeHelp').textContent= sizeOk ? `${f(size)} × ${f(S.ratio)} = ${f(size*S.ratio)} tokens, within the 1,000,000,000 supply.`
+    : high ? `The maximum for this ratio is ${f(max)} NFTs${max===CAP?' (collections are capped at 10,000)':''}.`
+    : `Collections need at least ${f(MIN)} NFTs. Choose any size from ${f(MIN)} to ${f(max)}.`;
+  // graduation target (NFTs are minted on first capture, so size does not depend on it)
+  $('tgtIn').classList.toggle('warn',tLow);
+  $('tgtHelp').className='help'+(tLow?' warn':'');
+  $('tgtHelp').textContent=tLow?`The graduation target must be at least ${TMIN} SOL (the programs' minimum).`:`SOL raised on the bonding curve before your token graduates. Default ${TDEF} SOL; the programs accept ${TMIN} SOL or more. It must match one of the platform's approved curve settings.`;
+  $('nextBtn').setAttribute('aria-disabled',ok?'false':'true');
+  $('mEq').innerHTML=`${f(size)} NFTs <span>× ${f(S.ratio)} tokens each</span>`;
+  $('mLead').innerHTML= sizeOk ? (B ? `If every NFT is minted, <b>${f(nftTok)}</b> tokens (<b>${+pct.toFixed(2)}%</b>) are burned for good and supply ends at <b>${f(SUPPLY-nftTok)}</b>. Each burn is one-way.`
+    : `Up to <b>${f(nftTok)}</b> tokens (<b>${+pct.toFixed(2)}%</b> of the fixed supply) can be in NFT form at once. ${nftTok<SUPPLY?`At least <b>${f(SUPPLY-nftTok)}</b> always stay as tokens.`:'The whole supply could be in NFT form at once.'}`)
+    : high ? `This size is above the maximum of <b>${f(max)}</b> NFTs for this ratio. Lower the size or pick a smaller ratio.`
+    : `A collection needs at least <b>${f(MIN)}</b> NFTs. Raise the size to ${f(MIN)} or more.`;
+  $('aBar').style.width=(sizeOk?pct:100)+'%'; $('aBar').style.background=sizeOk?'':'#e8b04b';
+  $('aRest').style.display=(sizeOk&&pct<100)?'block':'none';
+  $('lgN').textContent=sizeOk?f(nftTok):'—'; $('lgNp').textContent=sizeOk?(+pct.toFixed(1))+'%':'';
+  $('lgT').textContent=sizeOk?f(SUPPLY-nftTok):'—'; $('lgTp').textContent=sizeOk?(+(100-pct).toFixed(1))+'%':'';
+  $('mMax').textContent=`${f(MIN)} to ${f(max)} NFTs`; $('mSize').textContent=f(size||0)+' NFTs';
+  $('mTgt').textContent=T>0?`${s1(T)} SOL`:'—'; $('mTgt').style.color=tLow?'#e8b04b':'';
+  $('mStatus').className='status '+(ok?'ok':'bad');
+  $('mStatusT').textContent= ok ? (P ? `Valid: Plain token, graduates at ${s1(T)} SOL.` : `Valid: ${f(size)} NFTs at ${f(S.ratio)} tokens each.`) : P ? `The graduation target must be at least ${TMIN} SOL.` : !sizeOk ? (high ? `Collection size is above the maximum of ${f(max)} NFTs for this ratio.` : `Collection size is below the minimum of ${f(MIN)} NFTs.`)
+    : `The graduation target must be at least ${TMIN} SOL.`;
+  $('ckSupply').textContent=ok?'Valid':'Fix'; $('ckSupply').style.color=ok?'var(--up)':'#e8b04b';
+  $('eL').textContent=sol(S.ratio*LP)+' SOL'; $('eLu').textContent='≈ $'+(S.ratio*LP*SOLUSD).toFixed(2);
+  $('eG').textContent=sol(S.ratio*GP)+' SOL'; $('eGu').textContent='≈ $'+(S.ratio*GP*SOLUSD).toFixed(2);
+  $('eF').textContent=`${f(S.ratio)} × token price`;
+  // review
+  $('rRatio').textContent=`${f(S.ratio)} tokens = 1 NFT`; document.querySelectorAll('.rRatioB').forEach(e=>e.textContent=`${f(S.ratio)} tokens burned = 1 NFT`); $('rSize').textContent=sizeOk?`${f(size)} NFTs (range ${f(MIN)} to ${f(max)})`:'Fix collection size';
+  $('rSize').style.color=sizeOk?'':'#e8b04b';
+  $('rNft').textContent=sizeOk?`${f(nftTok)} (${+pct.toFixed(2)}%)`:'—'; $('rBurn').textContent=sizeOk?`${f(nftTok)} (${+pct.toFixed(2)}%), supply ≥ ${f(SUPPLY-nftTok)}`:'—';
+  $('pTgt').textContent=T>0?`${s1(T)} SOL`:'—'; $('rType').textContent=TN[S.type]; $('mType').textContent=TN[S.type];
+  $('rTgt').textContent=`${s1(T)} SOL raised`; $('rTgt').style.color=tLow?'#e8b04b':'';
+  $('rrRatio').textContent=f(S.ratio);
+  const n=size>=1?size:0; let acc=0; TP.forEach((p,i)=>{const c=i<TP.length-1?Math.floor(n*p/100):n-acc; acc+=c; $('tc'+i).textContent=f(c)}); $('tTot').textContent=f(n);
+  const fee=S.ratio<=50000?0.002:S.ratio<=200000?0.005:0.01;
+  document.querySelectorAll('.feeX').forEach(e=>e.textContent=fee+' SOL');
+  $('mFee').textContent=B?`${fee} SOL + ≈ 0.003–0.004 SOL mint`:`${fee} SOL + 0.0063 SOL deposit (mostly refunded)`;
+  $('feeCopy').textContent=B?`Platform fee: ${fee} SOL per burn, set for this collection at launch based on its ratio. No setting can raise it. The programs themselves can still be upgraded while in beta: today on devnet with one development key per program, and on mainnet only through a 3-of-5 multisig with a public 7-day delay, until they're frozen after the audit.`:`Platform fee: ${fee} SOL per capture (tokens to NFT) or re-roll, set for this collection at launch based on its ratio. Converting back is free. No setting can raise it. The programs themselves can still be upgraded while in beta: today on devnet with one development key per program, and on mainnet only through a 3-of-5 multisig with a public 7-day delay, until they're frozen after the audit.`;
+  const dep=S.type==='hybrid'; $('launchBtn').setAttribute('aria-disabled',ok&&dep?'false':'true'); $('launchBtn').classList.toggle('off',!dep); $('launchBtn').textContent=dep?'Launch on devnet':'Pending deploy: can’t launch yet';
+}
+document.querySelectorAll('#ratios button').forEach(b=>b.onclick=()=>{S.ratio=+b.dataset.r;render()});
+document.querySelectorAll('#types button').forEach(b=>b.onclick=()=>{S.type=b.dataset.type;render()});
+$('sizeIn').onchange=e=>{S.size=+e.target.value.replace(/[^0-9]/g,'');render()};
+$('tgtIn').onchange=e=>{S.target=+e.target.value.replace(/[^0-9.]/g,'');render()};
+render();
+</script></main><footer class="footer"><div class="wrap">
+<div class="fgrid"><div><a class="brand" href="home.html" style="color:var(--ink)">Armory</a><p style="max-width:300px;margin:14px 0 0;line-height:1.6">Launch a Solana memecoin on its own, or with an NFT collection that converts both ways or burns in one way. Unaudited beta on devnet.</p></div>
+<div><h2 class="fh">Product</h2><a href="explore.html">Explore launches</a><a href="launch.html">Launch a token</a><a href="portfolio.html">Portfolio</a></div>
+<div><h2 class="fh">Learn</h2><a href="home.html#types">Launch types</a><a href="faq.html">FAQ</a><a href="faq.html#curve">Bonding curves</a><a href="trust.html#randomness">Verifying randomness</a></div>
+<div><h2 class="fh">Trust</h2><a href="trust.html">Trust &amp; security</a><a href="trust.html#audit">Audit status</a><a href="trust.html#keys">Key policy</a><a href="bug-bounty.html">Bug bounty</a></div>
+<div><h2 class="fh">Company</h2><a href="#">About</a><a href="#">Terms</a><a href="#">Privacy</a><a href="#">Contact</a></div></div>
+<div class="risk"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e8b04b" stroke-width="1.8" style="flex:none;margin-top:1px"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17.5v.01"/></svg>
+<div><b>Risk disclosure.</b> Memecoins and NFTs are highly volatile. You can lose everything you put in. Nothing here is financial advice. The programs are unaudited devnet software. Availability may be restricted in your country.</div></div>
+<div class="legal"><span>© 2026 Armory. Devnet preview with demo data. No real funds.</span><span class="mono">SOL/USD assumed at $150 for display</span></div>
+</div></footer></body></html>

@@ -1,0 +1,9 @@
+escrow backing before: 3000000 (=3R)
+update_recipe_v1(amount=0) succeeded instantly (no timelock)
+NFTs captured out at amount=0; escrow backing unchanged: 3000000
+update_recipe_v1(amount=3R) succeeded instantly (raise before release)
+escrow backing after malicious release: 0
+attacker token balance: 3000000
+
+RESULT: authority pulled 2 NFTs for 0 backing, then drained 3000000 backing tokens (of 3000000). No timelock, single signer.
+POC 10 EXECUTED: PASS (escrow drained via untimelocked update_recipe_v1)

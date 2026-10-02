@@ -137,3 +137,13 @@ cargo test --workspace --locked --no-fail-fast
 - Expected at HEAD (`fix/modes-1-5`): engineer suites green; QA suites red only on the Modes 1–5 review
   tripwires listed under "QA suites".
 - Fixtures: `tests/track-a-hybrid/fixtures/{switchboard-devnet,dbc}`, read-only public dumps; see their READMEs.
+
+## Status 2026-10-01
+- The project is renamed **Armory**, ticker **ARMS**.
+- Switchboard is approved publicly as the randomness provider.
+- `fix/modes-1-5` at `c43be58` passed QA green with no real bugs, and QA confirmed that nobody can drain
+  program-held funds (`qa/reports/2026-10-01-modes-1-5.md`).
+- The default branch `onchain/hybrid-launch` is untouched (still `df0d1d9`). No keys are committed.
+- Designs are done (`design/`).
+- The site runs locally on devnet, with all tests passing.
+- Nothing goes live without Barton's OK.

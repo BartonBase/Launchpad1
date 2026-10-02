@@ -1,0 +1,7 @@
+PASS A_cross_collection_release_drains_shared_pool :: B-release removed 1000000 from a pool funded entirely by A (shared escrow ['escrow',authority])
+PASS A_pool_fully_drained_by_other_collection :: 3xR_A backing removed by 3 collection-B releases; collection-A NFTs are now unbacked
+PASS B_burn_on_capture_makes_release_insolvent :: escrow=0 < R x outside=2000000; first release fails
+PASS B_burn_paths_violate_fixed_supply :: supply 1000000000 -> 998000000 after 2 BurnOnCapture captures (fixed-1B / exact-unwrap invariant broken)
+PASS C_classic_spl_no_burn_keeps_backing_invariant :: escrow_balance == R x nfts_outside holds across 10k random honest capture/release ops
+
+SUMMARY: 5 / 5 checks passed

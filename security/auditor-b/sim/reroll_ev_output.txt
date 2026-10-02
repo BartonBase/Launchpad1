@@ -1,0 +1,31 @@
+=== Part A: reroll-until-rare EV with HONEST randomness ===
+protocol fee per leg = 0.005000 SOL (computed from mpl-hybrid constants.rs)
+
+-- classic SPL token (MPL-Hybrid as shipped): cost per reroll cycle = 0.0501 SOL
+target           p  E[attempts]  E[cost] SOL  value SOL    EV SOL  verdict
+legendary   0.100%         1000        50.10       60.0      8.90  PROFITABLE to grind
+epic        1.000%          100         5.01        6.0     -0.01  not profitable
+rare        5.000%           20         1.00        2.0     -0.00  not profitable
+   breakeven: grinding legendary is profitable iff premium over floor > 50.10 SOL
+
+-- hypothetical Token-2022 fork, 100 bps fee: cost per reroll cycle = 0.0701 SOL
+target           p  E[attempts]  E[cost] SOL  value SOL    EV SOL  verdict
+legendary   0.100%         1000        70.10       60.0    -11.10  not profitable
+epic        1.000%          100         7.01        6.0     -2.01  not profitable
+rare        5.000%           20         1.40        2.0     -0.40  not profitable
+   breakeven: grinding legendary is profitable iff premium over floor > 70.10 SOL
+
+P(at least one legendary within n honest rerolls), p=0.1%:
+   n=  100: 9.52%
+   n=  693: 50.01%
+   n= 1000: 63.23%
+   n= 3000: 95.03%
+
+=== Part B: predictability of the MPL-Hybrid capture-time pick (model of our reading) ===
+collection range  10000: distinct picks over 5,000 random slot hashes =   625  
+collection range   1024: distinct picks over 5,000 random slot hashes =     1  (max-min) divides 2^32 -> hash term vanishes
+collection range   4096: distinct picks over 5,000 random slot hashes =     1  (max-min) divides 2^32 -> hash term vanishes
+same public inputs -> same pick: 6336 == 6336: True
+conditional bot: mean slots waited for a legendary pick = 994 (~6.6 min at 400 ms/slot)
+   landed swap cycles needed = 1 -> cost ~= 0.0501 SOL (+ wrapper CU / Jito tip), vs honest grinding E[cost] = 50.10 SOL
+   cost reduction factor ~= 1000x; legendary EV at value 60 SOL = 58.95 SOL per grab

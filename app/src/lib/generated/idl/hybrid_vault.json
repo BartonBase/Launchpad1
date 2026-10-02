@@ -1,0 +1,3406 @@
+{
+  "address": "BEfL9dccCUtgBVfLmJieeSr3ju29fpVqLM3NgttxqXqG",
+  "metadata": {
+    "name": "hybrid_vault",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Track A (SPL-404) token<->NFT vault: VRF-selected blind capture/re-roll, exact unwrap, fixed 2% fee to an immutable fee account. Bound 1:1 to a hybrid_launch LaunchConfig. Devnet/localnet only. NOT AUDITED."
+  },
+  "instructions": [
+    {
+      "name": "expire_request",
+      "discriminator": [
+        219,
+        189,
+        105,
+        97,
+        227,
+        47,
+        124,
+        23
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.launch_config",
+                "account": "Vault"
+              }
+            ]
+          },
+          "relations": [
+            "request"
+          ]
+        },
+        {
+          "name": "launch_config"
+        },
+        {
+          "name": "pool"
+        },
+        {
+          "name": "request",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  113,
+                  117,
+                  101,
+                  115,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "request.seq",
+                "account": "Request"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rand_lock",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  110,
+                  100,
+                  95,
+                  108,
+                  111,
+                  99,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "randomness"
+              }
+            ]
+          }
+        },
+        {
+          "name": "randomness",
+          "relations": [
+            "request"
+          ]
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "relations": [
+            "request"
+          ]
+        },
+        {
+          "name": "user_token",
+          "docs": [
+            "The user's token account for the capture refund of N (principal only)."
+          ],
+          "writable": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "vault_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_tokens",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint_escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "request.seq",
+                "account": "Request"
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset",
+          "writable": true
+        },
+        {
+          "name": "collection",
+          "writable": true
+        },
+        {
+          "name": "mpl_core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "expire_requests",
+      "docs": [
+        "M-04 batch expire: up to MAX_EXPIRE_PER_CALL consecutive queue heads in one instruction",
+        "(7 remaining accounts per request; see instructions/expire.rs)."
+      ],
+      "discriminator": [
+        15,
+        183,
+        50,
+        88,
+        169,
+        181,
+        40,
+        159
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.launch_config",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "launch_config"
+        },
+        {
+          "name": "pool"
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "vault_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_tokens",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "collection",
+          "writable": true
+        },
+        {
+          "name": "mpl_core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "count",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "init_randomness",
+      "discriminator": [
+        6,
+        119,
+        145,
+        184,
+        188,
+        111,
+        176,
+        32
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.launch_config",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "randomness",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "randomness_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  110,
+                  100,
+                  111,
+                  109,
+                  110,
+                  101,
+                  115,
+                  115,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "sb_reward_escrow",
+          "writable": true
+        },
+        {
+          "name": "sb_queue",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "wrapped_sol_mint",
+          "address": "So11111111111111111111111111111111111111112"
+        },
+        {
+          "name": "sb_program_state"
+        },
+        {
+          "name": "sb_lut_signer"
+        },
+        {
+          "name": "sb_lut",
+          "writable": true
+        },
+        {
+          "name": "address_lookup_table_program",
+          "address": "AddressLookupTab1e1111111111111111111111111"
+        },
+        {
+          "name": "switchboard_program",
+          "address": "Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2"
+        }
+      ],
+      "args": [
+        {
+          "name": "recent_slot",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "init_vault",
+      "discriminator": [
+        77,
+        79,
+        85,
+        150,
+        33,
+        217,
+        52,
+        106
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "launch_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  97,
+                  117,
+                  110,
+                  99,
+                  104,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                123,
+                240,
+                58,
+                9,
+                216,
+                69,
+                110,
+                13,
+                28,
+                63,
+                39,
+                122,
+                24,
+                208,
+                150,
+                231,
+                122,
+                77,
+                68,
+                252,
+                235,
+                68,
+                236,
+                55,
+                171,
+                43,
+                14,
+                130,
+                180,
+                134,
+                141,
+                137
+              ]
+            }
+          }
+        },
+        {
+          "name": "mint",
+          "relations": [
+            "launch_config"
+          ]
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "launch_config"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_authority",
+          "docs": [
+            "graduation fund (drained pre-fund lamports land here). `mut` only for that drain."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "randomness_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  110,
+                  100,
+                  111,
+                  109,
+                  110,
+                  101,
+                  115,
+                  115,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_tokens",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool",
+          "docs": [
+            "(which also refuses an already-initialised pool)."
+          ],
+          "writable": true
+        },
+        {
+          "name": "collection",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  108,
+                  108,
+                  101,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mpl_core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "InitVaultParams"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "merge_incoming",
+      "discriminator": [
+        241,
+        131,
+        184,
+        219,
+        171,
+        160,
+        247,
+        251
+      ],
+      "accounts": [
+        {
+          "name": "vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.launch_config",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "max",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "open_vault",
+      "discriminator": [
+        181,
+        248,
+        228,
+        67,
+        6,
+        175,
+        37,
+        167
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.launch_config",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "launch_config"
+        },
+        {
+          "name": "pool"
+        },
+        {
+          "name": "vault_tokens",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "collection"
+        },
+        {
+          "name": "graduation_proof"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "recommit_randomness",
+      "discriminator": [
+        138,
+        35,
+        192,
+        32,
+        162,
+        244,
+        231,
+        28
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "signer": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.launch_config",
+                "account": "Vault"
+              }
+            ]
+          },
+          "relations": [
+            "request"
+          ]
+        },
+        {
+          "name": "request",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  113,
+                  117,
+                  101,
+                  115,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "request.seq",
+                "account": "Request"
+              }
+            ]
+          }
+        },
+        {
+          "name": "randomness",
+          "writable": true,
+          "relations": [
+            "request"
+          ]
+        },
+        {
+          "name": "randomness_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  110,
+                  100,
+                  111,
+                  109,
+                  110,
+                  101,
+                  115,
+                  115,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "sb_queue"
+        },
+        {
+          "name": "sb_oracle",
+          "writable": true
+        },
+        {
+          "name": "slot_hashes",
+          "address": "SysvarS1otHashes111111111111111111111111111"
+        },
+        {
+          "name": "switchboard_program",
+          "address": "Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "request_capture",
+      "discriminator": [
+        213,
+        177,
+        155,
+        58,
+        230,
+        193,
+        184,
+        188
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.launch_config",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "launch_config",
+          "docs": [
+            "Immutable economics (M-01); re-validated in config::econ."
+          ]
+        },
+        {
+          "name": "pool"
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "user_token",
+          "writable": true
+        },
+        {
+          "name": "vault_tokens",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "fee_recipient",
+          "docs": [
+            "transfer (F-06 / M-05). Not the LaunchConfig copy, so a wallet rotation never strands old launches."
+          ],
+          "writable": true,
+          "address": "7J3AajxfajAMgGmmwzfZeYGNieRtHRCuEgNTfd4gTjDN"
+        },
+        {
+          "name": "request",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  113,
+                  117,
+                  101,
+                  115,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "vault.next_seq",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint_escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "vault.next_seq",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rand_lock",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  110,
+                  100,
+                  95,
+                  108,
+                  111,
+                  99,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "randomness"
+              }
+            ]
+          }
+        },
+        {
+          "name": "randomness",
+          "writable": true
+        },
+        {
+          "name": "randomness_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  110,
+                  100,
+                  111,
+                  109,
+                  110,
+                  101,
+                  115,
+                  115,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "sb_queue"
+        },
+        {
+          "name": "sb_oracle",
+          "writable": true
+        },
+        {
+          "name": "slot_hashes",
+          "address": "SysvarS1otHashes111111111111111111111111111"
+        },
+        {
+          "name": "switchboard_program",
+          "address": "Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "request_reroll",
+      "discriminator": [
+        143,
+        43,
+        219,
+        79,
+        85,
+        112,
+        137,
+        252
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.launch_config",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "launch_config",
+          "docs": [
+            "Immutable economics (M-01); re-validated in config::econ."
+          ]
+        },
+        {
+          "name": "pool"
+        },
+        {
+          "name": "vault_tokens",
+          "docs": [
+            "Read-only: solvency is asserted after the hand-in (no tokens move on a re-roll)."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "fee_recipient",
+          "writable": true,
+          "address": "7J3AajxfajAMgGmmwzfZeYGNieRtHRCuEgNTfd4gTjDN"
+        },
+        {
+          "name": "vault_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "arg",
+                "path": "index"
+              }
+            ]
+          }
+        },
+        {
+          "name": "collection",
+          "writable": true
+        },
+        {
+          "name": "mpl_core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "request",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  113,
+                  117,
+                  101,
+                  115,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "vault.next_seq",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint_escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "vault.next_seq",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rand_lock",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  110,
+                  100,
+                  95,
+                  108,
+                  111,
+                  99,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "randomness"
+              }
+            ]
+          }
+        },
+        {
+          "name": "randomness",
+          "writable": true
+        },
+        {
+          "name": "randomness_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  110,
+                  100,
+                  111,
+                  109,
+                  110,
+                  101,
+                  115,
+                  115,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "sb_queue"
+        },
+        {
+          "name": "sb_oracle",
+          "writable": true
+        },
+        {
+          "name": "slot_hashes",
+          "address": "SysvarS1otHashes111111111111111111111111111"
+        },
+        {
+          "name": "switchboard_program",
+          "address": "Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "index",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "reveal_randomness",
+      "discriminator": [
+        30,
+        130,
+        85,
+        220,
+        208,
+        80,
+        28,
+        169
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.launch_config",
+                "account": "Vault"
+              }
+            ]
+          },
+          "relations": [
+            "request"
+          ]
+        },
+        {
+          "name": "request",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  113,
+                  117,
+                  101,
+                  115,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "request.seq",
+                "account": "Request"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rand_lock",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  110,
+                  100,
+                  95,
+                  108,
+                  111,
+                  99,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "randomness"
+              }
+            ]
+          }
+        },
+        {
+          "name": "randomness",
+          "writable": true,
+          "relations": [
+            "request"
+          ]
+        },
+        {
+          "name": "randomness_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  110,
+                  100,
+                  111,
+                  109,
+                  110,
+                  101,
+                  115,
+                  115,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "sb_oracle"
+        },
+        {
+          "name": "sb_queue"
+        },
+        {
+          "name": "sb_stats",
+          "writable": true
+        },
+        {
+          "name": "slot_hashes",
+          "address": "SysvarS1otHashes111111111111111111111111111"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "sb_reward_escrow",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "wrapped_sol_mint",
+          "address": "So11111111111111111111111111111111111111112"
+        },
+        {
+          "name": "sb_program_state"
+        },
+        {
+          "name": "switchboard_program",
+          "address": "Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2"
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "RevealArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "settle_capture",
+      "discriminator": [
+        208,
+        5,
+        51,
+        139,
+        203,
+        123,
+        239,
+        48
+      ],
+      "accounts": [
+        {
+          "name": "settler",
+          "docs": [
+            "Anyone (crank). Pays nothing but the tx fee."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.launch_config",
+                "account": "Vault"
+              }
+            ]
+          },
+          "relations": [
+            "request"
+          ]
+        },
+        {
+          "name": "launch_config"
+        },
+        {
+          "name": "pool",
+          "writable": true
+        },
+        {
+          "name": "request",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  113,
+                  117,
+                  101,
+                  115,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "request.seq",
+                "account": "Request"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rand_lock",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  110,
+                  100,
+                  95,
+                  108,
+                  111,
+                  99,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "randomness"
+              }
+            ]
+          }
+        },
+        {
+          "name": "randomness",
+          "docs": [
+            "is read from the request, where `reveal_randomness` recorded it (M-04 H1 / M-35)."
+          ],
+          "relations": [
+            "request"
+          ]
+        },
+        {
+          "name": "vault_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint_escrow",
+          "docs": [
+            "mint); drained to the user at the end of settle."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "request.seq",
+                "account": "Request"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_tokens",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset",
+          "writable": true
+        },
+        {
+          "name": "collection",
+          "writable": true
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "relations": [
+            "request"
+          ]
+        },
+        {
+          "name": "mpl_core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "mint",
+          "type": {
+            "option": {
+              "defined": {
+                "name": "MintArgs"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "settle_reroll",
+      "discriminator": [
+        32,
+        12,
+        166,
+        187,
+        34,
+        90,
+        79,
+        129
+      ],
+      "accounts": [
+        {
+          "name": "settler",
+          "docs": [
+            "Anyone (crank). Pays nothing but the tx fee."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.launch_config",
+                "account": "Vault"
+              }
+            ]
+          },
+          "relations": [
+            "request"
+          ]
+        },
+        {
+          "name": "launch_config"
+        },
+        {
+          "name": "pool",
+          "writable": true
+        },
+        {
+          "name": "request",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  113,
+                  117,
+                  101,
+                  115,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "request.seq",
+                "account": "Request"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rand_lock",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  110,
+                  100,
+                  95,
+                  108,
+                  111,
+                  99,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "randomness"
+              }
+            ]
+          }
+        },
+        {
+          "name": "randomness",
+          "docs": [
+            "is read from the request, where `reveal_randomness` recorded it (M-04 H1 / M-35)."
+          ],
+          "relations": [
+            "request"
+          ]
+        },
+        {
+          "name": "vault_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint_escrow",
+          "docs": [
+            "mint); drained to the user at the end of settle."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "request.seq",
+                "account": "Request"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_tokens",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset",
+          "writable": true
+        },
+        {
+          "name": "collection",
+          "writable": true
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "relations": [
+            "request"
+          ]
+        },
+        {
+          "name": "mpl_core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "mint",
+          "type": {
+            "option": {
+              "defined": {
+                "name": "MintArgs"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "unwrap",
+      "discriminator": [
+        126,
+        175,
+        198,
+        14,
+        212,
+        69,
+        50,
+        44
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault.launch_config",
+                "account": "Vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "launch_config"
+        },
+        {
+          "name": "pool",
+          "writable": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "vault_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault_tokens",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_token",
+          "writable": true
+        },
+        {
+          "name": "asset",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "arg",
+                "path": "index"
+              }
+            ]
+          }
+        },
+        {
+          "name": "collection",
+          "writable": true
+        },
+        {
+          "name": "mpl_core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "index",
+          "type": "u32"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "RandLock",
+      "discriminator": [
+        153,
+        39,
+        202,
+        69,
+        55,
+        187,
+        103,
+        126
+      ]
+    },
+    {
+      "name": "Request",
+      "discriminator": [
+        125,
+        172,
+        150,
+        161,
+        162,
+        115,
+        39,
+        71
+      ]
+    },
+    {
+      "name": "Vault",
+      "discriminator": [
+        211,
+        8,
+        232,
+        43,
+        2,
+        152,
+        117,
+        119
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "NotCreator",
+      "msg": "Signer is not the LaunchConfig creator"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidPoolAccount",
+      "msg": "Pool account is malformed or belongs to another vault"
+    },
+    {
+      "code": 6002,
+      "name": "PoolMismatch",
+      "msg": "Pool accounting mismatch"
+    },
+    {
+      "code": 6003,
+      "name": "MetadataTooLong",
+      "msg": "Name or URI too long"
+    },
+    {
+      "code": 6004,
+      "name": "IndexOutOfRange",
+      "msg": "Asset index out of range"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidMerkleProof",
+      "msg": "Merkle proof does not match the committed trait root"
+    },
+    {
+      "code": 6006,
+      "name": "ReservedAssetAlreadyDeposited",
+      "msg": "reserved (removed: deposit_asset)"
+    },
+    {
+      "code": 6007,
+      "name": "ReservedVaultSealed",
+      "msg": "reserved (removed: seal model)"
+    },
+    {
+      "code": 6008,
+      "name": "ReservedVaultNotSealed",
+      "msg": "reserved (removed: seal model)"
+    },
+    {
+      "code": 6009,
+      "name": "ReservedPaused",
+      "msg": "reserved (removed: guardian pause, ADR-015)"
+    },
+    {
+      "code": 6010,
+      "name": "NoAssetAvailable",
+      "msg": "No NFT is available to draw"
+    },
+    {
+      "code": 6011,
+      "name": "AliasedTokenAccount",
+      "msg": "User token account aliases the vault token account"
+    },
+    {
+      "code": 6012,
+      "name": "InvalidRandomnessAccount",
+      "msg": "Randomness account is not a Switchboard randomness account"
+    },
+    {
+      "code": 6013,
+      "name": "RandomnessNotFresh",
+      "msg": "Randomness commit is not fresh"
+    },
+    {
+      "code": 6014,
+      "name": "RandomnessMismatch",
+      "msg": "Randomness account does not match the request's commit"
+    },
+    {
+      "code": 6015,
+      "name": "RandomnessNotRevealed",
+      "msg": "Randomness not revealed yet"
+    },
+    {
+      "code": 6016,
+      "name": "RandomnessAlreadyRevealed",
+      "msg": "Randomness already revealed for this request"
+    },
+    {
+      "code": 6017,
+      "name": "OutOfOrder",
+      "msg": "Only the head request (FIFO) can be settled or expired"
+    },
+    {
+      "code": 6018,
+      "name": "WrongRequestKind",
+      "msg": "Request kind does not match the instruction"
+    },
+    {
+      "code": 6019,
+      "name": "MergeBacklog",
+      "msg": "Too many unmerged incoming NFTs; call merge_incoming first"
+    },
+    {
+      "code": 6020,
+      "name": "WrongAsset",
+      "msg": "Asset is not the one selected by the randomness"
+    },
+    {
+      "code": 6021,
+      "name": "DeadlineNotReached",
+      "msg": "Reveal deadline not reached"
+    },
+    {
+      "code": 6022,
+      "name": "ReservedMissingAsset",
+      "msg": "reserved (removed)"
+    },
+    {
+      "code": 6023,
+      "name": "AssetStateMismatch",
+      "msg": "Asset state after CPI does not match expectations"
+    },
+    {
+      "code": 6024,
+      "name": "ReservedNotGuardian",
+      "msg": "reserved (removed: guardian pause, ADR-015)"
+    },
+    {
+      "code": 6025,
+      "name": "ReservedInvalidPauseDuration",
+      "msg": "reserved (removed: guardian pause, ADR-015)"
+    },
+    {
+      "code": 6026,
+      "name": "ReservedPauseNotAllowed",
+      "msg": "reserved (removed: guardian pause, ADR-015)"
+    },
+    {
+      "code": 6027,
+      "name": "InsolventVault",
+      "msg": "Vault token balance below ratio * (NFTs outside + pending captures + pending re-rolls)"
+    },
+    {
+      "code": 6028,
+      "name": "ReservedFeeEscrowShort",
+      "msg": "reserved (removed: token fee escrow)"
+    },
+    {
+      "code": 6029,
+      "name": "AssetAccountingBroken",
+      "msg": "NFT accounting invariant broken"
+    },
+    {
+      "code": 6030,
+      "name": "ReservedFeeDestinationNotBurn",
+      "msg": "reserved (removed: burn fee destination)"
+    },
+    {
+      "code": 6031,
+      "name": "MathOverflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6032,
+      "name": "UriNotContentAddressed",
+      "msg": "URI must be content-addressed (ipfs:// or ar://)"
+    },
+    {
+      "code": 6033,
+      "name": "VaultNotOpen",
+      "msg": "Converting is closed until the vault is opened (graduation + full mint)"
+    },
+    {
+      "code": 6034,
+      "name": "VaultAlreadyOpen",
+      "msg": "Vault is already open"
+    },
+    {
+      "code": 6035,
+      "name": "ReservedCollectionNotFullyMinted",
+      "msg": "Reserved (was CollectionNotFullyMinted; batch pre-mint removed, lazy mint ADR-016)"
+    },
+    {
+      "code": 6036,
+      "name": "GraduationNotVerified",
+      "msg": "Graduation could not be verified on-chain"
+    },
+    {
+      "code": 6037,
+      "name": "GraduationCheckUnavailable",
+      "msg": "No graduation check exists for this launch (no DBC pool recorded: native `launch`); the vault can never open"
+    },
+    {
+      "code": 6038,
+      "name": "RandomnessAuthorityMismatch",
+      "msg": "Randomness authority is not this vault's randomness PDA"
+    },
+    {
+      "code": 6039,
+      "name": "WrongQueue",
+      "msg": "Switchboard queue is not the vault's pinned queue"
+    },
+    {
+      "code": 6040,
+      "name": "OracleReused",
+      "msg": "Oracle already used for this request; a re-commit needs a different oracle"
+    },
+    {
+      "code": 6041,
+      "name": "RecommitsExhausted",
+      "msg": "Maximum number of re-commits reached; only the principal-only expire remains"
+    },
+    {
+      "code": 6042,
+      "name": "RecommitsRemaining",
+      "msg": "Re-commits remain; expire is only possible after MAX_RECOMMITS unrevealed re-commits"
+    },
+    {
+      "code": 6043,
+      "name": "ExpiryNotReached",
+      "msg": "Expiry grace period not reached"
+    },
+    {
+      "code": 6044,
+      "name": "UnsupportedLaunchConfig",
+      "msg": "LaunchConfig version/fields not supported by this vault"
+    },
+    {
+      "code": 6045,
+      "name": "MintMismatch",
+      "msg": "Mint does not match the LaunchConfig mint"
+    },
+    {
+      "code": 6046,
+      "name": "FeeRecipientMismatch",
+      "msg": "Fee recipient is not the recipient fixed in the LaunchConfig"
+    },
+    {
+      "code": 6047,
+      "name": "FeeRecipientNotPlatform",
+      "msg": "LaunchConfig fee recipient is not the platform fee recipient"
+    },
+    {
+      "code": 6048,
+      "name": "FeeAboveHardCap",
+      "msg": "LaunchConfig SOL fee is not the ratio tier value or is outside [MIN_FEE_LAMPORTS, MAX_FEE_LAMPORTS]"
+    },
+    {
+      "code": 6049,
+      "name": "ReservedNothingToSweep",
+      "msg": "Reserved (was NothingToSweep; FeeVault/sweep removed when release became free)"
+    },
+    {
+      "code": 6050,
+      "name": "WrongOracle",
+      "msg": "Oracle is not the one the program selected for this commit"
+    },
+    {
+      "code": 6051,
+      "name": "NoFreshOracle",
+      "msg": "No oracle on the queue that this request hasn't already used"
+    },
+    {
+      "code": 6052,
+      "name": "ReservedGraduationFundShortfall",
+      "msg": "Reserved (was GraduationFundShortfall; graduation mint fund removed, lazy mint ADR-016)"
+    },
+    {
+      "code": 6053,
+      "name": "OracleStale",
+      "msg": "Selected oracle has not heartbeated recently; pass it as a stale proof and retry"
+    },
+    {
+      "code": 6054,
+      "name": "CollectionAboveCap",
+      "msg": "LaunchConfig collection size above MAX_COLLECTION_SIZE (10,000)"
+    },
+    {
+      "code": 6055,
+      "name": "MintArgsMissing",
+      "msg": "Picked asset is not minted yet: settle must supply its leaf preimage and Merkle proof"
+    },
+    {
+      "code": 6056,
+      "name": "MintEscrowShort",
+      "msg": "Lazy mint cost exceeded the request's mint escrow"
+    },
+    {
+      "code": 6057,
+      "name": "AlreadyMinted",
+      "msg": "Asset index already minted"
+    },
+    {
+      "code": 6058,
+      "name": "MintCostConstantStale",
+      "msg": "Live rent for a Core asset + create fee exceeds the mint escrow constant"
+    },
+    {
+      "code": 6059,
+      "name": "ExpireBatchInvalid",
+      "msg": "expire_requests: count must be 1..=MAX_EXPIRE_PER_CALL with 7 remaining accounts per request"
+    },
+    {
+      "code": 6060,
+      "name": "ExpireBatchAccountMismatch",
+      "msg": "expire_requests: a per-request account doesn't match the request (PDA, owner, user, randomness or token account)"
+    }
+  ],
+  "types": [
+    {
+      "name": "InitVaultParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trait_root",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "trait_schema_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "collection_name",
+            "type": "string"
+          },
+          {
+            "name": "collection_uri",
+            "type": "string"
+          },
+          {
+            "name": "sb_queue",
+            "docs": [
+              "Switchboard On-Demand queue every randomness account must use."
+            ],
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LaunchConfig",
+      "docs": [
+        "Immutable launch record for one Track A mint. PDA `[\"launch_config\", mint]`.",
+        "",
+        "There is NO instruction that modifies or closes this account: ratio,",
+        "collection size, SOL fees, fee recipient and mint are fixed at launch",
+        "(Stonk.fun lesson: no mutable economics after launch)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "mint_authority_bump",
+            "type": "u8"
+          },
+          {
+            "name": "creator",
+            "docs": [
+              "Who paid for the launch. Holds no powers."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "docs": [
+              "Classic SPL Token mint; mint + freeze authority are `None`."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "launch_destination",
+            "docs": [
+              "ATA(launch_vault, mint): received the full supply. Owned by the PDA below;",
+              "no instruction can move tokens out of it (distribution mechanism TBD)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "launch_vault",
+            "docs": [
+              "PDA `[\"launch_vault\", mint, launch_config]` owning `launch_destination`."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "launch_vault_bump",
+            "type": "u8"
+          },
+          {
+            "name": "decimals",
+            "type": "u8"
+          },
+          {
+            "name": "total_supply_base",
+            "docs": [
+              "1_000_000_000 * 10^decimals."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "ratio_whole_tokens",
+            "docs": [
+              "Whole tokens per NFT (one of ALLOWED_RATIOS)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "ratio_base",
+            "docs": [
+              "ratio_whole_tokens * 10^decimals."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "collection_size",
+            "docs": [
+              "Number of NFTs in the collection."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "max_tokens_in_nft_form",
+            "docs": [
+              "collection_size * ratio_base (<= total_supply_base)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "fee_lamports",
+            "docs": [
+              "The flat SOL fee (lamports) charged on EVERY capture, release and re-roll, fixed forever",
+              "(ADR-013) = fee_for_ratio(ratio_whole_tokens) at launch; <= MAX_FEE_LAMPORTS (0.01 SOL).",
+              "There is no token fee."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "fee_recipient",
+            "docs": [
+              "PLATFORM_FEE_RECIPIENT at launch time: the only address any fee can reach (F-06 / M-05)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "graduation_threshold_lamports",
+            "docs": [
+              "Graduation threshold (lamports raised; DBC migration threshold). `graduation_slice_pct` is",
+              "always 0 since lazy minting (ADR-016); the field stays for the append-only layout."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "graduation_slice_pct",
+            "type": "u8"
+          },
+          {
+            "name": "launched_at",
+            "type": "i64"
+          },
+          {
+            "name": "dbc_config",
+            "docs": [
+              "DBC config of the curve (`register_dbc_launch`); default for native `launch` (never opens)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "dbc_pool",
+            "docs": [
+              "DBC virtual pool of the curve. `hybrid_vault::graduation::verify` only accepts this pool, and",
+              "only once DBC reports it migrated. Default for native `launch` => the vault can never open."
+            ],
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LeafPreimage",
+      "docs": [
+        "Leaf preimage supplied by the settler for a lazy mint (graduation-design §5.1)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "trait_values",
+            "type": {
+              "array": [
+                "u16",
+                8
+              ]
+            }
+          },
+          {
+            "name": "salt",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "image_sha256",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "json_sha256",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "uri",
+            "docs": [
+              "Content-addressed URI of the metadata JSON; becomes the asset's on-chain URI verbatim."
+            ],
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MintArgs",
+      "docs": [
+        "Settle's lazy-mint arguments: the committed leaf preimage for the picked index and its proof."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "leaf",
+            "type": {
+              "defined": {
+                "name": "LeafPreimage"
+              }
+            }
+          },
+          {
+            "name": "proof",
+            "type": {
+              "vec": {
+                "array": [
+                  "u8",
+                  32
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "RandLock",
+      "docs": [
+        "Binds a Switchboard randomness account to one pending request so no other request can commit it",
+        "while this one is pending. PDA `[\"rand_lock\", randomness]`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "seq",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Request",
+      "docs": [
+        "One pending capture or re-roll. PDA `[\"request\", vault, seq_le]`. Closed (rent to `user`) only",
+        "by settle, or by the principal-only expire after MAX_RECOMMITS unrevealed re-commits. There is",
+        "no cancel instruction and the fees are never refunded."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "kind",
+            "type": "u8"
+          },
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "seq",
+            "type": "u64"
+          },
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "randomness",
+            "type": "pubkey"
+          },
+          {
+            "name": "seed_slot",
+            "docs": [
+              "Switchboard seed slot of the vault's latest commit for this request."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "deadline_slot",
+            "docs": [
+              "After this slot, if still unrevealed, anyone may re-commit (REVEAL_TIMEOUT_SLOTS)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "commits",
+            "docs": [
+              "Number of commits so far (1 + re-commits), at most 1 + MAX_RECOMMITS."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "oracles",
+            "docs": [
+              "Oracle of each commit; a re-commit must use an oracle not used before for this request."
+            ],
+            "type": {
+              "array": [
+                "pubkey",
+                4
+              ]
+            }
+          },
+          {
+            "name": "revealed",
+            "docs": [
+              "Set by `reveal_randomness`: the value is recorded once and never changes (settle reads it)."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "value",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "handed_in_index",
+            "docs": [
+              "Asset index handed in for a re-roll, NO_HANDED_IN for a capture."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "mint_escrow_lamports",
+            "docs": [
+              "Lazy-mint escrow amount deposited at request (ADR-016); the lamports sit in the separate",
+              "`[\"mint_escrow\", vault, seq]` PDA, not in this account."
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RevealArgs",
+      "docs": [
+        "Reveal args (Switchboard `RandomnessRevealInstructionArgs`)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "signature",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          },
+          {
+            "name": "recovery_id",
+            "type": "u8"
+          },
+          {
+            "name": "value",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Vault",
+      "docs": [
+        "One vault per hybrid_launch LaunchConfig. PDA `[\"vault\", launch_config]`; every token account,",
+        "the collection and every asset are seeded by this vault key (never by an authority alone, A-06).",
+        "Economics (ratio, N, SOL fees, fee recipient) are READ from the immutable LaunchConfig on every",
+        "use (M-01); the vault keeps no copies. No instruction changes them."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "authority_bump",
+            "type": "u8"
+          },
+          {
+            "name": "randomness_authority_bump",
+            "type": "u8"
+          },
+          {
+            "name": "vault_tokens_bump",
+            "type": "u8"
+          },
+          {
+            "name": "collection_bump",
+            "type": "u8"
+          },
+          {
+            "name": "open",
+            "docs": [
+              "Converting is closed until `open_vault` (graduation verified + collection fully minted). One-way."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "launch_config",
+            "docs": [
+              "The immutable hybrid_launch LaunchConfig. Ratio, N, mint, SOL fees and fee recipient are READ",
+              "FROM IT on every use (audit M-01: no local copies)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "collection",
+            "type": "pubkey"
+          },
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "vault_tokens",
+            "type": "pubkey"
+          },
+          {
+            "name": "sb_queue",
+            "docs": [
+              "Switchboard queue pinned at init; every randomness account must use it."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "trait_root",
+            "docs": [
+              "Leaf-v2 Merkle root (merkle.rs) and the trait schema hash, committed at init."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "trait_schema_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "minted_count",
+            "type": "u32"
+          },
+          {
+            "name": "assets_outside",
+            "docs": [
+              "NFTs owned by users (not in pool/incoming, not held as a re-roll hand-in)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "pending_captures",
+            "type": "u64"
+          },
+          {
+            "name": "pending_rerolls",
+            "type": "u64"
+          },
+          {
+            "name": "next_seq",
+            "docs": [
+              "Next request sequence number / next request that may be settled or expired (FIFO head)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "next_settle_seq",
+            "type": "u64"
+          },
+          {
+            "name": "opened_at_slot",
+            "type": "u64"
+          },
+          {
+            "name": "total_fee_lamports",
+            "docs": [
+              "Capture + re-roll SOL fees paid directly to the fee recipient."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_captures",
+            "type": "u64"
+          },
+          {
+            "name": "total_rerolls",
+            "type": "u64"
+          },
+          {
+            "name": "total_unwraps",
+            "type": "u64"
+          },
+          {
+            "name": "total_recommits",
+            "type": "u64"
+          },
+          {
+            "name": "total_expired",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}

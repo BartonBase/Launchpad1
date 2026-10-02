@@ -1,0 +1,358 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trust &amp; security · Armory</title>
+<meta name="description" content="Armory trust and security: audit status, locked authorities, program upgrades, key policy, fees and the deposit cap. Unaudited beta on devnet.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,700..800&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#08090a;--s1:#0e0f11;--s2:#131417;--s3:#1a1b1f;--line:rgba(255,255,255,.07);--line2:rgba(255,255,255,.12);
+--ink:#eceef1;--mute:#a0a5ae;--dim:#858a94;--acc:#ff6a2b;--acc2:#ff9a62;--accp:#e85a1e;--accbg:rgba(255,106,43,.12);--accglow:rgba(255,106,43,.45);--up:#3ecf8e;--down:#f25c7a;
+--r:14px;--sans:"Geist","Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,monospace;--hd:"Bricolage Grotesque","Geist",ui-sans-serif,sans-serif}
+*{box-sizing:border-box}html{background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 14px/1.5 var(--sans);-webkit-font-smoothing:antialiased;letter-spacing:-.005em}
+a{color:inherit;text-decoration:none}svg{display:block}
+.wrap{max-width:1312px;margin:0 auto;padding:0 32px}
+.mono{font-family:var(--mono);font-feature-settings:"zero" 0}.num{font-variant-numeric:tabular-nums}
+.mute{color:var(--mute)}.dim{color:var(--dim)}.up{color:var(--up)}.down{color:var(--down)}.acc{color:var(--acc2)}
+sub{font-size:.62em;vertical-align:-.25em;line-height:0;margin:0 .04em;color:var(--mute)}
+/* nav */
+.nav{position:sticky;top:0;z-index:10;background:rgba(8,9,10,.72);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex;align-items:center;height:64px;gap:28px}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--hd);font-weight:800;font-stretch:82%;font-variation-settings:"opsz" 96;font-size:22px;letter-spacing:-.015em;line-height:1}.brand .tagwn{font-stretch:100%;font-variation-settings:normal;letter-spacing:.04em}
+.tagwn{font:500 10.5px/1 var(--mono);color:var(--dim);border:1px solid var(--line2);border-radius:99px;padding:4px 7px;text-transform:uppercase;letter-spacing:.04em}
+.tagwn.beta{color:var(--acc2);border-color:rgba(255,106,43,.35);background:var(--accbg)}
+.links{display:flex;gap:4px}.links a{color:var(--mute);padding:7px 12px;border-radius:8px;font-weight:500}.links a.on,.links a:hover{color:var(--ink);background:rgba(255,255,255,.04)}
+.navr{margin-left:auto;display:flex;align-items:center;gap:10px}
+.search{display:flex;align-items:center;gap:8px;width:260px;height:36px;border:1px solid var(--line);background:var(--s1);border-radius:10px;padding:0 10px;color:var(--dim)}
+.search kbd{margin-left:auto;font:500 11px var(--mono);border:1px solid var(--line2);border-radius:5px;padding:1px 5px;color:var(--mute)}
+.pill{display:inline-flex;align-items:center;gap:6px;font:500 12px/1 var(--sans);color:var(--mute);border:1px solid var(--line);border-radius:99px;padding:6px 10px;white-space:nowrap}
+.pill i{width:6px;height:6px;border-radius:50%;background:#e8b04b;display:block}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 16px;border-radius:10px;font:600 14px var(--sans);border:1px solid transparent;cursor:pointer;white-space:nowrap}
+.btn.p{background:var(--ink);color:#0b0c0e}.btn.a{background:var(--acc);color:#120805;box-shadow:0 0 0 1px rgba(255,255,255,.08) inset,0 8px 24px -8px rgba(255,106,43,.6)}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--acc2);outline-offset:2px}
+.in:focus-visible{outline-offset:1px}
+.skip{position:absolute;left:12px;top:-60px;z-index:20;padding:10px 14px;border-radius:10px;background:var(--acc);color:#120805;font-weight:600}.skip:focus{top:8px}
+button.search{appearance:none;font:inherit;text-align:left;cursor:pointer;color:var(--dim)}
+.menub{display:none;place-items:center;width:40px;height:40px;border-radius:10px;border:1px solid var(--line2);background:var(--s1);color:var(--ink);cursor:pointer}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.btn.a:active{background:var(--accp)}.btn.p:active{background:#d4d7dc}
+.btn.g{background:rgba(255,255,255,.03);border-color:var(--line2);color:var(--ink)}.btn.g:active{background:rgba(255,255,255,.07)}
+.btn.gh{background:transparent;color:var(--mute)}.btn.gh:hover{color:var(--ink);background:rgba(255,255,255,.04)}
+.btn.d{background:rgba(242,92,122,.1);border-color:rgba(242,92,122,.35);color:#ff9fb2}.btn.d:active{background:rgba(242,92,122,.18)}
+.btn.off,.btn[disabled]{opacity:.45;pointer-events:none;box-shadow:none}
+.bbar{background:#15100c;border-bottom:1px solid rgba(255,106,43,.22);font-size:12.5px;color:#d9c6ba}.bbar .wrap{display:flex;align-items:center;gap:12px;height:38px}
+.bbar b{color:var(--ink);font-weight:600}.bbar a{margin-left:auto;color:var(--acc2);font-weight:500}.bbar .sep{color:#5a4a40}
+.chip.ok2{background:rgba(62,207,142,.08);border-color:rgba(62,207,142,.25);color:#8fe0b9}.chip.ok2 i,.chip.acc i{width:6px;height:6px;border-radius:50%;background:currentColor;display:block}
+.chip.soon{background:rgba(255,255,255,.03);border-style:dashed;border-color:var(--line2);color:var(--dim)}.chip.pd{background:transparent;border-style:dashed;border-color:rgba(232,176,75,.4);color:#e8c27a}.chip.pd i{width:6px;height:6px;border-radius:50%;border:1.5px solid currentColor;background:transparent;display:inline-block}
+.chip.ua{background:rgba(232,176,75,.08);border-color:rgba(232,176,75,.28);color:#e8c27a}
+.chip.bt{background:var(--accbg);border-color:rgba(255,106,43,.3);color:var(--acc2)}
+.tchip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px 0 7px;border-radius:7px;background:rgba(255,255,255,.05);border:1px solid var(--line2);font-size:12px;color:var(--ink);font-weight:500;white-space:nowrap}.tchip svg{width:14px;height:14px;color:var(--acc2)}
+.capslot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;border-radius:10px;border:1px dashed var(--line2);background:rgba(255,255,255,.015);font-size:12px;color:var(--mute)}.capslot b{color:var(--ink);font-weight:500}.btn.sm{height:36px;padding:0 14px;font-size:13px}.btn.lg{height:48px;padding:0 22px;font-size:15px;border-radius:12px}
+.demo{font:500 10.5px/1 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:#e8b04b;background:rgba(232,176,75,.08);border:1px solid rgba(232,176,75,.2);border-radius:6px;padding:4px 7px;white-space:nowrap}
+.card{background:linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,.01));border:1px solid var(--line);border-radius:var(--r)}
+.eyebrow{font:500 12px/1 var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--mute)}
+h1,h2,h3{margin:0;letter-spacing:-.035em;font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:7px;background:rgba(255,255,255,.05);border:1px solid var(--line);font-size:12px;color:var(--mute);font-weight:500;white-space:nowrap}
+.chip.acc{background:var(--accbg);border-color:rgba(255,106,43,.25);color:var(--acc2)}
+.hd,.hero h1,.shead h2,.trust h2,.feat h2,.band h3,.tname h1,.grad h4{font-family:var(--hd);font-weight:800;font-stretch:82%;font-variation-settings:"opsz" 96;letter-spacing:-.02em}
+.mph{position:relative;display:block;flex:none;margin:0;container-type:size}.mph img{display:block;width:100%;height:calc(100% - 14px);object-fit:contain}.mph figcaption{position:absolute;left:0;right:0;bottom:0;text-align:center;font:500 9.5px/1.2 var(--mono);color:var(--dim);letter-spacing:.04em}@container (max-height:119px){.mph img{height:100%}.mph figcaption{display:none}}
+
+/* progress bar: clean track, accent fill, still accent tip. No animation. */
+.bar{position:relative;height:4px;border-radius:99px;background:rgba(255,255,255,.07)}.bar i{position:relative;display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,rgba(255,106,43,.45),var(--acc))}.bar i:after{content:"";position:absolute;right:-4px;top:50%;width:8px;height:8px;margin-top:-4px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 2px rgba(255,106,43,.25),0 0 10px var(--accglow)}
+.bar.done{background:rgba(255,255,255,.07)}.bar.done i{background:var(--up)}.bar.done i:after{display:none}
+.footer{border-top:1px solid var(--line);margin-top:120px;padding:56px 0 40px;color:var(--mute)}
+.fgrid{display:grid;grid-template-columns:1.4fr repeat(4,1fr);gap:32px}
+.fgrid h4{margin:0 0 14px;font:500 12px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
+.fgrid a{display:block;padding:4px 0;color:var(--mute)}.fgrid a.brand{display:flex;padding:0}
+.risk{margin-top:44px;padding:18px 20px;border:1px solid var(--line);border-radius:12px;background:var(--s1);display:flex;gap:14px;align-items:flex-start;font-size:13px;line-height:1.6}
+.risk b{color:var(--ink);font-weight:600}
+.legal{display:flex;justify-content:space-between;margin-top:24px;font-size:12px;color:var(--dim)}
+
+.thead{padding:28px 0 24px;border-bottom:1px solid var(--line)}
+.crumb{font-size:13px;color:var(--dim);margin-bottom:18px}.crumb a{color:var(--mute)}
+.trow{display:flex;align-items:center;gap:18px}
+.tav{width:64px;height:64px;border-radius:16px;overflow:hidden;border:1px solid var(--line2)}
+.tname{display:flex;align-items:baseline;gap:10px}.tname h1{font-size:30px;letter-spacing:-.035em}
+.chips{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.tpr{margin-left:auto;text-align:right}
+.tpr .p{font-size:32px;font-weight:600;letter-spacing:-.035em}.tpr .p sub{font-size:.5em}
+.addr{display:flex;gap:6px;margin-top:6px;justify-content:flex-end}
+.addr span{font:500 11.5px var(--mono);color:var(--mute);border:1px solid var(--line);border-radius:7px;padding:4px 8px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:24px;padding-top:24px;align-items:start}
+.col{display:flex;flex-direction:column;gap:24px;min-width:0}
+.pad{padding:22px 24px}
+.ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.ch h3{font-size:15px;letter-spacing:-.015em}
+.ch .sub2{font-size:12.5px;color:var(--mute);margin-top:3px}
+.tf{display:flex;gap:2px;padding:3px;border:1px solid var(--line);border-radius:9px;background:var(--s1)}
+.tf a{padding:4px 10px;border-radius:6px;font:500 12px var(--mono);color:var(--mute)}.tf a.on{background:var(--s3);color:var(--ink)}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--line);margin:18px -24px -22px}
+.stats div{padding:16px 24px;border-right:1px solid var(--line)}.stats div:last-child{border-right:0}
+.stats span{display:block;font-size:12px;color:var(--mute);margin-bottom:4px}
+.stats b{font-size:17px;font-weight:600;letter-spacing:-.02em}.stats small{display:block;font-size:12px;color:var(--dim);margin-top:2px}
+.curve{display:grid;grid-template-columns:auto 1fr auto;gap:28px;align-items:center}.mph.curve-m{width:104px;height:104px}
+.curve .big{font-size:44px;font-weight:600;letter-spacing:-.045em;line-height:1}
+.curve .bar{height:6px;margin:4px 0 12px}.curve .bar i:after{width:12px;height:12px;margin-top:-6px;right:-6px}
+.cm{display:flex;justify-content:space-between;font-size:12.5px;color:var(--mute)}.cm b{color:var(--ink);font-weight:500}
+.expl{margin:16px 0 0;padding-top:16px;border-top:1px solid var(--line);color:var(--mute);font-size:13px;line-height:1.6}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+/* convert */
+.seg2{display:flex;gap:2px;padding:3px;border:1px solid var(--line);border-radius:10px;background:var(--s1)}
+.seg2 a{flex:1;text-align:center;padding:7px 10px;border-radius:7px;font-weight:500;font-size:13px;color:var(--mute)}.seg2 a.on{background:var(--s3);color:var(--ink);box-shadow:0 0 0 1px var(--line) inset}
+.side{background:var(--s2);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.side .l{display:flex;justify-content:space-between;font-size:12px;color:var(--mute)}
+.side .v{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
+.side .v b{font-size:24px;font-weight:600;letter-spacing:-.03em}
+.side .s{font-size:12px;color:var(--dim);margin-top:2px}
+.tok{display:flex;align-items:center;gap:8px;background:var(--s3);border:1px solid var(--line);border-radius:99px;padding:4px 10px 4px 4px;font-weight:600;font-size:13px;white-space:nowrap}
+.tok .ic{width:22px;height:22px;border-radius:50%;overflow:hidden}.tok .ic.sq{border-radius:6px}
+.stack3{display:flex}.stack3 .ic{width:22px;height:22px;border-radius:6px;overflow:hidden;border:1.5px solid var(--s3);margin-left:-8px}.stack3 .ic:first-child{margin-left:0}
+.swapic{display:flex;justify-content:center;margin:-9px 0;position:relative;z-index:1}
+.swapic span{width:30px;height:30px;border-radius:9px;background:var(--s1);border:1px solid var(--line2);display:grid;place-items:center;color:var(--mute)}
+.rows{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.rows div{display:flex;justify-content:space-between;font-size:12.5px;color:var(--mute)}.rows b{color:var(--ink);font-weight:500}
+.cta{width:100%;margin-top:16px;height:44px}
+.note{margin:12px 0 0;font-size:12.5px;color:var(--mute);line-height:1.55}
+.note b{color:var(--ink);font-weight:500}
+.fn{font-size:11px;color:var(--dim);margin-top:10px;line-height:1.5}
+/* holdings */
+.hv{font-size:34px;font-weight:600;letter-spacing:-.04em;line-height:1.1}
+.hl{display:flex;flex-direction:column;margin-top:18px;border-top:1px solid var(--line)}
+.hl>div{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}
+.hl .ic{width:36px;height:36px;border-radius:50%;overflow:hidden;flex:none}
+.hl .nm{font-weight:500}.hl .nm small{display:block;color:var(--mute);font-size:12px;font-weight:400}
+.hl .rt{margin-left:auto;text-align:right}.hl .rt small{display:block;color:var(--mute);font-size:12px}
+.nfts{display:flex;gap:8px}.nfts .n{width:36px;height:36px;border-radius:9px;overflow:hidden;border:1px solid var(--line2);flex:none}
+.avail{margin-top:14px;padding:14px;border-radius:12px;background:var(--accbg);border:1px solid rgba(255,106,43,.22);display:flex;justify-content:space-between;align-items:center}
+.avail span{font-size:12px;color:var(--acc2)}.avail b{display:block;font-size:15px;font-weight:600;color:var(--ink);margin-top:2px}
+.mini{background:var(--s2);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.mini span{display:block;font-size:12px;color:var(--mute)}.mini b{display:block;font-size:16px;font-weight:600;letter-spacing:-.02em;margin-top:4px}.mini small{font-size:12px;color:var(--dim)}
+.stat3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px}
+/* locks */
+.locks{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line);margin:0 -24px -22px}
+.lk{display:flex;gap:12px;padding:16px 24px;border-bottom:1px solid var(--line)}
+.lk:nth-child(odd){border-right:1px solid var(--line)}.lk:nth-last-child(-n+2){border-bottom:0}
+.lk .ck{flex:none;width:24px;height:24px;border-radius:7px;display:grid;place-items:center;background:rgba(62,207,142,.1);color:var(--up)}
+.lk b{display:block;font-size:13.5px;font-weight:600;margin:2px 0 3px;letter-spacing:-.01em}.lk p{margin:0;color:var(--mute);font-size:12.5px;line-height:1.5}
+/* activity */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font:500 11.5px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--dim);padding:0 0 10px}
+td{padding:11px 0;border-top:1px solid var(--line)}
+th:not(:first-child),td:not(:first-child){text-align:right}
+.ty{display:inline-flex;align-items:center;gap:8px;font-weight:500}.ty i{width:7px;height:7px;border-radius:50%;display:block}
+/* trade */
+.trade{padding:18px}
+.ti{margin-top:14px;background:var(--s2);border:1px solid var(--line);border-radius:12px;padding:14px}
+.ti .l{display:flex;justify-content:space-between;font-size:12px;color:var(--mute)}
+.ti .v{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+.ti .v b{font-size:28px;font-weight:600;letter-spacing:-.035em}
+.quick{display:flex;gap:6px;margin-top:10px}.quick a{flex:1;text-align:center;font:500 12px var(--mono);padding:6px 0;border-radius:7px;border:1px solid var(--line);color:var(--mute)}
+.recv{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:14px;border-radius:12px;border:1px solid var(--line)}
+.recv span{font-size:12px;color:var(--mute)}.recv b{display:block;font-size:20px;font-weight:600;letter-spacing:-.03em;margin-top:2px}
+.facts{padding:6px 20px}
+.facts div{display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line);font-size:13px}.facts div:last-child{border-bottom:0}
+.facts span{color:var(--mute)}.facts b{font-weight:500}
+.owned{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mkt{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:28px;align-items:start}.mkb{display:flex;flex-direction:column;gap:8px;margin-top:16px}.mkb .btn{display:flex;align-items:center;justify-content:space-between;gap:8px;height:42px}
+.lst{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.li{min-width:0}.li{border:1px solid var(--line);border-radius:12px;padding:5px;background:var(--s1)}.li .im{aspect-ratio:1;border-radius:8px;overflow:hidden}.li .im svg{width:100%;height:100%}
+.li .m1{display:flex;flex-direction:column;align-items:flex-start;gap:5px;padding:7px 3px 0;font:500 11.5px var(--mono);color:var(--mute)}.li .m2{display:flex;flex-direction:column;gap:1px;padding:5px 3px 2px}.li .m2 b{font-size:13px;font-weight:600}.li .m2 span{font-size:11px;color:var(--dim)}
+.fc{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.fc>div{background:var(--s2);border:1px solid var(--line);border-radius:12px;padding:14px}.fc span{display:block;font-size:12px;color:var(--mute)}.fc b{display:block;font-size:14.5px;font-weight:600;letter-spacing:-.015em;margin-top:6px}.fc p{margin:6px 0 0;font-size:12px;color:var(--mute);line-height:1.5}
+.owned .on{border:1px solid var(--line);border-radius:12px;padding:6px;background:var(--s1)}
+.owned .on.sel{border-color:rgba(255,106,43,.5);box-shadow:0 0 0 3px rgba(255,106,43,.1)}
+.owned .im{border-radius:8px;overflow:hidden;aspect-ratio:1}
+.owned .md{padding:9px 4px 3px}.owned .t1{display:flex;justify-content:space-between;align-items:center}.owned .t1 b{font-weight:600;font-size:13px}
+.owned .trs{display:flex;gap:5px;margin-top:7px;flex-wrap:wrap}
+.rr{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.rrh{display:flex;flex-direction:column;gap:2px}.rrh b{font-weight:600;font-size:14px}
+.flr{padding:16px;border-radius:12px;background:var(--s1);border:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.flr .fx{font:500 14px var(--mono);white-space:nowrap;color:var(--ink)}.flr .fx b{color:var(--acc2);font-weight:500}
+.dist{display:flex;gap:2px;height:6px;border-radius:99px;overflow:hidden;margin:16px 0 10px}.dist i{display:block;height:100%;opacity:.8}
+.dl div{display:grid;grid-template-columns:1fr auto 44px;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px}.dl div:last-child{border-bottom:0}.dl span.dim{text-align:right}.dl .tier{justify-self:start}
+.ok{display:inline-flex;align-items:center;gap:6px;color:var(--up)}.ok svg{display:inline-block}
+
+.ccost{margin-top:14px;padding:14px 16px;border-radius:12px;border:1px solid var(--line);background:var(--s1)}
+.ccost .ct{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:4px}.ccost .ct b{font-size:13.5px;font-weight:600}.ccost .ct span{font-size:12px;color:var(--mute)}
+.ccost .cr{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-top:1px solid var(--line);font-size:13px}.ccost .cr span{color:var(--mute)}.ccost .cr span small{display:block;font-size:11.5px;color:var(--dim);margin-top:1px}.ccost .cr b{font-weight:500;white-space:nowrap;text-align:right}
+.ccost .cr.tot b{font-weight:600;color:var(--ink)}
+.ccost .fn{margin:8px 0 0;font-size:11.5px;color:var(--dim);line-height:1.5}
+.chip.ok2{background:rgba(62,207,142,.08);border-color:rgba(62,207,142,.25);color:#8fe0b9}
+.chip.ok2 i,.chip.acc i{width:6px;height:6px;border-radius:50%;background:currentColor;display:block}
+.gsteps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.gwrap{display:grid;grid-template-columns:132px 1fr;gap:14px;align-items:center}.mph.grad-m{width:132px;height:132px}
+.gsteps>div{padding:14px 16px;border-radius:12px;background:var(--s1);border:1px solid var(--line)}
+.gsteps .n{font:500 11.5px var(--mono);color:var(--dim)}.gsteps b{display:block;font-size:13.5px;font-weight:600;margin:6px 0 4px;letter-spacing:-.01em}.gsteps p{margin:0;font-size:12.5px;color:var(--mute);line-height:1.5}
+.gsteps.done>div .n{color:var(--up)}
+.lockp{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:18px;border-radius:12px;background:var(--s2);border:1px solid var(--line)}
+.lockp .li2{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--s3);border:1px solid var(--line2);color:var(--acc2)}
+.lph{display:flex;justify-content:space-between;align-items:flex-start;width:100%}.mph.conv-m{width:96px;height:96px}
+.lockp b{font-size:17px;font-weight:600;letter-spacing:-.02em}.lockp p{margin:0;font-size:13px;color:var(--mute);line-height:1.6}
+.btn.off{opacity:.5;pointer-events:none;box-shadow:none}
+.pv{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:28px;align-items:start}
+.pvart{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pvt{position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;border:1px solid var(--line2);background:var(--s1)}
+.pvt>svg{width:100%;height:100%;filter:blur(18px) saturate(.8);transform:scale(1.25)}
+.pvt .ov2{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:rgba(8,9,10,.35);color:#d8dae0;font-size:12px;font-weight:500}
+.pvt .ov2 span{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:rgba(10,11,14,.6);border:1px solid rgba(255,255,255,.12)}
+.odds{display:flex;flex-direction:column;gap:14px}
+.odds .ot{font:500 11.5px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin-bottom:6px}
+.odds .ov3{display:flex;flex-wrap:wrap;gap:6px}
+.odds .trait b{color:var(--mute);font-weight:500}
+.grad{display:flex;align-items:center;gap:18px}
+.grad .gi{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;background:rgba(62,207,142,.1);border:1px solid rgba(62,207,142,.28);color:var(--up);flex:none}
+.grad h4{margin:0;font-size:20px;letter-spacing:-.025em}.grad p{margin:3px 0 0;color:var(--mute);font-size:13px}
+.feeline{margin-top:14px;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--s1);font-size:12.5px;color:var(--mute);line-height:1.6}
+.feeline b{color:var(--ink);font-weight:500}
+.feeaddr{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--mute)}.feeaddr .mono{color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:2px 6px}
+
+.phd{padding:44px 0 28px;display:flex;justify-content:space-between;align-items:flex-end;gap:32px}
+.phd h1{font-family:var(--hd);font-weight:800;font-stretch:82%;font-size:44px;letter-spacing:-.03em;margin:0 0 10px;line-height:1.05}.phd p{margin:0;color:var(--mute);font-size:16px;max-width:620px;line-height:1.6}
+.fbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 0 22px;border-top:1px solid var(--line)}
+.fbar .lb{font:500 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin-right:2px}
+.fg{display:flex;gap:4px;padding:3px;border:1px solid var(--line);border-radius:11px;background:var(--s1)}
+.fg a{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:8px;font-size:13px;font-weight:500;color:var(--mute)}.fg a svg{width:15px;height:15px}
+.fg a.on{background:var(--s3);color:var(--ink);box-shadow:0 0 0 1px rgba(255,106,43,.4) inset}.fg a.on svg{color:var(--acc2)}
+.fg a.so{color:var(--dim);cursor:default}.fg a.so i{font:500 9.5px/1 var(--mono);text-transform:uppercase;letter-spacing:.05em;border:1px dashed var(--line2);border-radius:5px;padding:3px 5px;font-style:normal}
+.srch{display:flex;align-items:center;gap:8px;height:40px;padding:0 14px;border-radius:10px;border:1px solid var(--line2);background:var(--s1);color:var(--dim);font-size:13.5px;min-width:280px}
+.kst{display:grid;grid-template-columns:repeat(4,1fr);margin-bottom:24px}.kst div{padding:16px 20px;border-right:1px solid var(--line)}.kst div:last-child{border-right:0}
+.kst span{display:block;font-size:12px;color:var(--mute);margin-bottom:4px}.kst b{font-size:20px;font-weight:600;letter-spacing:-.02em}
+.soonrow{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:24px}
+.soonc{display:flex;gap:14px;align-items:flex-start;padding:18px 20px;border-radius:16px;border:1px dashed var(--line2);color:var(--dim)}
+.soonc b{display:block;color:var(--mute);font-size:15px;font-weight:600;margin-bottom:4px}.soonc p{margin:0;font-size:13px;line-height:1.55}.soonc .chip{margin-left:auto;flex:none}
+
+.doc{display:grid;grid-template-columns:220px minmax(0,1fr);gap:40px;align-items:start;padding-top:8px}
+.toc{position:sticky;top:120px;display:flex;flex-direction:column;gap:2px;font-size:13px}.toc a{padding:7px 10px;border-radius:8px;color:var(--mute)}.toc a:first-child{color:var(--ink);background:rgba(255,255,255,.04)}
+.dsec{padding:26px 28px;margin-bottom:20px}.dsec h2{font-size:21px;letter-spacing:-.02em;margin:0 0 6px}.dsec>p{color:var(--mute);font-size:14px;line-height:1.65;margin:0 0 14px;max-width:720px}.dsec>p b{color:var(--ink);font-weight:600}
+.sumg{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}.sumg div{padding:16px 18px}.sumg span{display:block;font-size:12px;color:var(--mute);margin-bottom:6px}.sumg b{font-size:16px;font-weight:600;letter-spacing:-.01em}.sumg small{display:block;margin-top:6px;font-size:12px;color:var(--mute);line-height:1.45}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:14px}.lst2{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+.lst2 li{display:grid;grid-template-columns:20px 1fr;gap:8px;font-size:13.5px;line-height:1.55;color:var(--mute)}.lst2 li b{color:var(--ink);font-weight:600}.lst2 li:before{content:"";width:7px;height:7px;border-radius:50%;margin-top:7px;background:var(--up)}
+.lst2.pl li:before{background:transparent;border:1.5px solid var(--acc2)}.lst2.no li:before{background:var(--down)}
+.panel{padding:16px 18px;border-radius:12px;background:var(--s1);border:1px solid var(--line)}.panel h3{font-size:14px;margin:0 0 12px;letter-spacing:-.01em}
+table.at{width:100%;border-collapse:collapse;font-size:13px}.at th,.at td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.5}.at th{color:var(--dim);font-weight:500;font-size:12px}.at td:first-child{color:var(--ink);font-weight:600;width:160px}.at td{color:var(--mute)}
+.tl3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.tl3 div{padding:16px 18px;border-radius:12px;border:1px solid var(--line);background:var(--s1)}.tl3 div.on{box-shadow:0 0 0 1px rgba(232,176,75,.4) inset}
+.tl3 span{font:500 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}.tl3 b{display:block;font-size:15px;margin:8px 0 6px}.tl3 p{margin:0;font-size:12.5px;color:var(--mute);line-height:1.55}
+.rule{padding:22px 24px;border-radius:14px;border:1px solid rgba(255,106,43,.35);background:var(--accbg)}.rule q{display:block;quotes:none;font-family:var(--hd);font-weight:800;font-stretch:82%;font-size:26px;letter-spacing:-.02em;line-height:1.2;color:var(--ink)}
+.rule p{margin:10px 0 0;font-size:13px;color:#ffd3bd}
+.ph2{padding:14px 16px;border-radius:12px;border:1.5px dashed rgba(160,165,174,.5);font:500 13px var(--mono);color:var(--mute)}
+.qa{padding:18px 22px;border-bottom:1px solid var(--line)}.qa:last-child{border-bottom:0}.qa h3{font-size:15px;letter-spacing:-.01em;margin:0 0 6px}.qa p{margin:0;color:var(--mute);font-size:14px;line-height:1.65;max-width:760px}.qa p b{color:var(--ink);font-weight:600}
+.fqg{padding:0;margin-bottom:20px}.fqg>h2{font-size:13px;font-family:var(--mono);font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin:0;padding:18px 22px 4px}
+
+.tier{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:6px;font:500 11px/1 var(--sans);color:color-mix(in srgb,var(--t) 88%,#fff);background:color-mix(in srgb,var(--t) 13%,transparent);border:1px solid color-mix(in srgb,var(--t) 28%,transparent);white-space:nowrap}
+.tier i{width:5px;height:5px;border-radius:50%;background:var(--t);display:block}
+.tier.sm{height:18px;font-size:10.5px;padding:0 6px}
+.tdot{position:absolute;right:3px;bottom:3px;width:7px;height:7px;border-radius:50%;background:var(--t);box-shadow:0 0 0 2px rgba(8,9,10,.85);display:block}
+.trait{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:6px;font-size:11px;color:var(--mute);background:rgba(255,255,255,.04);border:1px solid var(--line);white-space:nowrap}
+.trait b{color:var(--ink);font-weight:500;margin-left:4px}
+
+/* Responsive: tokens.json breakpoints (sm 640, md 900, lg 1200, xl 1440). Desktop-first: max-width = next breakpoint - .02px. No motion. */
+.fgrid h2.fh,.cl h2.fh,.fh{margin:0 0 14px;font:500 12px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
+@media (max-width:1199.98px){
+ .layout{grid-template-columns:minmax(0,1fr) 330px}.lgrid{grid-template-columns:minmax(0,1fr) 340px}.rail{display:none}
+ .grid{grid-template-columns:repeat(2,1fr)}.hgrid{gap:40px}.hero h1{font-size:52px}.switch{left:-24px}
+ .doc{grid-template-columns:minmax(0,1fr)}.toc{display:none}.sumg{grid-template-columns:repeat(2,1fr)}.fgrid{grid-template-columns:repeat(3,1fr)}
+ .stats{grid-template-columns:repeat(3,1fr)}.fc{grid-template-columns:repeat(2,1fr)}.sw2{grid-template-columns:repeat(4,1fr)}
+}
+@media (max-width:899.98px){
+ .wrap{padding:0 20px}.nav .wrap{gap:12px}.links,.search,.navr .pill{display:none}.menub{display:grid}
+ .hgrid,.feat,.explain,.trust,.layout,.lgrid,.two,.psum,.cols2,.mkt,.pv,.soonrow,.sg,.cdemo,.tl3,.gwrap{grid-template-columns:minmax(0,1fr)}
+ .psum>div+div{border-left:0;border-top:1px solid var(--line)}.aside,.rail,.toc{position:static}
+ .mosaic{height:440px}.switch{left:12px;bottom:12px}
+ .steps{grid-template-columns:1fr 1fr}.step{border-bottom:1px solid var(--line)}
+ .cmp,.pt,.at,.card table{display:block;overflow-x:auto;max-width:100%}.cmp th,.cmp td{min-width:150px}
+ .lhead,.phd,.shead,.band,.sysh{flex-direction:column;align-items:flex-start}.band{gap:18px}
+ .trow{flex-wrap:wrap}.tpr{margin-left:0;text-align:left;width:100%}.kst{grid-template-columns:1fr 1fr}.fgrid{grid-template-columns:1fr 1fr}
+ .types{grid-template-columns:minmax(0,1fr)}.types2{grid-template-columns:minmax(0,1fr)}
+ .auth>div{grid-template-columns:1fr auto}.auth p{grid-column:1/-1}.mph.curve-m{display:none}.curve{grid-template-columns:auto minmax(0,1fr)}
+ .gsteps,.lst,.fnfts{grid-template-columns:1fr 1fr}.srch{min-width:0;width:100%}
+}
+@media (max-width:639.98px){
+ main{overflow-x:clip}.fa{overflow:hidden}.fctas{flex-wrap:wrap}.fctas .chip{white-space:normal}.shead>div{display:flex;flex-wrap:wrap;gap:10px}.tabs{max-width:100%;overflow-x:auto}.ch{flex-wrap:wrap;gap:10px}.mkb .btn{white-space:normal;height:auto;min-height:40px;padding-top:9px;padding-bottom:9px}.mkb .btn>*{min-width:0}
+ .wrap{padding:0 16px}.bbar .bx,.bbar .demo{display:none}.bbar .wrap{gap:8px;font-size:12px}
+ .nav .wrap{height:58px}.navr .btn.sm{padding:0 10px}
+ .hero{padding:40px 0 48px}.hero h1{font-size:40px}.mph.hero-m{width:96px;height:96px}.lead{font-size:16px}
+ .ctas{flex-wrap:wrap}.ctas .btn{flex:1}.hstats{gap:20px;flex-wrap:wrap;margin-top:32px}
+ .mosaic{display:block;height:auto}.mosaic .tile:not(.big){display:none}.tile.big{height:360px}.switch{position:relative;left:0;bottom:0;width:auto;margin-top:12px}
+ .feat .fa{min-height:300px}.feat .fb{padding:22px}.feat h2{font-size:32px}.fstats{grid-template-columns:1fr 1fr}.fnfts{grid-template-columns:repeat(3,1fr)}
+ .shead h2,.trust h2{font-size:28px}.phd h1,.lhead h1{font-size:34px}.explain{padding:22px}.dgm{grid-template-columns:1fr}.dgm .ar{flex-direction:row;justify-content:center}
+ .grid,.steps,.locks,.gsteps,.fc,.sumg,.row2,.sizew,.gradw,.rfx,.lgrid .facts,.review,.cgive,.rtiles,.rtiles.c3,.est .p,.stat3,.owned,.lst,.icx,.bpx,.fgrid,.explain{grid-template-columns:minmax(0,1fr)}
+ .stats{grid-template-columns:1fr 1fr}.stats div{border-bottom:1px solid var(--line)}.sw2{grid-template-columns:repeat(2,1fr)}
+ .step{border-right:0}.band{padding:26px}.dsec,.sec{padding:20px}.pad{padding:18px}.ti .v b{font-size:24px}.tname h1{font-size:30px}
+ .fbar{gap:8px}.fg{overflow-x:auto;max-width:100%}.drop{grid-template-columns:1fr}.tiers .th,.tiers .tr,.tiers .tf2{grid-template-columns:1fr 84px 70px}
+ .auth{margin:0 -18px}.auth>div{padding:12px 18px}.stats{margin:18px -18px -18px}.locks{margin:0 -18px -18px}.lk{padding:14px 18px}.locks:has(>.lk.card){margin:0}
+ .types2>div{flex-wrap:wrap}.lbtn{flex-wrap:wrap}.psum>div{padding:20px}.pv2{font-size:32px}
+}
+
+</style></head><body><a class="skip" href="#main">Skip to content</a><div class="bbar" role="note"><div class="wrap"><span class="chip ua" style="height:22px">Unaudited beta</span><span class="bx">Programs are <b>not audited</b> yet. Devnet only, demo data.</span><span class="sep bx">·</span><span>Deposit cap <b>not enforced yet</b></span><a href="trust.html"><span class="bx">How Armory is secured </span>→ Trust</a></div></div><header class="nav"><div class="wrap">
+<a class="brand" href="home.html">Armory<span class="tagwn beta">Beta</span></a>
+<nav class="links" aria-label="Main"><a href="explore.html" class="">Explore</a><a href="launch.html" class="">Launch</a><a href="portfolio.html" class="">Portfolio</a><a href="trust.html" class="on">Trust</a><a href="faq.html" class="">FAQ</a></nav>
+<div class="navr"><button type="button" class="search" aria-label="Search launches"><svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search launches<kbd>⌘K</kbd></button>
+<span class="pill"><i></i>Devnet preview</span><a class="btn p sm" href="#">Connect wallet</a><button type="button" class="menub" aria-label="Open menu" aria-expanded="false"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button></div></div></header><main id="main"><div class="wrap"><div class="phd"><div><h1>Trust &amp; security</h1><p>What's locked, what isn't yet, and what happens before Armory goes to mainnet. Plain answers, checked against our own engineering records.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><span class="chip ua">Unaudited beta</span><span class="chip">Devnet</span></div></div>
+<div class="doc"><nav class="toc" aria-label="On this page"><a href="#audit">Audit status</a><a href="#authorities">Locked authorities</a><a href="#upgrades">Program upgrades</a><a href="#keys">Key policy</a><a href="#randomness">Randomness</a><a href="#fees">Fees</a><a href="#cap">Deposit cap</a><a href="#limits">Known limitations</a><a href="#addresses">Program addresses</a></nav><div>
+<div class="sumg"><div class="card"><span>Audit</span><b style="color:#e8c27a">Not audited yet</b><small>Internal reviews done. A paid third-party audit comes before mainnet.</small></div>
+<div class="card"><span>Network</span><b>Solana devnet only</b><small>Test tokens and demo data. No real funds.</small></div>
+<div class="card"><span>Deposit cap</span><b>10 SOL per wallet <span class="demo">Example</span></b><small>The real value isn't set yet.</small></div>
+<div class="card"><span>Program upgrades</span><b style="color:#e8c27a">Not locked yet</b><small>Dev key now · multisig planned. Frozen after the audit.</small></div></div>
+
+<section class="card dsec" id="audit"><h2>Audit status</h2><p>Armory is an <b>unaudited beta</b>. The programs run on Solana devnet with test tokens. Treat everything here as experimental.</p>
+<div class="cols2"><div class="panel"><h3>Done so far</h3><ul class="lst2"><li><span><b>Two internal security reviews</b> of the programs, merged into one list of 41 findings.</span></li>
+<li><span><b>Each closed finding has a regression test</b> that fails if the bug comes back.</span></li>
+<li><span><b>Still open:</b> moving upgrade keys to a multisig, among others.</span></li></ul></div>
+<div class="panel"><h3>Planned before mainnet</h3><ul class="lst2 pl"><li><span><b>A paid, professional third-party audit.</b></span></li><li><span><b>A live bug bounty</b> (<a class="acc" href="bug-bounty.html">details</a>).</span></li>
+<li><span><b>The deposit cap switched on.</b></span></li><li><span><b>Upgrade keys held only by humans</b>, in a 3-of-5 multisig.</span></li>
+<li><span><b>A verifiable build</b>, with the audited commit and build hash published.</span></li></ul></div></div>
+<p style="margin:14px 0 0">The "Unaudited beta" labels come off only after the audit report is published.</p></section>
+
+<section class="card dsec" id="authorities"><h2>Locked authorities, explained</h2><p>An "authority" is a key that's allowed to change something on-chain. Here's what each one means and where it stands for each launch type. Only Hybrid is deployed on devnet today; the Plain and Burn columns describe their code, which is pending deploy.</p>
+<ul class="lst2" style="margin-bottom:18px"><li><span><b>Mint authority.</b> The power to create new tokens. Revoked means the supply can never grow.</span></li><li><span><b>Freeze authority.</b> The power to lock tokens inside someone's wallet. It's never set on Armory tokens.</span></li><li><span><b>Metadata update authority.</b> The power to change a token's name, ticker or image. Launches must be created without one.</span></li><li><span><b>Upgrade authority.</b> The power to replace a program's code. This is the one power that still exists during beta. Here's who holds it and how it ends.</span></li></ul>
+<table class="at"><thead><tr><th>Authority</th><th>Plain</th><th>Hybrid</th><th>Burn</th></tr></thead><tbody><tr><td>Mint authority</td><td><span class="st2 ok"><i></i>Revoked</span></td><td><span class="st2 ok"><i></i>Revoked</span></td><td><span class="st2 ok"><i></i>Revoked</span></td></tr><tr><td>Freeze authority</td><td><span class="st2 ok"><i></i>Never set</span></td><td><span class="st2 ok"><i></i>Never set</span></td><td><span class="st2 ok"><i></i>Never set</span></td></tr><tr><td>Token metadata</td><td><span class="st2 ok"><i></i>Immutable</span></td><td><span class="st2 ok"><i></i>Immutable</span></td><td><span class="st2 ok"><i></i>Immutable</span></td></tr><tr><td>Launch settings</td><td><span class="st2 ok"><i></i>Locked</span></td><td><span class="st2 ok"><i></i>Locked</span></td><td><span class="st2 ok"><i></i>Locked</span></td></tr><tr><td>Pause switch</td><td><span class="st2 ok"><i></i>None in Armory</span></td><td><span class="st2 ok"><i></i>None</span></td><td><span class="st2 ok"><i></i>None</span></td></tr><tr><td>Program upgrades</td><td><span class="st2 wn"><i></i>Not locked yet</span></td><td><span class="st2 wn"><i></i>Not locked yet</span></td><td><span class="st2 wn"><i></i>Not locked yet</span></td></tr><tr><td>NFT collection</td><td><span class="dim">Not applicable</span></td><td><span class="st2 ok"><i></i>Locked</span></td><td><span class="st2 ok"><i></i>Program-held</span></td></tr><tr><td>Vault</td><td><span class="dim">Not applicable</span></td><td><span class="st2 ok"><i></i>No withdrawals</span></td><td><span class="dim">Not applicable</span></td></tr><tr><td>Fee recipient</td><td><span class="dim">Not applicable</span></td><td><span class="st2 ok"><i></i>Fixed in code</span></td><td><span class="st2 ok"><i></i>Fixed in code</span></td></tr></tbody></table></section>
+
+<section class="card dsec" id="upgrades"><h2>Program upgrades</h2><p>Upgrades exist so bugs found before and during the audit can be fixed. They end once the code is stable.</p>
+<div class="tl3"><div class="on"><span>Now · devnet</span><b>One development key per program</b><p>Test keys on a test network, not mainnet keys. This is a known open item.</p></div>
+<div><span>Mainnet</span><b>3-of-5 multisig, 7-day public delay</b><p>Any upgrade needs 3 of 5 signers and then waits 7 days in public before it can run. Signers are named before mainnet.</p></div>
+<div><span>After audit + stabilization</span><b>Upgrades switched off</b><p>The upgrade authority is removed, so the code can never change again. How long stabilization lasts isn't decided yet.</p></div></div></section>
+
+<section class="card dsec" id="keys"><h2>Key policy</h2>
+<div class="rule"><q>No AI agent holds mainnet keys. Mainnet keys are held by humans only.</q><p>This applies to every mainnet key: program upgrades, the multisig, and the platform fee address.</p></div>
+<ul class="lst2" style="margin-top:16px"><li><span><b>Today:</b> devnet uses throwaway test keys. No mainnet keys exist on our development machines.</span></li>
+<li><span><b>At mainnet (planned):</b> the upgrade authority is a 3-of-5 multisig held by people. A single person's key is never enough.</span></li></ul></section>
+
+<section class="card dsec" id="randomness"><h2>Randomness and fairness</h2>
+<div class="cols2"><div class="panel"><h3><span class="tchip"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="7.5" r="4"/><rect x="13" y="12" width="7.5" height="9" rx="1.6"/><path d="M13.5 5.5h3.5a2 2 0 0 1 2 2V10"/><path d="m17 8.5 2 2 2-2"/><path d="M10.5 18.5H7a2 2 0 0 1-2-2V14"/><path d="m7 15.5-2-2-2 2"/></svg>Hybrid</span></h3><ul class="lst2"><li><span><b>Art and traits are committed before converting opens</b> as a fingerprint (Merkle root), so nobody can swap a piece later.</span></li>
+<li><span><b>Switchboard VRF</b> (a verifiable random function: a random number that comes with a proof) picks which NFT you get at every capture and re-roll.</span></li>
+<li><span><b>The randomness provider is pinned</b> to an approved list written into the program.</span></li></ul></div>
+<div class="panel"><h3><span class="tchip"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21c-3.9 0-6.5-2.6-6.5-6.2 0-3.3 2.3-5.4 3.6-7.9.4 1.6 1.3 2.7 2.4 3.2.1-3.1 1.3-5.5 3.5-7.1-.3 2.9.7 4.9 2 6.6 1 1.4 1.5 2.8 1.5 4.7 0 3.9-2.6 6.7-6.5 6.7Z"/><path d="M12 21c-1.6 0-2.7-1.1-2.7-2.6 0-1.4.9-2.3 1.6-3.5.6.8 1.3 1 2 .6.4 1 1.8 1.7 1.8 3.1 0 1.4-1.1 2.4-2.7 2.4Z"/></svg>Burn</span></h3><ul class="lst2"><li><span><b>Art is committed before burning opens</b>, and each minted NFT is checked against it.</span></li>
+<li><span><b>NFTs go out in collection order</b>, with no randomness.</span></li></ul>
+<ul class="lst2 no" style="margin-top:10px"><li><span><b>Known limitation:</b> the order is public, so anyone can see which piece is next, rare ones included, and time a burn for it.</span></li></ul></div></div></section>
+
+<section class="card dsec" id="fees"><h2>Fees</h2><p>All Armory fees are flat and paid in SOL. <b>Tokens are never taken as a fee.</b> Each collection's fee is set from its ratio at launch, and the program caps it at 0.01 SOL.</p>
+<table class="at"><thead><tr><th>Fee</th><th>Plain</th><th>Hybrid</th><th>Burn</th></tr></thead><tbody>
+<tr><td>Platform fee per NFT action</td><td>None (no NFTs)</td><td>0.002 / 0.005 / 0.01 SOL by ratio, per capture or re-roll</td><td>Same tiers, per burn</td></tr>
+<tr><td>Mint deposit / cost</td><td>—</td><td>0.0063 SOL deposit per capture or re-roll, refunded except ≈ 0.003–0.004 SOL when the NFT is minted for the first time</td><td>No deposit; ≈ 0.003–0.004 SOL mint cost paid directly on every burn</td></tr>
+<tr><td>Randomness</td><td>—</td><td>No separate fee</td><td>Not used</td></tr>
+<tr><td>Converting back</td><td>—</td><td>Free (network fee only)</td><td>Not possible</td></tr>
+<tr><td>Trading on the curve</td><td colspan="3">1% (devnet curve setting) <span class="demo">Final pending</span></td></tr>
+<tr><td>Trading after graduation</td><td colspan="3">Pool fee set by the DEX pool: 0.25% on the devnet setup <span class="demo">Final pending</span></td></tr>
+<tr><td>Launch fee</td><td colspan="3">None on chain today</td></tr></tbody></table>
+<p style="margin:12px 0 0">Ratio tiers: 50K = 0.002 SOL; 100K and 200K = 0.005 SOL; 500K to 5M = 0.01 SOL. The kept part of the deposit is Solana rent plus the Metaplex Core fee, not a Armory fee. Fees can only go to the platform address written into the program.</p></section>
+
+<section class="card dsec" id="cap"><h2>Deposit cap</h2><p>A per-wallet cap is planned while the programs are unaudited, to limit how much anyone can lose to a bug we haven't found yet. <b>It isn't enforced by the programs yet</b>, so today nothing limits how much one wallet puts in.</p>
+<div class="capslot"><span class="chip ua" style="height:22px">Unaudited beta</span><span>Deposit cap <b>10 SOL per wallet</b></span><span class="demo" style="padding:3px 6px">Example · not enforced yet</span><span class="dim">The real value will be published here before it applies.</span></div></section>
+
+<section class="card dsec" id="limits"><h2>Known limitations</h2><ul class="lst2 no">
+<li><span><b>Upgrades are a trust assumption</b> until they're switched off. During beta, whoever holds the upgrade key could change the code.</span></li>
+<li><span><b>Third-party programs</b> (the bonding-curve and DEX pool programs, Switchboard randomness, Metaplex Core NFTs, DEXes and marketplaces) are outside Armory's control.</span></li>
+<li><span><b>Burn order is public</b>, so rare pieces can be targeted.</span></li>
+<li><span><b>The kept part of the mint deposit varies.</b> It's Solana rent plus the Metaplex fee, about 0.003–0.004 SOL depending on the length of the NFT's metadata address.</span></li>
+<li><span><b>Tax split and Raffle aren't live.</b> They stay off until there's a public way to buy, the stuck-funds fixes are done, and Raffle has a legal check.</span></li></ul></section>
+
+<section class="card dsec" id="addresses"><h2>Program addresses</h2><p>The mainnet program addresses and the verifiable build hash will be published here at launch.</p>
+<div class="ph2">Placeholder: program addresses and build hash, published at mainnet launch</div></section>
+
+<section class="card dsec"><h2>Found a problem?</h2><p>Please report security issues privately rather than posting them publicly.</p><a class="btn a" href="bug-bounty.html">Report a vulnerability</a></section></div></div></div></main><footer class="footer"><div class="wrap">
+<div class="fgrid"><div><a class="brand" href="home.html" style="color:var(--ink)">Armory</a><p style="max-width:300px;margin:14px 0 0;line-height:1.6">Launch a Solana memecoin on its own, or with an NFT collection that converts both ways or burns in one way. Unaudited beta on devnet.</p></div>
+<div><h2 class="fh">Product</h2><a href="explore.html">Explore launches</a><a href="launch.html">Launch a token</a><a href="portfolio.html">Portfolio</a></div>
+<div><h2 class="fh">Learn</h2><a href="home.html#types">Launch types</a><a href="faq.html">FAQ</a><a href="faq.html#curve">Bonding curves</a><a href="trust.html#randomness">Verifying randomness</a></div>
+<div><h2 class="fh">Trust</h2><a href="trust.html">Trust &amp; security</a><a href="trust.html#audit">Audit status</a><a href="trust.html#keys">Key policy</a><a href="bug-bounty.html">Bug bounty</a></div>
+<div><h2 class="fh">Company</h2><a href="#">About</a><a href="#">Terms</a><a href="#">Privacy</a><a href="#">Contact</a></div></div>
+<div class="risk"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e8b04b" stroke-width="1.8" style="flex:none;margin-top:1px"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17.5v.01"/></svg>
+<div><b>Risk disclosure.</b> Memecoins and NFTs are highly volatile. You can lose everything you put in. Nothing here is financial advice. The programs are unaudited devnet software. Availability may be restricted in your country.</div></div>
+<div class="legal"><span>© 2026 Armory. Devnet preview with demo data. No real funds.</span><span class="mono">SOL/USD assumed at $150 for display</span></div>
+</div></footer></body></html>

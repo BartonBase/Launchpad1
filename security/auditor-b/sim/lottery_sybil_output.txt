@@ -1,0 +1,34 @@
+=== Lottery sybil-splitting simulation ===
+honest holders=5000 (eligible>=min: 4577), honest supply=599,997,501
+attacker capital=5,000,000 tokens (0.50% of supply), transfer fee=100 bps
+Token-2022 ATA rent (182 bytes) = 2157600 lamports = 0.0021576 SOL
+
+Attacker expected share of tickets (= P(win) for a single-winner draw):
+formula                                         k=1       k=10      k=100     k=1000     k=4000  x(k=1000)
+(x(k=1000) = share multiplier vs a single wallet; >1x means the formula rewards sybil splitting)
+flat_per_wallet (1 ticket if >= min)        0.0218%    0.2180%    2.1381%   17.9308%   46.6364%     820.9x
+linear (tickets = balance)                  0.8267%    0.8194%    0.8186%    0.8185%    0.8182%       1.0x
+sqrt(balance)                               0.2176%    0.6817%    2.1235%    6.4200%   12.0632%      29.5x
+log10(balance)                              0.0337%    0.2859%    2.3090%   15.6835%   38.3763%     465.2x
+capped linear min(balance, CAP)             0.2486%    1.2197%    1.2186%    1.2185%    1.2180%       4.9x
+tiered floor(balance/100k)                  1.0361%    0.8512%    0.0000%    0.0000%    0.0000%       0.0x
+
+Monte Carlo sanity check (20k draws), k=100:
+  flat_per_wallet (1 ticket if >= min)     analytic=2.1381%  empirical=2.2200%
+  linear (tickets = balance)               analytic=0.8186%  empirical=0.7450%
+  sqrt(balance)                            analytic=2.1235%  empirical=2.0050%
+
+Cost of splitting (example token price = 1e-06 SOL/token):
+     k   fee loss SOL  rent SOL (locked)  tx fees SOL
+     1         0.0000             0.0000      0.00000
+    10         0.0450             0.0194      0.00005
+   100         0.0495             0.2136      0.00049
+  1000         0.0499             2.1554      0.00500
+  4000         0.0500             8.6282      0.01999
+
+=== Flash-buy before snapshot: point snapshot vs time-weighted balance ===
+flash position=50,000,000 tokens held 2 slots; honest supply=599,997,501
+  point-in-time snapshot share : 7.6923%
+  TWAB over 216000 slots share  : 0.000077%
+  round-trip transfer fee cost : 2.00% of position = 1.00 SOL at example price (+ AMM spread/price impact)
+  => breakeven prize for point snapshot attack: prize * share > round-trip cost, i.e. prize > 13.0 SOL (ignoring price impact)

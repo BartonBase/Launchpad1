@@ -1,0 +1,13 @@
+PASS T1_only_hash[0..4]_used_and_low32_bits_zero :: word=0x150e0f7300000000
+PASS T2_revert_until_rare_always_wins :: guard/program mismatches=0; committed outcomes rare=100.0% (budget 5000); avg attempts=97.0 (expected ~100); honest single-shot rare rate=0.91%
+PASS T3_span_1024_outcome_independent_of_slot_hash :: index = (-unix_ts * count) mod span
+PASS T3_span_4096_outcome_independent_of_slot_hash :: index = (-unix_ts * count) mod span
+PASS T3_span_65536_outcome_independent_of_slot_hash :: index = (-unix_ts * count) mod span
+PASS T4_span_10000_low4bits_predictable :: index mod 16 = (-ts*count) mod 16
+PASS T5a_count_multiple_of_16_only_multiples_of_16 :: 625 distinct outcomes
+PASS T5b_span_1024_count_multiple_of_1024_always_min :: outcomes=[0]
+PASS T6_max_never_selected :: max outcome seen=9998
+PASS T7_duplicates_and_missing_indices :: distinct=5270/10000 (52.7%), most-repeated index appears 11x, never-assigned=4730
+PASS T8_zero_hash_prefix_gives_min
+
+SUMMARY: 11 / 11 checks passed
