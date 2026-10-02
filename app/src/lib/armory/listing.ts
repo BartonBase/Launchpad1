@@ -13,7 +13,21 @@ export const HIDDEN_MINTS: ReadonlySet<string> = new Set([
   "3GC9zFWzE2fVTFM7Q9Zo3BqCUArPYQEK57UVv4zvpJAu", // end-to-end test pool
   "Ewj5G9r1eTgX42JPWvpCxRmS52yCwUwXMhsuGpbnfuU6", // end-to-end test pool
   "9mhVWxbmAQNReUdkTcin4WW1Mc3ykkBhxfcR1ZBhzn3z", // unfinished first attempt at "Armory Hybrid Live" (curve only, never registered as Hybrid)
+  "CzDzhYGoCP5BDc2gYmNnwd3s7gW5MWnK8VD7TrbCwVDQ", // Armory Hybrid Live (AHLIVE): web-app end-to-end test launch
 ]);
+
+/** Demo collections shown first on Home and Explore, in this order. */
+export const FEATURED_MINTS: readonly string[] = [];
+
+/** Sort key: featured mints first (in FEATURED_MINTS order), then everything else in its original order. */
+export const featuredRank = (mint: string): number => {
+  const i = FEATURED_MINTS.indexOf(mint);
+  return i < 0 ? FEATURED_MINTS.length : i;
+};
 
 export const isListed = (name: string | null | undefined, mint?: string | null): boolean =>
   !FIXTURE_NAME.test(name ?? "") && !(mint && HIDDEN_MINTS.has(mint));
+
+/** Hybrid launches carry two names (token and collection); both must pass. */
+export const isHybridListed = (l: { tokenName?: string | null; collectionName?: string | null; mint: string }): boolean =>
+  isListed(l.tokenName, l.mint) && isListed(l.collectionName, l.mint);

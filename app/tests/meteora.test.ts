@@ -98,3 +98,23 @@ describe("resolveTokenImage", () => {
     expect(calls).toBe(0);
   });
 });
+
+describe("Core asset uri + public listing", () => {
+  const str = (s: string) => { const b = new TextEncoder().encode(s); const l = new Uint8Array(4); new DataView(l.buffer).setUint32(0, b.length, true); return [...l, ...b]; };
+  it("reads the uri of an AssetV1 with a collection update authority, null for burned assets", async () => {
+    const { decodeCoreAssetUri } = await import("@/lib/generated/core");
+    const owner = new Uint8Array(32).fill(3);
+    const coll = new Uint8Array(32).fill(9);
+    const data = Uint8Array.from([1, ...owner, 2, ...coll, ...str("Forge #3"), ...str("https://devnet.irys.xyz/abc"), 0]);
+    expect(decodeCoreAssetUri(data)).toBe("https://devnet.irys.xyz/abc");
+    const noUa = Uint8Array.from([1, ...owner, 0, ...str("X"), ...str("u")]);
+    expect(decodeCoreAssetUri(noUa)).toBe("u");
+    expect(decodeCoreAssetUri(Uint8Array.from([0]))).toBeNull();
+  });
+  it("hides test launches by either Hybrid name or by mint", async () => {
+    const { isHybridListed } = await import("@/lib/armory/listing");
+    expect(isHybridListed({ mint: pk().toBase58(), tokenName: "Forge Gems", collectionName: "Forge Gems" })).toBe(true);
+    expect(isHybridListed({ mint: pk().toBase58(), tokenName: "Armory Test", collectionName: "Knights" })).toBe(false);
+    expect(isHybridListed({ mint: "CzDzhYGoCP5BDc2gYmNnwd3s7gW5MWnK8VD7TrbCwVDQ", tokenName: "Armory Hybrid Live", collectionName: "Armory Live Knights" })).toBe(false);
+  });
+});

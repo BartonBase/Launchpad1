@@ -115,7 +115,7 @@ export interface LaunchType {
 export const LAUNCH_TYPES: readonly LaunchType[] = [
   { id: "plain", name: "Launch", short: "Just the coin", description: "A classic 1B meme coin on a bonding curve that graduates to a locked liquidity pool. No NFTs, no converter, no platform fee." },
   { id: "hybrid", name: "Hybrid", short: "Coin and NFT, both ways", description: "Lock a fixed number of tokens to get a random NFT, and return the NFT for exactly those tokens, any time after graduation." },
-  { id: "burn", name: "Burn", short: "Burn coins to mint an NFT", description: "Burn a fixed number of tokens to mint the next NFT in the collection. One-way: the tokens are gone and the NFT can't be turned back." },
+  { id: "burn", name: "Burn", short: "Burn coins to mint an NFT", description: "Burn a fixed number of tokens to mint an NFT from the collection. One-way: the tokens are gone and the NFT can't be turned back." },
   { id: "tax", name: "Tax split", short: "Transfer tax to NFT holders", description: "A transfer fee, fixed at launch, shared with NFT holders." },
   { id: "raffle", name: "Raffle", short: "Tax-funded holder raffle", description: "A transfer fee builds a round pot that one holder wins." },
 ];

@@ -10,6 +10,19 @@ export function decodeCoreAssetOwner(data: Uint8Array): PublicKey | null {
   return new PublicKey(data.slice(1, 33));
 }
 
+/** AssetV1 uri (key, owner, update authority enum, name, uri). Null for burned / unknown layouts. */
+export function decodeCoreAssetUri(data: Uint8Array): string | null {
+  try {
+    if (data.length < 34 || data[0] !== KEY_ASSET_V1) return null;
+    const tag = data[33];
+    const r = new Reader(data, 34 + (tag === 1 || tag === 2 ? 32 : 0));
+    r.string(64);
+    return r.string(256);
+  } catch {
+    return null;
+  }
+}
+
 export interface CoreCollection {
   readonly updateAuthority: PublicKey;
   readonly name: string;

@@ -7,8 +7,9 @@ import { cachedRead } from "@/lib/armory/server";
 import { fetchLaunches } from "@/lib/armory/reads";
 import { mintDepositText } from "@/config/armory";
 import { fetchPlainLaunches } from "@/lib/meteora/plain";
-import { isListed } from "@/lib/armory/listing";
+import { featuredRank, isHybridListed, isListed } from "@/lib/armory/listing";
 import { PlainCard } from "@/components/meteora/PlainCard";
+import { resolveTokenImages } from "@/lib/meteora/tokenImage";
 
 const STEPS = [
   ["01", "Buy the token", "Every launch has a supply fixed at 1,000,000,000 tokens. When the curve fills, the token graduates and converting opens."],
@@ -19,8 +20,18 @@ const STEPS = [
 
 export default async function HomePage() {
   const [launches, plains] = await Promise.all([cachedRead("launches", 30_000, fetchLaunches), cachedRead("plain-launches", 20_000, fetchPlainLaunches)]);
-  const plainList = plains.ok ? plains.value.filter((p) => isListed(p.name, p.mint)).slice(0, 6) : [];
-  const hybrids = launches.ok ? launches.value.filter((l) => isListed(l.collectionName, l.mint)) : [];
+  const plainList = plains.ok ? plains.value.filter((p) => isListed(p.name, p.mint)) : [];
+  const hybrids = launches.ok ? launches.value.filter(isHybridListed) : [];
+  // Featured demo collections first, then the newest launches; six cards.
+  const cards = [
+    ...hybrids.map((l) => ({ kind: "hybrid" as const, mint: l.mint, uri: l.tokenUri ?? null, l })),
+    ...plainList.map((p) => ({ kind: "plain" as const, mint: p.mint, uri: p.uri, p })),
+  ]
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => featuredRank(a.c.mint) - featuredRank(b.c.mint) || (a.c.kind === b.c.kind ? a.i - b.i : a.c.kind === "plain" ? -1 : 1))
+    .map(({ c }) => c)
+    .slice(0, 6);
+  const images = await resolveTokenImages(cards.map((c) => c.uri));
   return (
     <div className="mx-auto max-w-(--container-site) space-y-20 px-4 py-10 md:py-16">
       <section className="grid items-center gap-8 lg:grid-cols-[1.05fr_1fr] lg:gap-6">
@@ -120,14 +131,9 @@ export default async function HomePage() {
           <Link href="/explore" className="btn">View all</Link>
         </div>
         {launches.ok ? (
-          hybrids.length + plainList.length > 0 ? (
+          cards.length > 0 ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {plainList.map((p) => (
-                <PlainCard key={p.mint} p={p} />
-              ))}
-              {hybrids.slice(0, 6 - plainList.length).map((l) => (
-                <LaunchCard key={l.mint} l={l} />
-              ))}
+              {cards.map((c, i) => (c.kind === "plain" ? <PlainCard key={c.mint} p={c.p} image={images[i]} /> : <LaunchCard key={c.mint} l={c.l} image={images[i]} />))}
             </div>
           ) : (
             <p className="text-muted">No launches yet. Be the first.</p>

@@ -8,8 +8,9 @@ import { TypeIcon } from "@/components/armory/TypeIcon";
 import { cachedRead } from "@/lib/armory/server";
 import { fetchLaunches } from "@/lib/armory/reads";
 import { fetchPlainLaunches } from "@/lib/meteora/plain";
-import { isListed } from "@/lib/armory/listing";
+import { featuredRank, isHybridListed, isListed } from "@/lib/armory/listing";
 import { PlainCard } from "@/components/meteora/PlainCard";
+import { resolveTokenImages } from "@/lib/meteora/tokenImage";
 import { EmptyState } from "@/components/armory/EmptyState";
 
 export const metadata: Metadata = { title: "Explore", description: "Every Armory launch with its type, phase and market." };
@@ -36,7 +37,7 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
   const q = (sp.q ?? "").trim().slice(0, 64).toLowerCase();
   const cur: Sp = { type, phase, q };
   const [launches, plains] = await Promise.all([cachedRead("launches", 30_000, fetchLaunches), cachedRead("plain-launches", 20_000, fetchPlainLaunches)]);
-  const all = launches.ok ? launches.value.filter((l) => isListed(l.collectionName, l.mint)) : [];
+  const all = launches.ok ? launches.value.filter(isHybridListed).map((l, i) => ({ l, i })).sort((a, b) => featuredRank(a.l.mint) - featuredRank(b.l.mint) || a.i - b.i).map(({ l }) => l) : [];
   const allPlain = plains.ok ? plains.value.filter((p) => isListed(p.name, p.mint)) : [];
   const list = all.filter(
     (l) =>
@@ -52,6 +53,7 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
   );
   const pending = (t: LaunchTypeId) => launchTypeStatus(t, CLUSTER.name) !== "live";
   const total = all.length + allPlain.length;
+  const [plainImgs, hybridImgs] = await Promise.all([resolveTokenImages(plainList.map((p) => p.uri)), resolveTokenImages(list.map((l) => l.tokenUri))]);
   return (
     <div className="mx-auto max-w-(--container-site) space-y-6 px-4 py-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -90,7 +92,7 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
           ))}
           {(["burn", "tax", "raffle"] as const).map((t) => (
             <span key={t} aria-disabled="true" data-testid={`type-filter-${t}`} className="rounded-chip text-dim inline-flex cursor-not-allowed items-center gap-1.5 border border-dashed border-[var(--arm-color-border-strong)] px-3 py-1.5 text-sm">
-              <TypeIcon type={t} size={14} />{LAUNCH_TYPES.find((x) => x.id === t)!.name}<span className="tag tag-soon">Soon</span>
+              <TypeIcon type={t} size={14} />{LAUNCH_TYPES.find((x) => x.id === t)!.name}<span className="tag tag-soon">Coming soon</span>
             </span>
           ))}
         </nav>
@@ -116,8 +118,8 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
         </EmptyState>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="explore-grid">
-          {plainList.map((p) => <PlainCard key={p.mint} p={p} />)}
-          {list.map((l) => <LaunchCard key={l.mint} l={l} />)}
+          {list.map((l, i) => <LaunchCard key={l.mint} l={l} image={hybridImgs[i]} />)}
+          {plainList.map((p, i) => <PlainCard key={p.mint} p={p} image={plainImgs[i]} />)}
         </div>
       )}
       {!plains.ok && <p className="text-warning text-sm">Some launches couldn&apos;t be loaded right now. Refresh to try again.</p>}

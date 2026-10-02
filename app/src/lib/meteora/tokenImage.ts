@@ -30,3 +30,8 @@ export async function resolveTokenImage(uri: string | null | undefined, fetcher:
     return null;
   }
 }
+
+/** Card images for a list of metadata URIs (server-side; each lookup is cached by fetch for an hour). */
+export async function resolveTokenImages(uris: readonly (string | null | undefined)[], fetcher: typeof fetch = fetch): Promise<(string | null)[]> {
+  return Promise.all(uris.map((u) => resolveTokenImage(u, fetcher)));
+}

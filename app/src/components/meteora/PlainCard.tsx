@@ -5,9 +5,9 @@ import { TypeIcon } from "@/components/armory/TypeIcon";
 import { tokenImage } from "@/lib/meteora/tokenImage";
 
 /** Explore / home card for a Plain launch (Meteora DBC pool on the platform config). */
-export function PlainCard({ p }: { p: PlainLaunchDTO }) {
+export function PlainCard({ p, image }: { p: PlainLaunchDTO; image?: string | null }) {
   const c = p.curve;
-  const img = tokenImage(p.uri);
+  const img = image ?? tokenImage(p.uri);
   return (
     <Link href={`/t/${p.mint}`} className="card flex flex-col gap-3 p-4 hover:border-[var(--arm-color-border-strong)]" data-testid="launch-card" data-type="plain" data-phase={c.migrated ? "graduated" : "curve"}>
       <div className="bg-surface-2 rounded-panel border-border relative flex aspect-[4/3] items-center justify-center overflow-hidden border" aria-hidden="true">

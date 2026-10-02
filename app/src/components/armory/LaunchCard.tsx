@@ -9,17 +9,22 @@ export function StateTag({ state }: { state: LaunchDTO["state"] }) {
   return <span className="tag" title="Launched without a bonding curve: converting can never open.">No curve</span>;
 }
 
-export function LaunchCard({ l }: { l: LaunchDTO }) {
+export function LaunchCard({ l, image }: { l: LaunchDTO; image?: string | null }) {
   const title = l.tokenName ?? l.collectionName ?? `Token ${shortAddr(l.mint)}`;
   const pct = l.collectionSize ? Math.round((l.mintedCount / l.collectionSize) * 100) : 0;
   return (
     <Link href={`/t/${l.mint}`} className="card flex flex-col gap-3 p-4 hover:border-[var(--arm-color-border-strong)]" data-testid="launch-card" data-type="hybrid" data-phase={l.state}>
-      <div className="bg-surface-2 rounded-panel border-border relative flex aspect-[4/3] items-center justify-center border" aria-hidden="true">
-        <span className="hd text-dim text-4xl">{title.slice(0, 1).toUpperCase()}</span>
+      <div className="bg-surface-2 rounded-panel border-border relative flex aspect-[4/3] items-center justify-center overflow-hidden border" aria-hidden="true">
+        {image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={image} alt="" loading="lazy" className="size-full object-cover" data-testid="token-image" />
+        ) : (
+          <span className="hd text-dim text-4xl">{title.slice(0, 1).toUpperCase()}</span>
+        )}
         <span className="absolute top-2 left-2"><StateTag state={l.state} /></span>
       </div>
       <div className="flex items-start justify-between gap-2">
-        <h2 className="truncate font-semibold">{title}</h2>
+        <h2 className="truncate font-semibold">{title} {l.tokenSymbol && <span className="text-muted font-mono text-xs font-normal">{l.tokenSymbol}</span>}</h2>
         <span className="text-dim font-mono text-xs">{shortAddr(l.mint)}</span>
       </div>
       <div>

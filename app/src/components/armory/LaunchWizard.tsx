@@ -293,8 +293,8 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
                 <div key={x.id} aria-disabled="true" className="card-soon rounded-panel flex gap-3 border p-3" data-testid={`launch-type-option-${x.id}`} data-status="coming-soon">
                   <TypeIcon type={x.id} size={20} />
                   <div>
-                    <p className="text-sm font-medium">
-                      {x.name} <span className="tag tag-soon ml-1">Coming soon</span>
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
+                      {x.name} <span className="tag tag-soon">Coming soon</span>
                     </p>
                     <p className="text-xs">{x.description}</p>
                   </div>
@@ -342,7 +342,7 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
               </div>
               <div className="space-y-1">
                 <label htmlFor="token-image" className="text-sm font-medium">Token image</label>
-                <input id="token-image" type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="block text-sm" onChange={(e) => void pickImage(e.target.files)} data-testid="launch-image" />
+                <input id="token-image" type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="block w-full max-w-full text-sm" onChange={(e) => void pickImage(e.target.files)} data-testid="launch-image" />
                 <p className="text-dim text-xs">PNG, JPEG, WebP or GIF. Large images are resized in your browser. Uploaded with the token&apos;s metadata when you launch.</p>
                 {imgErr && <p className="text-warning text-xs">{imgErr}</p>}
               </div>
@@ -423,7 +423,7 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
             </div>
             <div className="space-y-1">
               <label htmlFor="art-images" className="text-sm font-medium">Images <span className="text-dim font-normal">1 to {Math.min(MAX_ART_IMAGES, size || MAX_ART_IMAGES)}</span></label>
-              <input id="art-images" type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif" className="block text-sm" onChange={(e) => void pickArt(e.target.files)} data-testid="launch-art-images" />
+              <input id="art-images" type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif" className="block w-full max-w-full text-sm" onChange={(e) => void pickArt(e.target.files)} data-testid="launch-art-images" />
               <p className="text-dim text-xs">
                 {sizeLabel} NFTs share these images in turn (NFT #0 gets image 1, #1 gets image 2, …). Each image is resized in your browser to under 96 KB.
               </p>

@@ -19,7 +19,7 @@ import {
   vaultPda,
 } from "@/lib/generated/hybridVault";
 import { hybridLaunchAccounts, hybridVaultAccounts } from "@/lib/generated/idlMeta";
-import { decodeCoreAssetOwner, decodeCoreCollection } from "@/lib/generated/core";
+import { decodeCoreAssetOwner, decodeCoreAssetUri, decodeCoreCollection } from "@/lib/generated/core";
 import { decodeMint, decodeTokenAccount, ataAddress } from "@/lib/generated/spl";
 import { metadataPda } from "@/lib/generated/dbc";
 import { decodeMetadataStrings } from "@/lib/meteora/plain";
@@ -187,6 +187,8 @@ export async function fetchProgramStatus(conn: Connection): Promise<ProgramStatu
 export interface Holdings {
   readonly tokenBase: bigint;
   readonly nftIndexes: number[];
+  /** Metadata URI of each owned NFT (from the Core asset), by index. */
+  readonly nftUris?: Readonly<Record<number, string>>;
 }
 
 /** User's token balance and the indexes of this collection's NFTs they own. */
@@ -203,15 +205,20 @@ export async function fetchHoldings(conn: Connection, user: PublicKey, launch: L
   if (!poolInfo) return { tokenBase, nftIndexes: [] };
   const minted = decodePool(new Uint8Array(poolInfo.data)).mintedIndexes();
   const nftIndexes: number[] = [];
+  const nftUris: Record<number, string> = {};
   for (let k = 0; k < minted.length; k += 100) {
     const chunk = minted.slice(k, k + 100);
     const infos = await conn.getMultipleAccountsInfo(chunk.map((i) => assetPda(vault, i)));
     infos.forEach((a, n) => {
       const owner = a ? decodeCoreAssetOwner(new Uint8Array(a.data)) : null;
-      if (owner?.equals(user)) nftIndexes.push(chunk[n]!);
+      if (owner?.equals(user)) {
+        nftIndexes.push(chunk[n]!);
+        const uri = decodeCoreAssetUri(new Uint8Array(a!.data));
+        if (uri) nftUris[chunk[n]!] = uri;
+      }
     });
   }
-  return { tokenBase, nftIndexes };
+  return { tokenBase, nftIndexes, nftUris };
 }
 
 export interface RequestDTO {

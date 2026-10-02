@@ -19,6 +19,7 @@ import { fetchHoldings, fetchUserRequests, findIdleRandomness, type LaunchDTO } 
 import { useSafeSend, type BuildFn } from "@/lib/tx/useSafeSend";
 import { TxPreviewModal } from "@/components/TxPreviewModal";
 import { CostBreakdown } from "./CostBreakdown";
+import { NftThumb } from "./NftThumb";
 
 export type HybridPanel = "capture" | "release" | "reroll" | null;
 
@@ -115,9 +116,7 @@ export function HybridPanels({ launch, initialPanel = null }: { launch: LaunchDT
         {nfts.map((i) => (
           <label key={i} className={`rounded-panel cursor-pointer border p-2 ${value === i ? "border-accent-border bg-accent-tint" : "border-border"}`}>
             <input type="radio" name={`${prefix}-nft`} className="sr-only" checked={value === i} onChange={() => onPick(i)} data-testid={`${prefix}-nft-option-${i}`} />
-            <span className="bg-surface-2 rounded-chip mb-2 flex aspect-square items-center justify-center" aria-hidden="true">
-              <span className="text-dim font-mono text-xs">art</span>
-            </span>
+            <NftThumb uri={holdings.data?.nftUris?.[i]} index={i} />
             <span className="num text-sm font-semibold">#{String(i).padStart(4, "0")}</span>
           </label>
         ))}

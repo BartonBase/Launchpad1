@@ -78,7 +78,7 @@ export function TokenHeader({ v, priceSol = null }: { v: TokenView; priceSol?: n
         <p className="text-muted max-w-xl text-sm" data-testid="token-glossary">
           <b className="text-fg">Bonding curve</b>: the formula that sets the price before graduation; it rises as people buy. <b className="text-fg">Graduation</b>: when the curve raises its SOL target, trading moves to a locked liquidity pool
           {v.type === "hybrid" && <> and the NFT side opens. <b className="text-fg">SPL-404</b>: a token paired with an NFT collection at a fixed rate, convertible both ways.</>}
-          {v.type === "burn" && <> and burning opens. <b className="text-fg">Burn</b>: destroy a fixed amount of tokens to mint the next NFT; one-way.</>}
+          {v.type === "burn" && <> and burning opens. <b className="text-fg">Burn</b>: destroy a fixed amount of tokens to mint an NFT; one-way.</>}
           {v.type === "plain" && <>.</>}
         </p>
       </div>
@@ -126,7 +126,7 @@ export function MarketCard({ v, priceSol = null }: { v: TokenView; priceSol?: nu
 export function PhaseCard({ v }: { v: TokenView }) {
   const steps: [string, string][] = [["Liquidity", "Moved to a locked liquidity pool"]];
   if (v.type === "hybrid") steps.push(["Converting", "Opens, art revealed; each NFT minted on first capture"], ["NFT trading", "Live on Tensor and Magic Eden"]);
-  if (v.type === "burn") steps.push(["Burning", `Opens: burn the ratio to mint the next NFT in collection order`], ["NFT trading", "Minted NFTs trade on marketplaces"]);
+  if (v.type === "burn") steps.push(["Burning", `Opens: burn the ratio to mint an NFT`], ["NFT trading", "Minted NFTs trade on marketplaces"]);
   return (
     <section className="card space-y-4 p-5" aria-labelledby="phase-h" data-testid="phase-card">
       <div className="flex items-start gap-4">

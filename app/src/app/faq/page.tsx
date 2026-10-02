@@ -23,11 +23,11 @@ const GROUPS: readonly { id: string; title: string; qa: readonly (readonly [stri
     ["Does rarity change what I get back?", "No. Rarity is cosmetic. Every NFT releases for the same number of tokens. Any marketplace price is set by buyers and sellers, not by Armory."],
   ] },
   { id: "burn", title: "Launch and Burn (coming soon)", qa: [
-    ["How does a Burn launch work?", `After graduation, burn the ratio of tokens to mint the next NFT in the collection. The tokens are destroyed, so the supply goes down. You pay the platform fee and ${FIRST_MINT_RANGE_TEXT} mint cost directly; there's no deposit (Burn is pending deploy).`],
+    ["How does a Burn launch work?", `After graduation, burn the ratio of tokens to mint an NFT from the collection. The tokens are destroyed, so the supply goes down. You pay the platform fee and ${FIRST_MINT_RANGE_TEXT} mint cost directly; there's no deposit.`],
     ["Can I undo a burn?", "No. Burn NFTs can't be converted back to tokens or re-rolled. They have no token backing; their price is whatever buyers pay."],
-    ["Which NFT do I get from a burn?", "The next one in collection order. The order is public, so you can see what's next."],
+    ["Which NFT do I get from a burn?", "The plan is a random pick, verified the same way as Hybrid captures, so nobody can line up a burn to land a rare piece. This is still being designed."],
     ["What's a Launch?", "Just the coin: 1,000,000,000 tokens on a bonding curve, then a locked liquidity pool. No NFTs and no per-NFT fees, just the 1% curve trade fee."],
-    ["Why is Burn \"coming soon\"?", "Its program code is written but not deployed yet, so Burn launches can't be created."],
+    ["Why is Burn \"coming soon\"?", "It needs a fair random NFT pick and an independent review before it opens, so Burn launches can't be created yet."],
   ] },
   { id: "fees", title: "Fees", qa: [
     ["What does it cost?", "Platform fees are flat SOL by ratio: 0.002 SOL (50K), 0.005 SOL (100K and 200K) or 0.01 SOL (500K and up), per capture, re-roll or burn. Release is free. The kept part of the mint deposit (Burn: the mint cost) is Solana rent plus the Metaplex fee, not an Armory fee. There's no launch fee on chain today, and no separate randomness fee."],
