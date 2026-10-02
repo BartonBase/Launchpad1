@@ -2,7 +2,7 @@
  * Token page sections shared by Plain / Hybrid / Burn (design: token-plain, token, token-graduated,
  * token-burn; matrix: lib/armory/tokenPanels). Server components; no transaction code here.
  */
-import { BETA_DEPOSIT_CAP, BURN_MINT_TEXT, DEPOSIT_CAP_TAG, FIRST_MINT_RANGE_TEXT, MINT_ESCROW_LAMPORTS, TOTAL_SUPPLY_WHOLE } from "@/config/armory";
+import { BURN_MINT_TEXT, FIRST_MINT_RANGE_TEXT, MINT_ESCROW_LAMPORTS, TOTAL_SUPPLY_WHOLE } from "@/config/armory";
 import { explorerAddressUrl } from "@/config/cluster";
 import { formatSol, formatUnits, shortAddr } from "@/lib/armory/format";
 import type { Phase, TokenType } from "@/lib/armory/tokenPanels";
@@ -31,7 +31,7 @@ export interface TokenView {
   readonly supplyWhole: bigint;
 }
 
-const TNAME: Record<TokenType, string> = { plain: "Plain", hybrid: "Hybrid", burn: "Burn" };
+const TNAME: Record<TokenType, string> = { plain: "Launch", hybrid: "Hybrid", burn: "Burn" };
 const Ex = ({ on }: { on: boolean }) => (on ? <span className="tag tag-demo">Example</span> : null);
 const Fact = ({ k, v, ok, testId }: { k: string; v: React.ReactNode; ok?: boolean; testId?: string }) => (
   <div className="fact" data-testid={testId}>
@@ -61,17 +61,16 @@ export function TokenHeader({ v, priceSol = null }: { v: TokenView; priceSol?: n
         </h1>
         <div className="flex flex-wrap gap-1.5" data-testid="token-chips">
           <span className="tchip" data-testid="type-chip"><TypeIcon type={v.type} size={14} />{TNAME[v.type]}</span>
-          {v.phase === "graduated" ? <span className="tag tag-ok"><i />Graduated</span> : v.phase === "curve" ? <span className="tag tag-accent"><i />On curve</span> : <span className="tag" title={NO_CURVE_MESSAGE}>No curve · native test launch</span>}
-          {v.phase === "graduated" && <span className="tag">Trading on Meteora DAMM v2</span>}
-          {v.phase === "curve" && !v.example && <span className="tag">Meteora DBC curve</span>}
-          {v.type !== "plain" && <span className="tag">{verb(v.type)} {v.phase === "graduated" ? "open" : v.phase === "native" ? "can never open" : "opens at graduation"}</span>}
+          {v.phase === "graduated" ? <span className="tag tag-ok"><i />Graduated</span> : v.phase === "curve" ? <span className="tag tag-accent"><i />On curve</span> : <span className="tag" title={NO_CURVE_MESSAGE}>No curve</span>}
+          {v.phase === "graduated" && <span className="tag">Trading in the pool</span>}
+                    {v.type !== "plain" && <span className="tag">{verb(v.type)} {v.phase === "graduated" ? "open" : v.phase === "native" ? "can never open" : "opens at graduation"}</span>}
           {v.ratioWhole !== null && v.collectionSize !== null && <span className="tag">{v.collectionSize.toLocaleString("en-US")} NFTs · {formatUnits(v.ratioWhole, 0)}{v.symbol ? ` ${v.symbol}` : ""} each</span>}
           <span className="tag">No transfer tax</span>
           {v.example && <span className="tag tag-soon" data-testid="pending-chip">Coming soon</span>}
           {v.example && <span className="tag tag-demo">Example</span>}
         </div>
         <p className="text-muted max-w-xl text-sm" data-testid="token-glossary">
-          <b className="text-fg">Bonding curve</b>: the formula that sets the price before graduation; it rises as people buy. <b className="text-fg">Graduation</b>: when the curve raises its SOL target, trading moves to a Meteora DAMM v2 pool
+          <b className="text-fg">Bonding curve</b>: the formula that sets the price before graduation; it rises as people buy. <b className="text-fg">Graduation</b>: when the curve raises its SOL target, trading moves to a locked liquidity pool
           {v.type === "hybrid" && <> and the NFT side opens. <b className="text-fg">SPL-404</b>: a token paired with an NFT collection at a fixed rate, convertible both ways.</>}
           {v.type === "burn" && <> and burning opens. <b className="text-fg">Burn</b>: destroy a fixed amount of tokens to mint the next NFT; one-way.</>}
           {v.type === "plain" && <>.</>}
@@ -79,7 +78,7 @@ export function TokenHeader({ v, priceSol = null }: { v: TokenView; priceSol?: n
       </div>
       <div className="space-y-2 lg:text-right" data-testid="token-price">
         <p className="num text-4xl font-semibold">{priceSol ? (priceSol >= 1e-6 ? priceSol.toPrecision(3) : (priceSol * 1e6).toPrecision(3)) : "—"} <span className="text-muted text-lg font-normal">{priceSol && priceSol < 1e-6 ? "SOL per 1M" : "SOL"}</span></p>
-        <p className="text-dim text-xs">{priceSol ? `Spot price per token, read from the Meteora ${v.phase === "graduated" ? "DAMM v2 pool" : "curve"}` : v.example ? "Example page: no live price" : "No market for this launch"}</p>
+        <p className="text-dim text-xs">{priceSol ? `Spot price per token, read live from the ${v.phase === "graduated" ? "pool" : "curve"}` : "No market for this launch"}</p>
         {v.mint && (
           <div className="flex flex-wrap gap-1.5 lg:justify-end" data-testid="token-addresses">
             <a href={explorerAddressUrl(v.mint)} target="_blank" rel="noopener noreferrer" className={addr}>Mint {shortAddr(v.mint, 4)} ↗</a>
@@ -102,12 +101,12 @@ export function MarketCard({ v, priceSol = null }: { v: TokenView; priceSol?: nu
     <section className="card space-y-4 p-5" aria-labelledby="mkt-h" data-testid="market-card">
       <div className="flex items-center justify-between gap-2">
         <h2 id="mkt-h" className="font-semibold">Market</h2>
-        {v.example ? <span className="tag tag-demo">Example</span> : <span className="tag">Live from Meteora</span>}
+        {v.example ? null : <span className="tag">Live</span>}
       </div>
       <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
         <div><dt className="text-muted text-xs">Price</dt><dd className="num">{priceSol ? fmtPrice(priceSol) : "—"}</dd></div>
         <div><dt className="text-muted text-xs">Market cap</dt><dd className="num">{mcap ? `${mcap.toLocaleString("en-US", { maximumFractionDigits: 2 })} SOL` : "—"}</dd></div>
-        <div><dt className="text-muted text-xs">Venue</dt><dd>{v.example ? "—" : v.phase === "graduated" ? "DAMM v2" : "DBC curve"}</dd></div>
+        <div><dt className="text-muted text-xs">Venue</dt><dd>{v.example ? "—" : v.phase === "graduated" ? "Liquidity pool" : "Bonding curve"}</dd></div>
         <div>
           <dt className="text-muted text-xs">{v.type === "burn" ? "Supply now" : "Supply"}</dt>
           <dd className="num">{formatUnits(v.supplyWhole, 0)}</dd>
@@ -119,7 +118,7 @@ export function MarketCard({ v, priceSol = null }: { v: TokenView; priceSol?: nu
 }
 
 export function PhaseCard({ v }: { v: TokenView }) {
-  const steps: [string, string][] = [["Liquidity", "Moved to a Meteora DAMM v2 pool"]];
+  const steps: [string, string][] = [["Liquidity", "Moved to a locked liquidity pool"]];
   if (v.type === "hybrid") steps.push(["Converting", "Opens, art revealed; each NFT minted on first capture"], ["NFT trading", "Live on Tensor and Magic Eden"]);
   if (v.type === "burn") steps.push(["Burning", `Opens: burn the ratio to mint the next NFT in collection order`], ["NFT trading", "Minted NFTs trade on marketplaces"]);
   return (
@@ -134,7 +133,7 @@ export function PhaseCard({ v }: { v: TokenView }) {
               ? `${NO_CURVE_MESSAGE} The supply sits in a program-owned account. Only launches on a bonding curve (the curve path) can graduate.`
               : v.phase === "graduated"
                 ? `Graduated at ${formatSol(v.graduationLamports, 2)}${v.collectionSize ? ` · ${v.minted} of ${v.collectionSize.toLocaleString("en-US")} minted so far` : ""}.`
-                : `When the curve reaches ${formatSol(v.graduationLamports, 2)}, liquidity moves to a Meteora DAMM v2 pool${v.type === "plain" ? " and nothing else changes" : `, and ${verb(v.type).toLowerCase()} opens`}.`}
+                : `When the curve reaches ${formatSol(v.graduationLamports, 2)}, liquidity moves to a locked pool${v.type === "plain" ? " and nothing else changes" : `, and ${verb(v.type).toLowerCase()} opens`}.`}
           </p>
         </div>
         {v.phase !== "native" && <MascotPlaceholder size={88} className="hidden sm:block" />}
@@ -166,16 +165,13 @@ export function TradePanel({ v }: { v: TokenView }) {
         <input className="input num mt-1" placeholder="0.00 SOL" disabled aria-label="Amount in SOL" />
       </div>
       <dl>
-        <Fact k="Route" v={v.phase === "native" ? "None (no curve)" : v.phase === "graduated" ? "Meteora DAMM v2 pool" : "Meteora DBC curve"} />
+        <Fact k="Route" v={v.phase === "native" ? "None (no curve)" : v.phase === "graduated" ? "Liquidity pool" : "Bonding curve"} />
         <Fact k="Tax" v="No transfer tax" />
       </dl>
-      <div className="capslot" data-testid="trade-capslot">
-        <span className="tag tag-ua">Unaudited beta</span> Deposit cap <b>{BETA_DEPOSIT_CAP.sol} SOL per wallet</b> <span className="tag tag-demo">{DEPOSIT_CAP_TAG}</span>
-      </div>
       <button type="button" className="btn btn-primary btn-lg w-full" disabled data-testid="trade-submit">
         Buy {v.symbol ?? "tokens"}
       </button>
-      <p className="text-dim text-xs" data-testid="trade-disabled-note">{v.example ? "Example page: trading is disabled. Live launches trade on Meteora (DBC curve, then DAMM v2)." : v.phase === "native" ? "This devnet test launch has no curve or pool, so there's nothing to trade. Launches on a Meteora DBC curve are tradable." : "No Meteora pool was found for this token."}</p>
+      <p className="text-dim text-xs" data-testid="trade-disabled-note">{v.example ? "Trading isn't open for this token yet." : v.phase === "native" ? "This launch has no curve or pool, so there's nothing to trade." : "No pool was found for this token."}</p>
     </section>
   );
 }
@@ -183,11 +179,11 @@ export function TradePanel({ v }: { v: TokenView }) {
 export function PlainFacts() {
   return (
     <section className="card space-y-2 p-5" aria-labelledby="pf-h" data-testid="plain-facts">
-      <h2 id="pf-h" className="font-semibold">What a Plain launch is</h2>
+      <h2 id="pf-h" className="font-semibold">What a Launch token is</h2>
       <ul className="text-muted list-inside list-disc space-y-1 text-sm">
-        <li>Just the coin: a classic 1,000,000,000 SPL token on a Meteora Dynamic Bonding Curve.</li>
+        <li>Just the coin: a classic 1,000,000,000 SPL token on a bonding curve.</li>
         <li>No NFT collection, no converting, no platform fee per action. Trade fees only.</li>
-        <li>At graduation the curve&apos;s liquidity migrates to a Meteora DAMM v2 pool. Nothing else changes.</li>
+        <li>At graduation the curve&apos;s liquidity moves to a pool with the LP locked. Nothing else changes.</li>
       </ul>
     </section>
   );
@@ -272,7 +268,7 @@ export function FeesControl({ v }: { v: TokenView }) {
     <section className="card space-y-2 p-5" aria-labelledby="fc-h" data-testid="fees-control">
       <h2 id="fc-h" className="font-semibold">Fees and control</h2>
       <dl>
-        <Fact k="Curve trade fee" v="1% · Meteora DBC platform config (devnet)" />
+        <Fact k="Curve trade fee" v="1% per trade" />
         {v.type !== "plain" && <Fact k={`Platform fee per ${v.type === "burn" ? "burn" : "capture or re-roll"}`} v={v.feeLamports !== null ? formatSol(v.feeLamports) : "—"} />}
         {v.type === "hybrid" && <Fact k="Mint deposit, per capture or re-roll" v={`${formatSol(MINT_ESCROW_LAMPORTS, 4)}, refunded except ${FIRST_MINT_RANGE_TEXT} if the NFT is minted new`} />}
         {v.type === "hybrid" && <Fact k="Converting back" v="No platform fee" />}
@@ -285,7 +281,7 @@ export function FeesControl({ v }: { v: TokenView }) {
 
 export function NobodyCanChange({ v }: { v: TokenView }) {
   const items = ["Supply: 1,000,000,000 at launch, mint authority revoked", "Freeze authority revoked", "No transfer tax", "Unsold curve tokens are locked by the program, not burned"];
-  if (v.type === "plain") items.push("No update instruction exists for a Plain launch", "No NFT side, ever");
+  if (v.type === "plain") items.push("No update instruction exists for this token", "No NFT side, ever");
   if (v.type === "hybrid") items.push("Conversion rate and platform fee (written once at launch)", "Release always returns exactly the ratio");
   if (v.type === "burn") items.push("Burn rate and platform fee (written once at launch)", "Collection order (committed before launch)");
   return (
@@ -304,8 +300,8 @@ export function FactsCard({ v }: { v: TokenView }) {
     <section className="card p-5" aria-labelledby="facts-h" data-testid="facts-card">
       <h2 id="facts-h" className="mb-2 font-semibold">Facts {v.example ? <Ex on /> : <span className="text-dim text-xs font-normal">read from chain</span>}</h2>
       <dl>
-        <Fact k="Launch type" v={v.type === "hybrid" ? "Hybrid · SPL-404" : v.type === "burn" ? "Burn · one-way" : "Plain · just the coin"} />
-        <Fact k="Phase" v={v.phase === "graduated" ? "Graduated · DAMM v2" : v.phase === "curve" ? "On curve" : "Native test launch"} />
+        <Fact k="Launch type" v={v.type === "hybrid" ? "Hybrid · SPL-404" : v.type === "burn" ? "Burn · one-way" : "Launch · just the coin"} />
+        <Fact k="Phase" v={v.phase === "graduated" ? "Graduated" : v.phase === "curve" ? "On curve" : "No curve"} />
         <Fact k="Supply" v={`${formatUnits(v.supplyWhole, 0)}${supplyFixed ? " · fixed" : " now"}`} />
         <Fact k="Mint authority" v={v.mintAuthority ? `Present: ${shortAddr(v.mintAuthority)}` : "✓ Revoked"} ok={!v.mintAuthority} testId="fact-mint-authority" />
         <Fact k="Freeze authority" v={v.freezeAuthority ? `Present: ${shortAddr(v.freezeAuthority)}` : "✓ Revoked"} ok={!v.freezeAuthority} testId="fact-freeze-authority" />
@@ -319,7 +315,6 @@ export function FactsCard({ v }: { v: TokenView }) {
         {v.type !== "plain" && <Fact k="NFT standard" v="Metaplex Core" />}
         {v.type === "hybrid" && <Fact k="Randomness" v="Switchboard On-Demand · committed art" />}
         <Fact k="Graduation target" v={formatSol(v.graduationLamports, 2)} />
-        <Fact k="Audit" v="Not yet · unaudited beta" ok={false} />
       </dl>
       {!v.feeIsExactTier && v.feeLamports !== null && (
         <p role="alert" className="text-warning mt-2 text-xs" data-testid="fee-not-tier">The stored fee is not the exact tier for this ratio. Armory blocks captures for this launch.</p>

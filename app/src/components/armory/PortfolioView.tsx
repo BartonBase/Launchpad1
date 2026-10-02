@@ -3,13 +3,12 @@ import Link from "next/link";
 import { PublicKey } from "@solana/web3.js";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useChainRead } from "@/hooks/useChain";
-import { BETA_DEPOSIT_CAP, DEPOSIT_CAP_TAG } from "@/config/armory";
 import { fetchHoldings, fetchLaunches, fetchUserRequests } from "@/lib/armory/reads";
 import { formatSol, formatTokens, shortAddr } from "@/lib/armory/format";
 import { StateTag } from "./LaunchCard";
 import { TypeIcon } from "./TypeIcon";
 
-/** Portfolio per design/system portfolio.html (lean): summary, cap usage, positions, NFTs, history. */
+/** Portfolio per design/system portfolio.html (lean): summary, positions, NFTs, history. */
 export function PortfolioView() {
   const { publicKey } = useWallet();
   const user = publicKey?.toBase58() ?? null;
@@ -35,10 +34,6 @@ export function PortfolioView() {
         <div className="border-border p-4 md:border-l"><dt className="text-muted text-xs">Hybrid NFTs</dt><dd className="num text-xl font-semibold">{nftCount}</dd></div>
         <div className="border-border p-4 md:border-l"><dt className="text-muted text-xs">Burn NFTs</dt><dd className="text-xl font-semibold"><span className="tag tag-soon">Coming soon</span></dd></div>
       </dl>
-      <div className="capslot" data-testid="portfolio-capslot">
-        <span className="tag tag-ua">Unaudited beta</span> Deposit cap usage: <b>— of {BETA_DEPOSIT_CAP.sol} SOL</b>
-        <span className="tag tag-demo" title={BETA_DEPOSIT_CAP.note}>{DEPOSIT_CAP_TAG}</span>
-      </div>
       <section className="card overflow-x-auto" aria-labelledby="pos-h">
         <h2 id="pos-h" className="border-border border-b p-4 font-semibold">Positions</h2>
         {d.rows.length === 0 ? (
@@ -58,7 +53,7 @@ export function PortfolioView() {
                     <td className="p-3"><StateTag state={l.state} /></td>
                     <td className="num p-3 text-right">{formatTokens(h.tokenBase, l.decimals)}</td>
                     <td className="num p-3 text-right">{h.nftIndexes.length}</td>
-                    <td className="text-muted p-3 text-right" title="Needs a price source (DBC/DEX), not wired yet">—</td>
+                    <td className="text-muted p-3 text-right" title="Price not available yet">—</td>
                     <td className="p-3 text-right whitespace-nowrap">
                       {convertible > 0n && <Link href={`/t/${l.mint}?panel=capture`} className="btn btn-sm btn-primary">Convert {convertible.toString()}</Link>}{" "}
                       {h.nftIndexes.length > 0 && <Link href={`/t/${l.mint}?panel=release`} className="btn btn-sm">Release</Link>}
@@ -95,7 +90,7 @@ export function PortfolioView() {
       )}
       <section className="card card-soon p-4" data-testid="portfolio-history">
         <h2 className="font-semibold">History</h2>
-        <p className="text-sm">Captures, releases and trades will be listed here once an indexer is wired. Until then, check your wallet on the explorer.</p>
+        <p className="text-sm">Captures, releases and trades will be listed here soon. For now, see your wallet&apos;s history on the explorer.</p>
       </section>
     </div>
   );

@@ -2,7 +2,7 @@
 import { HYBRID_VAULT_PROGRAM_ID } from "@/config/programs";
 
 export const NO_CURVE_MESSAGE =
-  "This launch has no bonding curve (native devnet test launch), so it can never graduate and converting can never open.";
+  "This launch has no bonding curve, so it can never graduate and converting can never open.";
 
 const FRIENDLY: Record<string, Record<number, string>> = {
   [HYBRID_VAULT_PROGRAM_ID.toBase58()]: {

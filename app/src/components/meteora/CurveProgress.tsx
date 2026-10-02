@@ -9,18 +9,18 @@ import { fmtPrice } from "@/components/armory/TokenSections";
 
 export function CurveProgress({ curve, dammPool }: { curve: CurveStateDTO; dammPool: string | null }) {
   const steps = [
-    { k: "Bonding curve", d: "Meteora DBC", on: true },
+    { k: "Bonding curve", d: "Price rises as people buy", on: true },
     { k: "Graduation", d: `${formatSol(curve.thresholdLamports, 2)} raised`, on: curve.curveComplete || curve.migrated },
-    { k: "DAMM v2 pool", d: "Liquidity migrated, LP locked", on: curve.migrated },
+    { k: "Graduated", d: "Liquidity pool, LP locked", on: curve.migrated },
   ];
   return (
     <section className="card space-y-4 p-5" aria-labelledby="curve-h" data-testid="curve-progress" data-migrated={curve.migrated}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="curve-h" className="font-semibold">Curve progress</h2>
-        {curve.migrated ? <span className="tag tag-ok"><i />Graduated to DAMM v2</span> : curve.curveComplete ? <span className="tag tag-pd"><i />Curve full · migrating</span> : <span className="tag tag-accent"><i />On the curve</span>}
+        <h2 id="curve-h" className="font-semibold">Bonding curve</h2>
+        {curve.migrated ? <span className="tag tag-ok"><i />Graduated</span> : curve.curveComplete ? <span className="tag tag-pd"><i />Curve full · graduating</span> : <span className="tag tag-accent"><i />On the curve</span>}
       </div>
       <div>
-        <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={curve.progressPct} aria-label="Curve progress">
+        <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={curve.progressPct} aria-label="Bonding curve progress">
           <span style={{ width: `${Math.max(curve.progressPct, 1)}%` }} />
         </div>
         <p className="text-muted mt-1 flex justify-between text-xs">
@@ -37,14 +37,14 @@ export function CurveProgress({ curve, dammPool }: { curve: CurveStateDTO; dammP
         ))}
       </ol>
       <dl className="text-xs">
-        <div className="fact"><dt>DBC pool</dt><dd><a className="text-accent-text" href={explorerAddressUrl(curve.pool)} target="_blank" rel="noopener noreferrer">{shortAddr(curve.pool, 4)} ↗</a></dd></div>
-        <div className="fact"><dt>Curve config</dt><dd><a className="text-accent-text" href={explorerAddressUrl(curve.config)} target="_blank" rel="noopener noreferrer">{shortAddr(curve.config, 4)} ↗</a></dd></div>
-        {dammPool && <div className="fact"><dt>DAMM v2 pool</dt><dd><a className="text-accent-text" href={explorerAddressUrl(dammPool)} target="_blank" rel="noopener noreferrer" data-testid="damm-pool-link">{shortAddr(dammPool, 4)} ↗</a></dd></div>}
+        <div className="fact"><dt>Curve pool</dt><dd><a className="text-accent-text" href={explorerAddressUrl(curve.pool)} target="_blank" rel="noopener noreferrer">{shortAddr(curve.pool, 4)} ↗</a></dd></div>
+        <div className="fact"><dt>Curve settings</dt><dd><a className="text-accent-text" href={explorerAddressUrl(curve.config)} target="_blank" rel="noopener noreferrer">{shortAddr(curve.config, 4)} ↗</a></dd></div>
+        {dammPool && <div className="fact"><dt>Liquidity pool</dt><dd><a className="text-accent-text" href={explorerAddressUrl(dammPool)} target="_blank" rel="noopener noreferrer" data-testid="damm-pool-link">{shortAddr(dammPool, 4)} ↗</a></dd></div>}
         <div className="fact"><dt>{curve.migrated ? "Curve final price" : "Spot price"}</dt><dd>{curve.priceSol > 0 ? fmtPrice(curve.priceSol) : "—"}</dd></div>
         <div className="fact"><dt>Curve trade fee</dt><dd>{curve.feeBps / 100}%</dd></div>
       </dl>
       <p className="text-dim text-xs">
-        Read live from chain with the Meteora DBC SDK. When {formatSol(curve.thresholdLamports, 2)} is raised the curve closes and its liquidity migrates to a Meteora DAMM v2 pool, where trading continues.
+        Read live from chain. When {formatSol(curve.thresholdLamports, 2)} is raised the curve closes, the token graduates and its liquidity moves to a locked pool, where trading continues.
       </p>
     </section>
   );

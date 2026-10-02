@@ -75,7 +75,6 @@ export const FIRST_MINT_RANGE_TEXT = "≈ 0.003–0.004 SOL";
 export const mintDepositText = (depositLamports: bigint = MINT_ESCROW_LAMPORTS, firstMint?: readonly [bigint, bigint]) =>
   `Mint deposit ${sol4(depositLamports)} SOL, refunded except ${firstMint ? `≈ ${sol4(firstMint[0])}–${sol4(firstMint[1])} SOL` : FIRST_MINT_RANGE_TEXT} if your NFT is minted for the first time`;
 export const BURN_MINT_TEXT = `${FIRST_MINT_RANGE_TEXT}, paid directly by the burner (no deposit)`;
-export const DEPOSIT_CAP_TAG = "Example · not enforced yet";
 
 /** Base signature fee; the preview replaces it with getFeeForMessage when available. */
 export const BASE_TX_FEE_LAMPORTS = 5_000n;
@@ -97,15 +96,7 @@ export const RANDOMNESS_SETUP_ACCOUNT_BYTES = [480, 165, 152] as const;
 export const FIRST_MINT_ASSET_BYTES_RANGE = [97, 282] as const;
 export const CORE_CREATE_FEE_LAMPORTS = 1_500_000n;
 
-/**
- * BETA DEPOSIT CAP — PLACEHOLDER. No cap exists on-chain yet (itinerary step 7/11; launch gate).
- * Shown site-wide and in the wizard/trade flows so the UI slot exists; NOT ENFORCED.
- */
-export const BETA_DEPOSIT_CAP = {
-  sol: 10, // design DEP_CAP "10 SOL per wallet", always tagged Example (NOTE.md 2026-10-01)
-  enforcedOnChain: false,
-  note: "Example value: no cap exists in BRIEF, docs or the programs yet. Not enforced.",
-} as const;
+// (The beta deposit-cap placeholder was removed from the UI on 2026-10-02: no cap exists on-chain.)
 
 // ---------------------------------------------------------------------------
 // Launch types + feature flags
@@ -122,11 +113,11 @@ export interface LaunchType {
 }
 
 export const LAUNCH_TYPES: readonly LaunchType[] = [
-  { id: "plain", name: "Plain", short: "Just the coin", description: "A classic 1B memecoin on a Meteora bonding curve that graduates to a DAMM v2 pool. No NFTs, no converter, no platform fee." },
+  { id: "plain", name: "Launch", short: "Just the coin", description: "A classic 1B meme coin on a bonding curve that graduates to a locked liquidity pool. No NFTs, no converter, no platform fee." },
   { id: "hybrid", name: "Hybrid", short: "Coin and NFT, both ways", description: "Lock a fixed number of tokens to get a random NFT, and return the NFT for exactly those tokens, any time after graduation." },
-  { id: "burn", name: "Burn", short: "Burn coins to mint an NFT", description: "Burn a fixed number of tokens to mint the next NFT in the collection. One-way: the tokens are gone and the NFT can't be turned back. Can't be launched yet." },
-  { id: "tax", name: "Tax split", short: "Transfer tax to NFT holders", description: "A transfer fee, fixed at launch, shared with NFT holders. Can't be launched yet." },
-  { id: "raffle", name: "Raffle", short: "Tax-funded holder raffle", description: "A transfer fee builds a round pot that one holder wins. Can't be launched yet." },
+  { id: "burn", name: "Burn", short: "Burn coins to mint an NFT", description: "Burn a fixed number of tokens to mint the next NFT in the collection. One-way: the tokens are gone and the NFT can't be turned back." },
+  { id: "tax", name: "Tax split", short: "Transfer tax to NFT holders", description: "A transfer fee, fixed at launch, shared with NFT holders." },
+  { id: "raffle", name: "Raffle", short: "Tax-funded holder raffle", description: "A transfer fee builds a round pot that one holder wins." },
 ];
 
 /**
@@ -160,7 +151,7 @@ export function launchTypeStatus(id: LaunchTypeId, cluster: ClusterName): Launch
 }
 
 export const STATUS_LABEL: Record<LaunchTypeStatus, string> = {
-  live: "Live on devnet",
+  live: "Live",
   "pending-deploy": "Pending deploy",
   "coming-soon": "Coming soon",
 };

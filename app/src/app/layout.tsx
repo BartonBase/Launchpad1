@@ -4,7 +4,6 @@ import "./globals.css";
 import { SolanaProviders } from "@/providers/SolanaProviders";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
-import { CLUSTER } from "@/config/cluster";
 import { BRAND } from "@/config/armory";
 import { fontVariables } from "./fonts";
 
@@ -12,8 +11,8 @@ import { fontVariables } from "./fonts";
 export const revalidate = 30;
 
 export const metadata: Metadata = {
-  title: { default: `${BRAND.name} (${CLUSTER.label} beta)`, template: `%s · ${BRAND.name}` },
-  description: "Launch a Solana meme coin on its own, or with an NFT collection built in. Unaudited beta, devnet only.",
+  title: { default: BRAND.name, template: `%s · ${BRAND.name}` },
+  description: "Launch a Solana meme coin on its own, or with an NFT collection built in.",
   robots: { index: false, follow: false },
 };
 

@@ -1,15 +1,16 @@
 import { CLUSTER } from "@/config/cluster";
 
-/** Always-visible, loud cluster indicator. Server component (no JS). */
+/** Small, quiet network chip shown next to the wallet button. Server component (no JS). */
 export function ClusterBadge() {
-  const bg = CLUSTER.name === "devnet" ? "bg-cluster-devnet" : "bg-cluster-localnet";
+  const name = CLUSTER.name.charAt(0).toUpperCase() + CLUSTER.name.slice(1);
   return (
     <span
       data-testid="cluster-badge"
-      title={`Connected to ${CLUSTER.label} via ${CLUSTER.rpcUrl} — test funds only`}
-      className={`${bg} text-cluster-fg rounded-control px-3 py-1 font-mono text-sm font-bold tracking-widest uppercase`}
+      title={`Network: ${name}`}
+      className="border-border text-muted rounded-chip inline-flex items-center gap-1.5 border px-2 py-0.5 text-xs"
     >
-      {CLUSTER.label}
+      <i aria-hidden="true" className="bg-warning inline-block h-1.5 w-1.5 rounded-full" />
+      {name}
     </span>
   );
 }

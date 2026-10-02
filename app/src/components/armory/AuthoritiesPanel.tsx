@@ -3,8 +3,8 @@
  * BPF upgradeable loader on the configured cluster; anything not yet enforced on-chain is shown as
  * a clearly tagged placeholder. Never claims "immutable" for an upgradeable program.
  */
-import { explorerAddressUrl, CLUSTER } from "@/config/cluster";
-import { BETA_DEPOSIT_CAP, DEPOSIT_CAP_TAG, PROGRAM_UPGRADES_COPY } from "@/config/armory";
+import { explorerAddressUrl } from "@/config/cluster";
+import { PROGRAM_UPGRADES_COPY } from "@/config/armory";
 import { cachedRead } from "@/lib/armory/server";
 import { fetchProgramStatus } from "@/lib/armory/reads";
 import { shortAddr } from "@/lib/armory/format";
@@ -15,8 +15,8 @@ export async function AuthoritiesPanel({ compact = false }: { compact?: boolean 
     <div data-testid="authorities-panel" className="space-y-3 text-sm">
       {!compact && (
         <p className="text-muted">
-          Read live from {CLUSTER.label}. A program with an upgrade authority can still be changed by that key. During
-          the beta that is expected; it is shown here so you can verify it yourself.
+          Read live from the chain. A program with an upgrade authority can still be changed by that key; it is shown
+          here so you can verify it yourself.
         </p>
       )}
       <ul className="divide-border divide-y">
@@ -33,7 +33,7 @@ export async function AuthoritiesPanel({ compact = false }: { compact?: boolean 
                 ) : (
                   <span className="text-positive-text">none (frozen)</span>
                 )}{" "}
-                {p.upgradeAuthority && <span className="tag tag-demo ml-1">Devnet deployer key</span>}
+                {p.upgradeAuthority && <span className="tag ml-1">Deployer key</span>}
               </span>
             </li>
           ))
@@ -53,13 +53,7 @@ export async function AuthoritiesPanel({ compact = false }: { compact?: boolean 
         <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2">
           <span className="font-mono text-xs">Program upgrades</span>
           <span className="text-muted text-xs" data-testid="upgrades-copy">
-            {PROGRAM_UPGRADES_COPY.status}. {PROGRAM_UPGRADES_COPY.today} {PROGRAM_UPGRADES_COPY.planned} {PROGRAM_UPGRADES_COPY.after} <span className="tag tag-demo ml-1">Planned, not set up</span>
-          </span>
-        </li>
-        <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2">
-          <span className="font-mono text-xs">Deposit cap</span>
-          <span className="text-muted text-xs">
-            {BETA_DEPOSIT_CAP.sol} SOL per wallet <span className="tag tag-demo ml-1">{DEPOSIT_CAP_TAG}</span>
+            {PROGRAM_UPGRADES_COPY.status}. {PROGRAM_UPGRADES_COPY.today} {PROGRAM_UPGRADES_COPY.planned} {PROGRAM_UPGRADES_COPY.after} <span className="tag ml-1">Planned, not set up</span>
           </span>
         </li>
       </ul>

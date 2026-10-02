@@ -13,7 +13,6 @@ export function MascotPlaceholder({ className = "", size = 168 }: { className?: 
   return (
     <figure className={`mascot shrink-0 ${className}`} style={{ width: size }} data-testid="mascot-placeholder">
       <Image src="/mascot/knight-placeholder.svg" alt={MASCOT_ALT} width={size} height={size} unoptimized />
-      {size >= 120 && <figcaption className="text-dim mt-1 text-center text-[11px]">Placeholder art</figcaption>}
     </figure>
   );
 }

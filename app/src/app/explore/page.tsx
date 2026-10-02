@@ -8,6 +8,7 @@ import { TypeIcon } from "@/components/armory/TypeIcon";
 import { cachedRead } from "@/lib/armory/server";
 import { fetchLaunches } from "@/lib/armory/reads";
 import { fetchPlainLaunches } from "@/lib/meteora/plain";
+import { isListed } from "@/lib/armory/listing";
 import { PlainCard } from "@/components/meteora/PlainCard";
 
 export const metadata: Metadata = { title: "Explore", description: "Every Armory launch with its type, phase and market." };
@@ -34,8 +35,8 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
   const q = (sp.q ?? "").trim().slice(0, 64).toLowerCase();
   const cur: Sp = { type, phase, q };
   const [launches, plains] = await Promise.all([cachedRead("launches", 30_000, fetchLaunches), cachedRead("plain-launches", 20_000, fetchPlainLaunches)]);
-  const all = launches.ok ? launches.value : [];
-  const allPlain = plains.ok ? plains.value : [];
+  const all = launches.ok ? launches.value.filter((l) => isListed(l.collectionName)) : [];
+  const allPlain = plains.ok ? plains.value.filter((p) => isListed(p.name)) : [];
   const list = all.filter(
     (l) =>
       (type === "all" || type === "hybrid") &&
@@ -55,7 +56,7 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-2xl space-y-2">
           <h1 className="hd text-4xl md:text-5xl">Explore launches</h1>
-          <p className="text-muted">Every token launched on Armory, with its type and phase. Plain tokens are just the coin on a Meteora bonding curve; Hybrid tokens open their NFT collection at graduation.</p>
+          <p className="text-muted">Every token launched on Armory, with its type and phase. A Launch is just the coin on a bonding curve; a Hybrid opens its NFT collection at graduation.</p>
         </div>
         <form action="/explore" role="search" className="w-full sm:w-72">
           {type !== "all" && <input type="hidden" name="type" value={type} />}
@@ -67,7 +68,7 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
         {[
           ["Launches", launches.ok ? String(total) : "—"],
           ["On the curve", launches.ok ? String(all.filter((l) => l.state === "curve").length + allPlain.filter((p) => !p.curve.migrated).length) : "—"],
-          ["Graduated to DAMM v2", launches.ok ? String(all.filter((l) => l.state === "graduated").length + allPlain.filter((p) => p.curve.migrated).length) : "—"],
+          ["Graduated", launches.ok ? String(all.filter((l) => l.state === "graduated").length + allPlain.filter((p) => p.curve.migrated).length) : "—"],
           ["SOL on curves", plains.ok ? `${(allPlain.reduce((s, p) => s + Number(p.curve.migrated ? 0 : p.curve.quoteReserveLamports), 0) / 1e9).toFixed(3)}` : "—"],
         ].map(([k, v], i) => (
           <div key={k} className={`p-4 ${i ? "border-border sm:border-l" : ""}`}>
@@ -105,12 +106,12 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
       ) : type === "burn" ? (
         <div className="card-soon rounded-panel space-y-2 border p-6" data-testid="explore-pending-type">
           <p className="font-medium">Burn launches <span className="tag tag-soon ml-1">Coming soon</span></p>
-          <p className="text-sm">None can exist yet. <Link href="/t/example-burn" className="text-accent-text">See an example token page</Link>.</p>
+          <p className="text-sm">Burn launches open soon. <Link href="/launch" className="text-accent-text">Start a launch</Link> in the meantime.</p>
         </div>
       ) : list.length + plainList.length === 0 ? (
         <div className="text-muted space-y-2" data-testid="explore-empty">
           <p>{phase === "near" ? `Nothing is near graduation (${NEAR_PCT}%+ of its curve target) right now.` : "Nothing matches."}</p>
-          {type === "plain" && <p><Link href="/launch?type=plain" className="text-accent-text">Launch a Plain token</Link> on Meteora DBC in one transaction.</p>}
+          {type === "plain" && <p><Link href="/launch?type=plain" className="text-accent-text">Start a launch</Link>: one transaction, and your coin is trading.</p>}
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="explore-grid">
@@ -118,7 +119,7 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
           {list.map((l) => <LaunchCard key={l.mint} l={l} />)}
         </div>
       )}
-      {!plains.ok && <p className="text-warning text-sm">Plain launches couldn&apos;t be loaded from the Meteora curve right now (public devnet RPC). Refresh to try again.</p>}
+      {!plains.ok && <p className="text-warning text-sm">Some launches couldn&apos;t be loaded right now. Refresh to try again.</p>}
       <section className="space-y-3" aria-labelledby="soon-h">
         <h2 id="soon-h" className="font-semibold">Coming soon</h2>
         <div className="grid gap-3 sm:grid-cols-3">

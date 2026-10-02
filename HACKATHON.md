@@ -9,7 +9,7 @@ Armory is a Solana meme-coin launchpad. Each coin is priced by a **Meteora Dynam
 (DBC)** and, when the curve fills, its liquidity moves to a **Meteora DAMM v2** pool. There are two
 launch types:
 
-- **Plain** (live on devnet): just the coin. A fixed 1,000,000,000-token SPL coin on a DBC curve
+- **Launch** (live on devnet; called "Plain" in code as `plain`): just the coin. A fixed 1,000,000,000-token SPL coin on a DBC curve
   that graduates to DAMM v2. No NFTs and no platform fee per action. It launches straight from the
   web app through the DBC SDK, with no Armory program in the path.
 - **Hybrid** (Armory's own programs): the coin plus an NFT collection. After graduation, a fixed
@@ -22,15 +22,15 @@ launch types:
 
 | Step | What happens | Meteora piece |
 | --- | --- | --- |
-| 1. Launch | Plain: `creator.createPool` on Armory's platform DBC config. Hybrid: `hybrid_launch::register_dbc_launch` creates the pool on the same config and records it. | DBC |
+| 1. Launch | Launch type: `creator.createPool` on Armory's platform DBC config. Hybrid: `hybrid_launch::register_dbc_launch` creates the pool on the same config and records it. | DBC |
 | 2. Trade on the curve | Buy and sell in the app with a live quote, slippage setting (0.5/1/3/5%), minimum received, trading fee and Meteora protocol fee (`swapQuote2` + `swap2`, exact-in). | DBC SDK |
 | 3. Progress | A progress bar shows SOL raised against the config's migration threshold, with three steps: curve, graduation, DAMM v2. | DBC state |
 | 4. Graduation | At the threshold, DBC migrates the liquidity to DAMM v2. LP is permanently locked by the config. | DBC to DAMM v2 |
 | 5. Trade after graduation | The same trade panel switches to the DAMM v2 pool, with quote, price impact and minimum received (`getQuote2` + `swap2`). | DAMM v2 (cp-amm) SDK |
 | 6. NFT layer (Hybrid only) | `hybrid_vault::open_vault` verifies the recorded DBC pool has `is_migrated == 1` and `migration_progress == CreatedPool` before converting is allowed. | DBC account checks |
 
-The in-app page **`/meteora`** ("Built on Meteora") shows this flow, live config facts read from
-chain, every address and the code paths below.
+The in-app page **`/meteora`** ("How it works", linked from the site footer) shows this flow, live
+config facts read from chain, every address and the code paths below.
 
 ### Platform DBC config (devnet) `DuQYHUCToW6uHkWngXFiU4uGVSjcVKKCTJwViEb87Em9`
 
@@ -95,8 +95,8 @@ Web app (`app/`, Next.js 16 + TypeScript):
 - `app/src/lib/meteora/plain.ts`: lists plain launches from chain (DBC pools on the platform config).
 - `app/src/components/meteora/SwapPanel.tsx`: the trade panel (curve or DAMM v2).
 - `app/src/components/meteora/CurveProgress.tsx`: progress bar and graduation indicator.
-- `app/src/components/armory/LaunchWizard.tsx`: launch flow (Plain goes live through the DBC SDK).
-- `app/src/app/meteora/page.tsx`: the "Built on Meteora" page.
+- `app/src/components/armory/LaunchWizard.tsx`: launch flow (the Launch type goes live through the DBC SDK).
+- `app/src/app/meteora/page.tsx`: the "How it works" page (Meteora integration overview).
 - `app/src/config/integrations.ts`, `app/src/config/programs.ts`: pinned config and program IDs.
 - `app/tests/meteora.test.ts`: unit tests for curve progress, fee and metadata decoding.
 
@@ -130,10 +130,10 @@ NEXT_PUBLIC_SOLANA_CLUSTER=devnet npm run build   # production build
 Use any Solana wallet (Phantom, Solflare, Backpack) set to **devnet** with some devnet SOL from
 faucet.solana.com. Try this:
 
-1. Launch, pick Plain, fill in name and symbol, launch.
+1. Launch, pick "Launch" (just the coin), fill in name and symbol, launch.
 2. On the token page, buy and sell on the curve and watch the progress bar.
 3. Open the APLN or ARMT page to trade on a DAMM v2 pool after graduation.
-4. Open `/meteora` for the integration overview.
+4. Open `/meteora` ("How it works" in the footer) for the integration overview.
 
 **Hosting (Vercel/Netlify):** root directory `app/`, build `npm run build`, and set the
 environment variable `NEXT_PUBLIC_SOLANA_CLUSTER=devnet`. There are no secrets to configure.

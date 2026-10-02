@@ -63,7 +63,7 @@ export function CostBreakdown({
       {check && !check.ok && (
         <p role="alert" className="border-warning-border bg-warning-bg text-warning rounded-panel border p-3 text-sm" data-testid={`${prefix}-insufficient-balance`}>
           Not enough SOL. You have {formatSol(balance!)} and need {formatSol(cost.requiredBalance)} (short by{" "}
-          {formatSol(check.shortfall)}). Most of it is the refundable deposit; get devnet SOL from a faucet and try again.
+          {formatSol(check.shortfall)}). Most of it is the refundable deposit; add SOL to your wallet and try again.
         </p>
       )}
     </div>

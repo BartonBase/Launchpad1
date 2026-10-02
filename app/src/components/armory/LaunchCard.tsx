@@ -6,7 +6,7 @@ import { TypeIcon } from "./TypeIcon";
 export function StateTag({ state }: { state: LaunchDTO["state"] }) {
   if (state === "graduated") return <span className="tag tag-ok"><i />Graduated</span>;
   if (state === "curve") return <span className="tag tag-accent"><i />On curve</span>;
-  return <span className="tag" title="Devnet test launch without a bonding curve: converting can never open.">Native test</span>;
+  return <span className="tag" title="Launched without a bonding curve: converting can never open.">No curve</span>;
 }
 
 export function LaunchCard({ l }: { l: LaunchDTO }) {
@@ -25,7 +25,7 @@ export function LaunchCard({ l }: { l: LaunchDTO }) {
       <div>
         <div className="progress"><span style={{ width: `${l.state === "graduated" ? pct : 0}%` }} /></div>
         <p className="text-muted mt-1 flex justify-between text-xs">
-          <span>{l.state === "graduated" ? "Converting open" : l.state === "curve" ? "Bonding curve" : "No curve (test)"}</span>
+          <span>{l.state === "graduated" ? "Converting open" : l.state === "curve" ? "Bonding curve" : "No curve"}</span>
           <span>{l.mintedCount} of {l.collectionSize} minted</span>
         </p>
       </div>

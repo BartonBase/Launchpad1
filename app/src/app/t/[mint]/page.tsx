@@ -3,13 +3,12 @@
  * Live: Hybrid launches (hybrid_launch LaunchConfig) and Plain launches (Meteora DBC pools on the
  * platform config), both read from devnet. Curve launches get the Meteora curve-progress card and a
  * real buy/sell panel (DBC before graduation, DAMM v2 after). Burn is "Coming soon", so it only
- * exists as a design preview at /t/example-burn (Example data, controls disabled).
+ * exists as a design preview at /t/example-burn (only with NEXT_PUBLIC_DESIGN_PREVIEWS=1).
  * Panel state: ?panel=capture|release|reroll (old ?action= is accepted).
  */
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PublicKey } from "@solana/web3.js";
-import { CLUSTER } from "@/config/cluster";
 import { TOTAL_SUPPLY_WHOLE, tierFeeLamports } from "@/config/armory";
 import { parsePublicKey } from "@/lib/validate";
 import { cachedRead } from "@/lib/armory/server";
@@ -42,7 +41,8 @@ import {
 type Params = Promise<{ mint: string }>;
 type Search = Promise<{ panel?: string; action?: string }>;
 
-const EXAMPLES: Record<string, TokenView> = {
+/** Design previews (fake data). Off unless NEXT_PUBLIC_DESIGN_PREVIEWS=1, so the live site never shows them. */
+const EXAMPLES: Record<string, TokenView> = process.env.NEXT_PUBLIC_DESIGN_PREVIEWS !== "1" ? {} : {
   "example-plain": {
     type: "plain", phase: "curve", example: true, name: "Salt Flats", symbol: "SALT", mint: null, collection: null, decimals: 6,
     ratioWhole: null, collectionSize: null, minted: 0, feeLamports: null, feeIsExactTier: true, feeRecipient: null,
@@ -136,7 +136,7 @@ export default async function TokenPage({ params, searchParams }: { params: Para
           <div data-testid="token-not-found" className="space-y-4">
             <h1 className="hd text-3xl">No Armory launch at this address</h1>
             <p className="text-muted">
-              <span className="font-mono">{shortAddr(mint.toBase58(), 6)}</span> wasn&apos;t launched by Armory on {CLUSTER.label}. Check the address, or browse every launch on the explore page.
+              <span className="font-mono">{shortAddr(mint.toBase58(), 6)}</span> wasn&apos;t launched on Armory. Check the address, or browse every launch on the explore page.
             </p>
             <Link href="/explore" className="btn">Back to explore</Link>
           </div>

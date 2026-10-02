@@ -13,15 +13,12 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import type { PublicKey } from "@solana/web3.js";
 import { CLUSTER } from "@/config/cluster";
 import {
-  BETA_DEPOSIT_CAP,
   BURN_MINT_TEXT,
   DEFAULT_GRADUATION_SOL,
-  DEPOSIT_CAP_TAG,
   FIRST_MINT_RANGE_TEXT,
   LAUNCH_TYPES,
   MIN_GRADUATION_LAMPORTS,
   MINT_ESCROW_LAMPORTS,
-  PRODUCTION_MIN_GRADUATION_LAMPORTS,
   STATUS_LABEL,
   launchTypeStatus,
   maxCollectionSize,
@@ -44,7 +41,7 @@ const GROUPS = [
   { label: "Large collections", hint: "50K to 200K: more NFTs, each one cheaper", ratios: [50_000, 100_000, 200_000] },
   { label: "Small, scarce collections", hint: "500K to 5M: fewer NFTs, each one takes more tokens", ratios: [500_000, 1_000_000, 2_500_000, 5_000_000] },
 ] as const;
-const TNAME: Record<WizardType, string> = { plain: "Plain", hybrid: "Hybrid", burn: "Burn" };
+const TNAME: Record<WizardType, string> = { plain: "Launch", hybrid: "Hybrid", burn: "Burn" };
 
 function steps(t: WizardType): string[] {
   return t === "plain" ? ["Launch type", "Basics", "Token & curve", "Review & launch"] : ["Launch type", "Basics", "Supply & conversion", "Art commitment", "Review & launch"];
@@ -144,7 +141,7 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
   const fillExampleArt = () =>
     setForm((f) => ({
       ...f,
-      collectionName: f.collectionName || f.name || "Example collection",
+      collectionName: f.collectionName || f.name || "My collection",
       collectionUri: "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
       traitRoot: "7f3a" + "0".repeat(56) + "c91e",
       schemaHash: "5c4e" + "0".repeat(56) + "a1b2",
@@ -209,8 +206,7 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
                     <span className="mt-2 block font-semibold">{x.name}</span>
                     <span className="text-accent-text block text-xs">{x.short}</span>
                     <span className="text-muted mt-1 block text-xs">{x.description}</span>
-                    {st === "live" ? <span className="tag tag-ok mt-2"><i />Live on {CLUSTER.label}</span> : <span className="tag tag-pd mt-2"><i />{STATUS_LABEL[st]}</span>}
-                    {x.id === "plain" && <span className="text-dim mt-1 block text-[11px]">Powered by Meteora DBC → DAMM v2</span>}
+                    {st === "live" ? <span className="tag tag-ok mt-2"><i />{STATUS_LABEL[st]}</span> : <span className="tag tag-pd mt-2"><i />{STATUS_LABEL[st]}</span>}
                   </label>
                 );
               })}
@@ -231,7 +227,7 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
             <p className="text-dim text-xs">Burn, Tax split and Raffle aren&apos;t available yet. They&apos;re listed so you know what&apos;s planned.</p>
             {!live && (
               <p className="border-warning-border bg-warning-bg text-warning rounded-panel border p-3 text-sm" data-testid="launch-pending-deploy">
-                {TNAME[t]} can&apos;t be launched on {CLUSTER.label}. You can walk through the setup; launching is disabled.
+                {TNAME[t]} launches aren&apos;t open yet. You can walk through the setup; launching is disabled.
               </p>
             )}
           </fieldset>
@@ -258,7 +254,7 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
             </div>
             {field("metadataUri", "Token metadata URI", "Hosted off-chain", "ipfs://… or ar://…")}
             <p className="text-dim text-xs" data-testid="launch-metadata-note">
-              Optional. The token&apos;s image and description live in a metadata file you host yourself (IPFS or Arweave). It&apos;s set when the Meteora curve pool is created and can&apos;t be edited afterwards. Armory has no upload step and doesn&apos;t host files.{isPlain ? "" : " The native devnet test launch has no metadata field, so it's only used on the curve path."}
+              Optional. The token&apos;s image and description live in a metadata file you host yourself (IPFS or Arweave). It&apos;s set when the curve pool is created and can&apos;t be edited afterwards. Armory has no upload step and doesn&apos;t host files.{isPlain ? "" : " A Hybrid launch without a curve has no metadata field, so it's only used on the curve path."}
             </p>
           </div>
         )}
@@ -322,7 +318,7 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
                   <p className="mb-1 text-sm font-medium">Graduation target</p>
                   <p className="input num flex items-center">{gradText}</p>
                   <p className="text-dim mt-1 text-xs">
-                    Fixed by Armory&apos;s Meteora DBC config on {CLUSTER.label} ({dbcConfig ? shortAddr(dbcConfig.toBase58(), 4) : "none"}), read from chain. When the curve raises it, liquidity migrates to a Meteora DAMM v2 pool.
+                    Fixed by Armory&apos;s curve settings ({dbcConfig ? shortAddr(dbcConfig.toBase58(), 4) : "none"}), read from chain. When the curve raises it, the token graduates and its liquidity moves to a locked trading pool.
                   </p>
                 </div>
               ) : (
@@ -330,14 +326,13 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
                 <label htmlFor="grad" className="mb-1 flex justify-between text-sm font-medium">
                   Graduation target (SOL){" "}
                   <span className="text-dim font-normal" data-testid="launch-graduation-hint">
-                    Default {DEFAULT_GRADUATION_SOL} SOL · minimum {formatSol(chainMin, 1)}{chainMin !== PRODUCTION_MIN_GRADUATION_LAMPORTS ? ` on ${CLUSTER.label}` : ""}
+                    Default {DEFAULT_GRADUATION_SOL} SOL · minimum {formatSol(chainMin, 1)}
                   </span>
                 </label>
                 <input id="grad" inputMode="decimal" className="input num" value={form.graduationSol} onChange={(e) => set("graduationSol", e.target.value)} aria-invalid={!!v.errors.graduationSol} aria-describedby="graduationSol-err" data-testid="launch-graduation" />
                 {err("graduationSol")}
                 <p className="text-dim mt-1 text-xs" data-testid="launch-graduation-min">
-                  SOL raised on the bonding curve before your token graduates. Default {DEFAULT_GRADUATION_SOL} SOL; the programs accept {formatSol(chainMin, 1)} or more on {CLUSTER.label}
-                  {chainMin !== PRODUCTION_MIN_GRADUATION_LAMPORTS ? ` (${formatSol(PRODUCTION_MIN_GRADUATION_LAMPORTS, 0)} on the production build)` : ""}. On the curve path, the platform&apos;s approved curve settings fix the target{dbcGrad.data != null ? ` (${CLUSTER.label}: ${formatSol(dbcGrad.data, 1)})` : ""}.
+                  SOL raised on the bonding curve before your token graduates. Default {DEFAULT_GRADUATION_SOL} SOL; the programs accept {formatSol(chainMin, 1)} or more. On the curve path, the platform&apos;s approved curve settings fix the target{dbcGrad.data != null ? ` (${formatSol(dbcGrad.data, 1)})` : ""}.
                 </p>
               </div>
               )}
@@ -375,7 +370,7 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
               {field("schemaHash", "Trait schema hash", "32 bytes (hex)", "0x…")}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <button type="button" className="btn btn-sm" onClick={fillExampleArt} data-testid="launch-art-example">Fill example values</button>
+              <button type="button" className="btn btn-sm" onClick={fillExampleArt} data-testid="launch-art-example">Fill sample values</button>
               <span className="text-dim text-xs">These four values are committed when the collection vault is created, before {isBurn ? "burning" : "converting"} opens. No instruction can change them afterwards.</span>
             </div>
             <p className="text-sm font-medium">
@@ -391,7 +386,7 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
                 </li>
               ) : (
                 <li className="bg-surface-2 rounded-panel border-border border p-3">
-                  <b>Switchboard picks which NFT you get.</b> <span className="text-muted">Switchboard On-Demand randomness ({CLUSTER.label}) comes with a proof the program checks on-chain, at every capture and re-roll. Anyone can trigger the reveal and settle steps; nobody, including you, can choose a piece.</span>
+                  <b>Switchboard picks which NFT you get.</b> <span className="text-muted">Switchboard On-Demand randomness comes with a proof the program checks on-chain, at every capture and re-roll. Anyone can trigger the reveal and settle steps; nobody, including you, can choose a piece.</span>
                 </li>
               )}
             </ul>
@@ -410,8 +405,8 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
               <Row k="Launch type" val={TNAME[t]} />
               <Row k="Token" val={`${form.name || "—"} · $${form.symbol || "—"}`} />
               <Row k="Supply at launch" val="1,000,000,000" />
-              <Row k="Graduation target" val={isPlain ? `${gradText} raised, then Meteora DAMM v2` : `${form.graduationSol} SOL raised`} />
-              <Row k="Bonding curve" val={t === "hybrid" ? "None: native devnet test launch (curve path: preview only)" : `Meteora DBC · platform config ${dbcConfig ? shortAddr(dbcConfig.toBase58(), 4) : "—"}`} testId="launch-review-curve" />
+              <Row k="Graduation target" val={isPlain ? `${gradText} raised, then a locked trading pool` : `${form.graduationSol} SOL raised`} />
+              <Row k="Bonding curve" val={t === "hybrid" ? "None: native launch (curve launch: preview only)" : `Armory curve · settings ${dbcConfig ? shortAddr(dbcConfig.toBase58(), 4) : "—"}`} testId="launch-review-curve" />
               <Row k="Decimals" val={String(LAUNCH_DECIMALS)} testId="launch-review-decimals" />
               <Row k="Token metadata URI" val={(form.metadataUri ?? "").trim() || (isPlain ? "None" : "None (curve path only)")} />
               <Row k="Mint authority" val="Revoked at launch" />
@@ -433,22 +428,18 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
                 </>
               )}
               <Row k="Launch fee" val={isPlain ? "None · you pay Solana rent (≈ 0.02 SOL)" : "None on chain today"} testId="launch-review-launch-fee" />
-              {isPlain && <Row k="Curve trade fee" val="1% per trade (Meteora DBC config)" />}
+              {isPlain && <Row k="Curve trade fee" val="1% per trade" />}
               <Row k="Program upgrades" val="Not locked yet · 1 dev key per program · multisig + 7-day delay planned for mainnet" />
-              <Row k="Audit" val="Not yet · unaudited beta" />
             </dl>
-            <div className="capslot" data-testid="launch-capslot">
-              <span className="tag tag-ua">Unaudited beta</span> Deposit cap <b>{BETA_DEPOSIT_CAP.sol} SOL per wallet</b> <span className="tag tag-demo">{DEPOSIT_CAP_TAG}</span>
-            </div>
             {t === "hybrid" && (
               <p className="border-warning-border bg-warning-bg text-warning rounded-panel border p-3 text-sm" data-testid="launch-native-warning">
-                Native devnet test launch: no bonding curve is created. {NO_CURVE_MESSAGE.replace("This launch has no bonding curve (native devnet test launch), so it", "The token")}
+                Native launch: no bonding curve is created. {NO_CURVE_MESSAGE.replace("This launch has no bonding curve, so it", "The token")}
               </p>
             )}
             <label className="flex items-start gap-2 text-sm">
               <input type="checkbox" className="mt-1" checked={ack} onChange={(e) => setAck(e.target.checked)} data-testid="launch-ack" />
               <span className="text-muted">
-                I understand that the launch type{isPlain ? "" : ", collection size and committed art"} can&apos;t be changed after launch, that Armory is an unaudited beta, and that the programs can still be upgraded until they&apos;re frozen after the audit (see <Link href="/trust" className="text-accent-text">Trust &amp; security</Link>).
+                I understand that the launch type{isPlain ? "" : ", collection size and committed art"} can&apos;t be changed after launch, and that the programs can still be upgraded until they&apos;re frozen after the audit (see <Link href="/trust" className="text-accent-text">Trust &amp; security</Link>).
               </span>
             </label>
             <button
@@ -458,7 +449,7 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
               onClick={launch}
               data-testid="launch-submit"
             >
-              {live ? (isPlain ? `Launch on Meteora DBC (${CLUSTER.label})` : `Launch on ${CLUSTER.label}`) : `${TNAME[t]}: ${STATUS_LABEL[launchTypeStatus(t, CLUSTER.name)].toLowerCase()}`}
+              {live ? (isPlain ? "Launch token" : "Launch Hybrid") : `${TNAME[t]}: ${STATUS_LABEL[launchTypeStatus(t, CLUSTER.name)].toLowerCase()}`}
             </button>
             {dbcAvailable && (
               <div className="space-y-1" data-testid="launch-dbc">
@@ -466,12 +457,11 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
                   Preview bonding-curve launch (simulate only)
                 </button>
                 <p className="text-dim text-xs" data-testid="launch-dbc-graduation">
-                  With a bonding curve, the graduation target comes from the pinned DBC config: {dbcGrad.data != null ? `${formatSol(dbcGrad.data, 1)} raised` : "loading…"}. {(form.metadataUri ?? "").trim() ? "Uses your token metadata URI." : "No token metadata URI set (step 2)."}
+                  With a bonding curve, the graduation target comes from Armory&apos;s curve settings: {dbcGrad.data != null ? `${formatSol(dbcGrad.data, 1)} raised` : "loading…"}. {(form.metadataUri ?? "").trim() ? "Uses your token metadata URI." : "No token metadata URI set (step 2)."}
                 </p>
               </div>
             )}
             {live && !connected && <p className="text-muted text-sm">Connect a wallet to launch.</p>}
-            <p className="text-dim text-xs">Test network only. No real funds.</p>
             {safeSend.status === "error" && !safeSend.preview && (
               <p role="alert" className="text-negative text-sm" data-testid="launch-error">{safeSend.error}</p>
             )}
@@ -509,15 +499,15 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
           {isPlain ? (
             <>
               <p className="hd text-3xl">1,000,000,000</p>
-              <p className="text-muted text-sm">No NFT side. Tokens trade on the Meteora DBC curve until it raises {gradText}, then liquidity migrates to a Meteora DAMM v2 pool.</p>
+              <p className="text-muted text-sm">No NFT side. Tokens trade on the bonding curve until it raises {gradText}, then the token graduates to a locked trading pool.</p>
               <div className="progress"><span style={{ width: `${split.pct[0]}%` }} /></div>
               <dl data-testid="math-split">
                 <Row k="Sold on the curve" val={`${formatUnits(split.curve, 0)} · ${split.pct[0]}%`} />
-                <Row k="Set aside for the DEX pool" val={`${formatUnits(split.dex, 0)} · ${split.pct[1]}%`} />
+                <Row k="Set aside for the trading pool" val={`${formatUnits(split.dex, 0)} · ${split.pct[1]}%`} />
                 <Row k="Unsold buffer, locked" val={`${formatUnits(split.buffer, 0)} · ${split.pct[2]}%`} />
                 <Row k="Per-NFT fees" val="None" />
               </dl>
-              <p className="text-dim text-xs">Split from the platform&apos;s {CLUSTER.label} curve settings (read from chain); the approved curve settings at launch decide it.</p>
+              <p className="text-dim text-xs">Split from Armory&apos;s curve settings (read from chain); the approved settings at launch decide it.</p>
             </>
           ) : (
             <>
@@ -552,12 +542,12 @@ export function LaunchWizard({ initialType = "hybrid" }: { initialType?: WizardT
                     <p className="text-dim text-xs">≈ ${(m.nftPriceGraduationSol * EXAMPLE_SOL_USD).toFixed(2)}</p>
                   </div>
                 </div>
-                <p className="text-dim mt-2 text-xs">Example curve prices (0.000000028 and ≈0.00000057 SOL per token) at $150/SOL. <span className="tag tag-demo">Example</span></p>
+                <p className="text-dim mt-2 text-xs">Estimated from typical curve prices (0.000000028 and ≈0.00000057 SOL per token) at $150/SOL.</p>
               </div>
             </>
           )}
           <p className={`rounded-panel border p-2 text-sm ${m.valid ? "tag-ok" : "border-warning-border bg-warning-bg text-warning"}`} data-testid="math-status">
-            {m.valid ? (isPlain ? `Valid: Plain token, graduates at ${gradText}.` : `Valid: ${sizeLabel} NFTs at ${ratioLabel} tokens each.`) : (errs.collectionSize ?? errs.graduationSol)}
+            {m.valid ? (isPlain ? `Valid: graduates at ${gradText}.` : `Valid: ${sizeLabel} NFTs at ${ratioLabel} tokens each.`) : (errs.collectionSize ?? errs.graduationSol)}
           </p>
           <p className="text-dim text-xs">Decimals {LAUNCH_DECIMALS} · {compact(1_000_000_000)} fixed supply</p>
         </section>

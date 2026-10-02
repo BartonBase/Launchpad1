@@ -1,5 +1,6 @@
 /**
- * /meteora: how Armory uses Meteora (DBC + DAMM v2), with the platform config read live from chain.
+ * /meteora ("How it works"): the technology under Armory (Meteora DBC + DAMM v2), with the platform
+ * config read live from chain. Low-key page, linked from the footer only.
  */
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -13,7 +14,7 @@ import { fetchPlainLaunches } from "@/lib/meteora/plain";
 import { fetchLaunches } from "@/lib/armory/reads";
 import { formatSol, shortAddr } from "@/lib/armory/format";
 
-export const metadata: Metadata = { title: "Built on Meteora", description: "How Armory uses Meteora's Dynamic Bonding Curve and DAMM v2, with the NFT layer on top." };
+export const metadata: Metadata = { title: "How it works", description: "The technology behind Armory launches: bonding curve, graduation into a locked pool, and the NFT layer on top." };
 
 interface ConfigFacts {
   thresholdLamports: string;
@@ -72,7 +73,7 @@ function Addr({ k, a }: { k: string; a: string }) {
 }
 
 const FLOW = [
-  ["01", "Launch on DBC", "A Plain launch is one Meteora DBC instruction (initialize_virtual_pool_with_spl_token) on Armory's platform config. DBC creates the 1B SPL token, revokes mint authority, writes immutable metadata and opens the curve."],
+  ["01", "Launch on DBC", "A Launch is one Meteora DBC instruction (initialize_virtual_pool_with_spl_token) on Armory's platform config. DBC creates the 1B SPL token, revokes mint authority, writes immutable metadata and opens the curve."],
   ["02", "Trade the curve", "Buys and sells go straight to the DBC pool (swap2, exact-in). The app quotes with the SDK, shows fees and a minimum received, and simulates before your wallet signs."],
   ["03", "Graduate", "When the curve raises its SOL target, DBC migrates the liquidity into a Meteora DAMM v2 pool. The LP is permanently locked by the config; unsold curve tokens go to a program-owned buffer that can never withdraw."],
   ["04", "Trade on DAMM v2", "After migration the same Trade panel routes to the DAMM v2 pool through the cp-amm SDK, with price impact and slippage protection."],
@@ -90,21 +91,17 @@ export default async function MeteoraPage() {
   return (
     <div className="mx-auto max-w-(--container-site) space-y-12 px-4 py-10 md:py-14">
       <section className="max-w-3xl space-y-4">
-        <span className="tag tag-accent">Meteora DBC + DAMM v2 · {CLUSTER.label}</span>
-        <h1 className="hd text-4xl md:text-6xl">Built on Meteora</h1>
+        <p className="eyebrow">Technology</p>
+        <h1 className="hd text-3xl md:text-4xl">How it works</h1>
         <p className="text-muted text-base">
-          Every Armory launch with a market runs on Meteora&apos;s <strong className="text-fg">Dynamic Bonding Curve</strong> and graduates into a{" "}
+          Armory launches trade on Meteora&apos;s <strong className="text-fg">Dynamic Bonding Curve</strong> and graduate into a locked{" "}
           <strong className="text-fg">DAMM v2</strong> pool. Armory adds one thing on top: a Hybrid launch&apos;s token can be converted into a random NFT
           from its collection, and back, at a fixed rate.
         </p>
-        <div className="flex flex-wrap gap-3">
-          <Link href="/launch?type=plain" className="btn btn-primary">Launch on Meteora DBC</Link>
-          <Link href="/explore" className="btn">See live curves</Link>
-        </div>
       </section>
 
       <section className="space-y-4" aria-labelledby="flow-h">
-        <h2 id="flow-h" className="hd text-2xl md:text-3xl">How a launch moves through Meteora</h2>
+        <h2 id="flow-h" className="hd text-2xl md:text-3xl">How a launch moves from curve to pool</h2>
         <ol className="grid gap-3 md:grid-cols-5">
           {FLOW.map(([n, t, d]) => (
             <li key={n} className="card space-y-2 p-4">
@@ -124,7 +121,7 @@ export default async function MeteoraPage() {
           </div>
           {cfg ? (
             <dl className="text-sm">
-              <div className="fact"><dt>Graduation target</dt><dd>{formatSol(cfg.thresholdLamports, 2)} raised ({CLUSTER.label} test value)</dd></div>
+              <div className="fact"><dt>Graduation target</dt><dd>{formatSol(cfg.thresholdLamports, 2)} raised</dd></div>
               <div className="fact"><dt>Migrates to</dt><dd>{cfg.migrationOption === 1 ? "Meteora DAMM v2" : `Option ${cfg.migrationOption}`}</dd></div>
               <div className="fact"><dt>Supply</dt><dd>{Number(cfg.supplyWhole).toLocaleString("en-US")}{cfg.fixedSupply ? " · fixed" : ""}</dd></div>
               <div className="fact"><dt>Supply split</dt><dd>{cfg.curvePct}% curve · {cfg.dexPct}% DAMM v2 pool · {cfg.bufferPct}% locked buffer</dd></div>
@@ -135,11 +132,11 @@ export default async function MeteoraPage() {
               <div className="fact"><dt>Pools on this config</dt><dd>{cfg.pools}</dd></div>
             </dl>
           ) : (
-            <p className="text-muted text-sm">The config couldn&apos;t be read right now (public devnet RPC). Refresh to try again.</p>
+            <p className="text-muted text-sm">The config couldn&apos;t be read right now. Refresh to try again.</p>
           )}
         </div>
         <div className="card space-y-3 p-5">
-          <h2 className="font-semibold">Addresses ({CLUSTER.label})</h2>
+          <h2 className="font-semibold">Addresses</h2>
           <dl className="text-sm">
             <Addr k="Meteora DBC program" a={DBC_PROGRAM_ID.toBase58()} />
             <Addr k="Meteora DAMM v2 program" a={DAMM_V2_PROGRAM_ID.toBase58()} />
@@ -149,7 +146,6 @@ export default async function MeteoraPage() {
             <Addr k="Armory hybrid_launch" a={HYBRID_LAUNCH_PROGRAM_ID.toBase58()} />
             <Addr k="Armory hybrid_vault" a={HYBRID_VAULT_PROGRAM_ID.toBase58()} />
           </dl>
-          <p className="text-dim text-xs">Programs are unaudited. Devnet only: mainnet is refused at startup.</p>
         </div>
       </section>
 
@@ -164,14 +160,14 @@ export default async function MeteoraPage() {
           </ul>
         </div>
         <div className="card space-y-3 p-5" data-testid="meteora-live">
-          <h2 className="font-semibold">Live on {CLUSTER.label}</h2>
+          <h2 className="font-semibold">On chain now</h2>
           <dl className="text-sm">
-            <div className="fact"><dt>Plain launches (DBC)</dt><dd>{plains.ok ? plains.value.length : "—"}</dd></div>
+            <div className="fact"><dt>Launches (DBC)</dt><dd>{plains.ok ? plains.value.length : "—"}</dd></div>
             <div className="fact"><dt>… graduated to DAMM v2</dt><dd>{plains.ok ? plains.value.filter((p) => p.curve.migrated).length : "—"}</dd></div>
             <div className="fact"><dt>Hybrid launches on a DBC curve</dt><dd>{hybrids.ok ? curveHybrids.length : "—"}</dd></div>
           </dl>
           <p className="text-muted text-sm">
-            Try it: the <Link className="text-accent-text" href="/t/Dhv3VkqeTYJiahzcVJLmJ1snApdYtQxsAKeUnv5GTNos">Armory Test (ARMT)</Link> Hybrid launch graduated from DBC to DAMM v2 on devnet; its page trades on DAMM v2 and converts tokens to NFTs.
+            Try it: the <Link className="text-accent-text" href="/t/Dhv3VkqeTYJiahzcVJLmJ1snApdYtQxsAKeUnv5GTNos">ARMT</Link> Hybrid launch graduated from DBC to DAMM v2; its page trades on DAMM v2 and converts tokens to NFTs.
           </p>
         </div>
       </section>
@@ -179,9 +175,9 @@ export default async function MeteoraPage() {
       <section className="card space-y-2 p-5">
         <h2 className="font-semibold">Integration code</h2>
         <ul className="text-muted space-y-1 font-mono text-xs">
-          <li>app/src/lib/meteora/dbc.ts: DBC SDK client: plain launch, curve quote + swap, curve state</li>
+          <li>app/src/lib/meteora/dbc.ts: DBC SDK client: launch, curve quote + swap, curve state</li>
           <li>app/src/lib/meteora/damm.ts: cp-amm SDK client: find the migrated DAMM v2 pool, quote + swap</li>
-          <li>app/src/lib/meteora/plain.ts: lists Plain launches (pools on the platform config)</li>
+          <li>app/src/lib/meteora/plain.ts: lists Launch tokens (pools on the platform config)</li>
           <li>app/src/components/meteora/SwapPanel.tsx · CurveProgress.tsx: trade UI and graduation indicator</li>
           <li>programs/hybrid_launch/src/dbc.rs · programs/hybrid_vault/src/graduation.rs: on-chain DBC config + migration checks</li>
         </ul>

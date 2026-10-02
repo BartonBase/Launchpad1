@@ -7,7 +7,6 @@
  * picked NFT when the launch has a traits manifest); both go through the same safe-send preview.
  */
 import { useMemo, useState } from "react";
-import { CLUSTER } from "@/config/cluster";
 import { NO_CURVE_MESSAGE } from "@/lib/armory/errors";
 import { PublicKey } from "@solana/web3.js";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -231,7 +230,7 @@ export function HybridPanels({ launch, initialPanel = null }: { launch: LaunchDT
           {(requests.data?.length ?? 0) > 0 && (
             <div className="space-y-1" data-testid="pending-requests">
               <p className="eyebrow">Your pending requests</p>
-              <p className="text-dim text-xs">Randomness comes from Switchboard On-Demand ({CLUSTER.label}). Reveal and settle are permissionless: anyone can trigger them, including you.</p>
+              <p className="text-dim text-xs">Randomness comes from Switchboard On-Demand. Reveal and settle are permissionless: anyone can trigger them, including you.</p>
               <ul className="text-sm">
                 {requests.data!.map((r) => {
                   const expired = slot.data !== undefined && !r.revealed && BigInt(slot.data) > BigInt(r.deadlineSlot);

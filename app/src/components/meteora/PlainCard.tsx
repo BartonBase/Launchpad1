@@ -19,13 +19,13 @@ export function PlainCard({ p }: { p: PlainLaunchDTO }) {
       <div>
         <div className="progress"><span style={{ width: `${Math.max(c.progressPct, 1)}%` }} /></div>
         <p className="text-muted mt-1 flex justify-between text-xs">
-          <span>{c.migrated ? "Trading on DAMM v2" : `${formatSol(c.quoteReserveLamports, 3)} of ${formatSol(c.thresholdLamports, 1)}`}</span>
+          <span>{c.migrated ? "Graduated · trading in the pool" : `${formatSol(c.quoteReserveLamports, 3)} of ${formatSol(c.thresholdLamports, 1)}`}</span>
           <span>{c.progressPct.toFixed(0)}%</span>
         </p>
       </div>
       <div className="border-border flex items-center justify-between border-t pt-3 text-xs">
-        <span className="tchip"><TypeIcon type="plain" size={14} />Plain</span>
-        <span className="text-muted">Meteora DBC · no NFTs</span>
+        <span className="tchip"><TypeIcon type="plain" size={14} />Launch</span>
+        <span className="text-muted">Just the coin</span>
       </div>
     </Link>
   );

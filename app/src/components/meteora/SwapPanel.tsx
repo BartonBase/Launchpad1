@@ -10,8 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
-import { CLUSTER, explorerTxUrl } from "@/config/cluster";
-import { BETA_DEPOSIT_CAP, DEPOSIT_CAP_TAG } from "@/config/armory";
+import { explorerTxUrl } from "@/config/cluster";
 import { useChainRead } from "@/hooks/useChain";
 import { formatUnits } from "@/lib/armory/format";
 import { useSafeSend } from "@/lib/tx/useSafeSend";
@@ -97,7 +96,7 @@ export function SwapPanel({ venue, pool, mint, symbol, decimals, feeBps }: { ven
     <section className="card space-y-3 p-5" aria-labelledby="trade-h" data-testid="trade-panel" data-venue={venue}>
       <div className="flex items-center justify-between gap-2">
         <h2 id="trade-h" className="font-semibold">Trade</h2>
-        <span className="tag tag-accent" data-testid="trade-venue">{venue === "dbc" ? "Meteora DBC · bonding curve" : "Meteora DAMM v2 pool"}</span>
+        <span className="tag tag-accent" data-testid="trade-venue">{venue === "dbc" ? "Bonding curve" : "Graduated · liquidity pool"}</span>
       </div>
       <div className="seg" role="tablist" aria-label="Buy or sell">
         <button type="button" role="tab" aria-selected={side === "buy"} onClick={() => { setSide("buy"); setAmount(""); }} data-testid="trade-tab-buy">Buy</button>
@@ -128,18 +127,15 @@ export function SwapPanel({ venue, pool, mint, symbol, decimals, feeBps }: { ven
         <div className="fact"><dt>You receive (est.)</dt><dd data-testid="trade-out">{q ? fmtOut(q.amountOut) : amountIn !== null && quote.loading ? "Quoting…" : "—"}</dd></div>
         <div className="fact"><dt>Minimum received ({slip / 100}% slippage)</dt><dd data-testid="trade-min-out">{q ? fmtOut(q.minimumAmountOut) : "—"}</dd></div>
         <div className="fact"><dt>Trading fee{feeBps !== undefined ? ` (${feeBps / 100}%)` : ""}</dt><dd data-testid="trade-fee">{q ? feeSol(q.tradingFee + (venue === "dbc" ? q.protocolFee : 0n)) : "—"}</dd></div>
-        {venue === "dbc" && <div className="fact"><dt>… of which Meteora protocol fee</dt><dd>{q ? feeSol(q.protocolFee) : "—"}</dd></div>}
+        {venue === "dbc" && <div className="fact"><dt>… of which protocol fee</dt><dd>{q ? feeSol(q.protocolFee) : "—"}</dd></div>}
         {q?.priceImpactPct != null && <div className="fact"><dt>Price impact</dt><dd className={q.priceImpactPct > 5 ? "text-warning" : ""}>{q.priceImpactPct.toFixed(2)}%</dd></div>}
-        <div className="fact"><dt>Route</dt><dd>{venue === "dbc" ? "Bonding curve (DBC)" : "DAMM v2 pool"}</dd></div>
+        <div className="fact"><dt>Route</dt><dd>{venue === "dbc" ? "Bonding curve" : "Liquidity pool"}</dd></div>
         <div className="fact"><dt>Tax</dt><dd>No transfer tax</dd></div>
       </dl>
       {quote.error && amountIn !== null && <p role="alert" className="text-warning text-xs" data-testid="trade-quote-error">{quote.error}</p>}
       {q?.partial && <p className="text-warning text-xs">This amount would fill the rest of the curve; only part of it can be used. Try a smaller amount.</p>}
       {insufficient && <p className="text-warning text-xs">Not enough {side === "buy" ? "SOL" : tk} in your wallet.</p>}
       {amount !== "" && parseAmount(amount, inDecimals) === null && <p className="text-warning text-xs">Enter a positive amount (up to {inDecimals} decimals).</p>}
-      <div className="capslot" data-testid="trade-capslot">
-        <span className="tag tag-ua">Unaudited beta</span> Deposit cap <b>{BETA_DEPOSIT_CAP.sol} SOL per wallet</b> <span className="tag tag-demo">{DEPOSIT_CAP_TAG}</span>
-      </div>
       <button type="button" className="btn btn-primary btn-lg w-full" disabled={!canSubmit} onClick={submit} data-testid="trade-submit">
         {!connected ? "Connect a wallet to trade" : side === "buy" ? `Buy ${tk}` : `Sell ${tk}`}
       </button>
@@ -150,7 +146,7 @@ export function SwapPanel({ venue, pool, mint, symbol, decimals, feeBps }: { ven
         </p>
       )}
       <p className="text-dim text-xs">
-        {CLUSTER.label} test SOL only. Quotes come from the Meteora {venue === "dbc" ? "DBC" : "cp-amm"} SDK; your transaction is simulated and shown to you before your wallet signs. The minimum received protects you from price moves.
+        Quotes are live from the pool. Your transaction is simulated and shown to you before your wallet signs, and the minimum received protects you from price moves.
       </p>
       <TxPreviewModal safeSend={safeSend} />
     </section>

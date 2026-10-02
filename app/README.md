@@ -122,7 +122,7 @@ src/
                             pool lookup, quotes, buy/sell), plain.ts (plain launches read from chain)
     tx/                     transaction safety pipeline (see below)
     validate.ts             untrusted-input validators
-  components/armory/        TrustStrip, AuthoritiesPanel, ConvertPanel, CostBreakdown, LaunchWizard,
+  components/armory/        AuthoritiesPanel, ConvertPanel, CostBreakdown, LaunchWizard,
                             PortfolioView, LaunchCard, LaunchTypes, MascotPlaceholder
   components/meteora/       SwapPanel (DBC / DAMM v2 buy+sell with quote, slippage, fees), CurveProgress
                             (curve progress + graduation to DAMM v2), PlainCard

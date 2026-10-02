@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { CLUSTER } from "@/config/cluster";
 import { MascotPlaceholder } from "@/components/armory/MascotPlaceholder";
 import { LaunchCard } from "@/components/armory/LaunchCard";
 import { LaunchTypes } from "@/components/armory/LaunchTypes";
@@ -8,6 +7,7 @@ import { cachedRead } from "@/lib/armory/server";
 import { fetchLaunches } from "@/lib/armory/reads";
 import { mintDepositText } from "@/config/armory";
 import { fetchPlainLaunches } from "@/lib/meteora/plain";
+import { isListed } from "@/lib/armory/listing";
 import { PlainCard } from "@/components/meteora/PlainCard";
 
 const STEPS = [
@@ -19,12 +19,13 @@ const STEPS = [
 
 export default async function HomePage() {
   const [launches, plains] = await Promise.all([cachedRead("launches", 30_000, fetchLaunches), cachedRead("plain-launches", 20_000, fetchPlainLaunches)]);
-  const plainList = plains.ok ? plains.value.slice(0, 3) : [];
+  const plainList = plains.ok ? plains.value.filter((p) => isListed(p.name)).slice(0, 3) : [];
+  const hybrids = launches.ok ? launches.value.filter((l) => isListed(l.collectionName)) : [];
   return (
     <div className="mx-auto max-w-(--container-site) space-y-20 px-4 py-10 md:py-16">
       <section className="grid items-center gap-10 lg:grid-cols-[1.1fr_1fr]">
         <div className="space-y-6">
-          <span className="tag tag-accent">Unaudited demo · {CLUSTER.label} · Built on Meteora</span>
+          <span className="tag tag-accent">Coins and collections on Solana</span>
           <div className="flex items-start justify-between gap-3 md:gap-6">
             <h1 className="hd text-[34px] sm:text-6xl lg:text-7xl">
               Trade the meme.
@@ -34,7 +35,7 @@ export default async function HomePage() {
             <MascotPlaceholder className="w-[76px]! md:w-[168px]!" size={168} />
           </div>
           <p className="text-muted max-w-xl text-base">
-            Launch a Solana meme coin on Meteora&apos;s Dynamic Bonding Curve, on its own or with an NFT collection built in. With a{" "}
+            Launch a Solana meme coin on a bonding curve, on its own or with an NFT collection built in. With a{" "}
             <strong className="text-fg">Hybrid</strong> launch the coin is also an NFT: once it graduates, a fixed number
             of tokens converts into one NFT, and that NFT always converts back for exactly the same number of tokens.
           </p>
@@ -50,7 +51,6 @@ export default async function HomePage() {
         <div className="card bg-glass shadow-float space-y-4 p-5" aria-label="How converting works">
           <div className="flex items-center justify-between">
             <p className="eyebrow">Switch any time</p>
-            <span className="tag tag-demo">Example</span>
           </div>
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
             <div className="bg-surface-2 rounded-panel border-border border p-4">
@@ -88,43 +88,42 @@ export default async function HomePage() {
         <LaunchTypes />
       </section>
 
-      <section className="card grid gap-6 p-6 md:grid-cols-[2fr_1fr] md:p-10" aria-labelledby="meteora" data-testid="home-meteora">
+      <section className="card grid gap-6 p-6 md:grid-cols-[2fr_1fr] md:p-10" aria-labelledby="curve" data-testid="home-curve">
         <div className="space-y-3">
-          <p className="eyebrow">Built on Meteora</p>
-          <h2 id="meteora" className="hd text-2xl md:text-3xl">Curve first, real pool after</h2>
+          <p className="eyebrow">Fair launch</p>
+          <h2 id="curve" className="hd text-2xl md:text-3xl">Curve first, real pool after</h2>
           <p className="text-muted">
-            Every launch with a market starts on a Meteora <strong className="text-fg">Dynamic Bonding Curve</strong> with Armory&apos;s own config (fixed 1B supply,
-            mint authority revoked, 1% curve fee). When the curve fills, liquidity migrates to a <strong className="text-fg">Meteora DAMM v2</strong> pool with the LP
-            locked. Buy and sell right on the token page, with live quotes and slippage protection. Hybrid launches add the NFT converter on top, and it only opens after
-            the move to DAMM v2.
+            Every launch starts on a <strong className="text-fg">bonding curve</strong>: a fixed 1B supply, mint authority revoked and a 1% trading fee. When the
+            curve fills, the token <strong className="text-fg">graduates</strong> and its liquidity moves to a trading pool with the LP locked for good. Buy and
+            sell right on the token page, with live quotes and slippage protection. Hybrid launches add the NFT converter on top, and it opens at graduation.
           </p>
         </div>
         <div className="flex flex-col items-start gap-2 md:items-end md:justify-center">
-          <Link href="/meteora" className="btn btn-primary">How Armory uses Meteora</Link>
-          <Link href="/launch?type=plain" className="text-accent-text text-sm">Launch a Plain token →</Link>
+          <Link href="/launch?type=plain" className="btn btn-primary">Start a launch</Link>
+          <Link href="/explore" className="text-accent-text text-sm">See what&apos;s trading →</Link>
         </div>
       </section>
 
       <section className="space-y-6" aria-labelledby="live">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="space-y-2">
-            <p className="eyebrow">Live on {CLUSTER.label}</p>
+            <p className="eyebrow">Live now</p>
             <h2 id="live" className="hd text-3xl md:text-4xl">Latest launches</h2>
           </div>
           <Link href="/explore" className="btn">View all</Link>
         </div>
         {launches.ok ? (
-          launches.value.length + plainList.length > 0 ? (
+          hybrids.length + plainList.length > 0 ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {plainList.map((p) => (
                 <PlainCard key={p.mint} p={p} />
               ))}
-              {launches.value.slice(0, 6 - plainList.length).map((l) => (
+              {hybrids.slice(0, 6 - plainList.length).map((l) => (
                 <LaunchCard key={l.mint} l={l} />
               ))}
             </div>
           ) : (
-            <p className="text-muted">No launches on {CLUSTER.label} yet.</p>
+            <p className="text-muted">No launches yet. Be the first.</p>
           )
         ) : (
           <ReadError what="launches" error={launches.error} />
@@ -137,7 +136,7 @@ export default async function HomePage() {
           <p className="text-muted">
             Supply is fixed at 1,000,000,000 and mint authority is revoked at launch. The conversion rate and fee are
             written once and can&apos;t be changed by any setting. Every transaction is simulated and previewed before
-            you sign. The programs are <strong className="text-fg">not audited yet</strong>: this is a devnet demo with test funds only.
+            you sign, and every authority is shown live on the Trust page.
           </p>
         </div>
         <div className="flex flex-col items-start gap-2 md:items-end md:justify-center">
