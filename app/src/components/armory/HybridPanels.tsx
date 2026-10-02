@@ -46,6 +46,12 @@ export function HybridPanels({ launch, initialPanel = null }: { launch: LaunchDT
   const [releasePick, setReleasePick] = useState<number | null>(null);
   const [rerollPick, setRerollPick] = useState<number | null>(null);
   const [nonce, setNonce] = useState(0);
+  // Re-read balances, NFTs and requests once per confirmed transaction (the dialog's Close resets status).
+  const [seenSig, setSeenSig] = useState<string | null>(null);
+  if (safeSend.status === "success" && safeSend.signature && safeSend.signature !== seenSig) {
+    setSeenSig(safeSend.signature);
+    setNonce((n) => n + 1);
+  }
   const user = publicKey?.toBase58() ?? null;
   const ratioBase = BigInt(launch.ratioBase);
   const ratioLabel = formatTokens(ratioBase, launch.decimals, 0);
