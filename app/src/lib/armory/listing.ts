@@ -12,6 +12,7 @@ export const HIDDEN_MINTS: ReadonlySet<string> = new Set([
   "Dhv3VkqeTYJiahzcVJLmJ1snApdYtQxsAKeUnv5GTNos", // Armory Test (ARMT, Hybrid)
   "3GC9zFWzE2fVTFM7Q9Zo3BqCUArPYQEK57UVv4zvpJAu", // end-to-end test pool
   "Ewj5G9r1eTgX42JPWvpCxRmS52yCwUwXMhsuGpbnfuU6", // end-to-end test pool
+  "9mhVWxbmAQNReUdkTcin4WW1Mc3ykkBhxfcR1ZBhzn3z", // unfinished first attempt at "Armory Hybrid Live" (curve only, never registered as Hybrid)
 ]);
 
 export const isListed = (name: string | null | undefined, mint?: string | null): boolean =>
