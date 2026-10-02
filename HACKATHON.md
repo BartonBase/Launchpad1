@@ -108,6 +108,21 @@ collection metadata `ar://7AGUktX7u4u8iSfqpnWnFFe3VzF3LyRtjAkjJQy6Kru6` on Irys 
 
 The fee wallet `BVKxZMjuXryATqCeifPgh6Ee9H93BH5UGv8eML66yT3j` went from 0 to 0.02 SOL (one capture + one re-roll).
 
+**Hybrid made and graduated in the web app UI** on armory-ten.vercel.app ("Armory Hybrid Live", AHLIVE,
+collection "Armory Live Knights", mint `CzDzhYGoCP5BDc2gYmNnwd3s7gW5MWnK8VD7TrbCwVDQ`):
+
+| Action | Where | Signature |
+| --- | --- | --- |
+| Launch on DBC + 0.01 SOL dev buy | **web app UI** (wizard step 1 of 2) | `4pYibVHkcZvcwAsQ2tk6Edkw8gQGdL7p2HSv7ppAvpXZnoziJYVLcApkDThkt7uByhgYesXPdbJFuMSL2ASBuveM` |
+| `register_dbc_launch` + `init_vault` | **web app UI** (wizard step 2 of 2) | `5u7p3qkn817brkpgEiNL39WetfsR275xBKi95wwq3PAhrG9KMayfafNSaev7hEZKWGXYEpNeK51RP9TKHGk3P2HF` |
+| Buy that fills the curve | SDK script | `2V8CTC8pjAjD29atGZSDBXWuaoz3duRhPAaLavxGM7MbE1uGHLo2By5iRexubUB1a68zUQ7WiQPePMDcHp4Qkeqg` |
+| Graduate to DAMM v2 | **web app UI** (token page) | `8BgtwwbHkXfgJER3xGerfg6zGLHW96NHikwvztiFSt7SM9jRySqcU49BiowUnoCAu2yjEcm3Dbik9JSkMN3hr1e` |
+| Unsold tokens to the locked buffer | **web app UI** | `4YheQfNcTkTQz4qc9X39J7TUusfhHdgjw8xQzA3L9nX7agY2SxmnS6xJnoYfAQN87992VA7wPaXERCyJUHL8RUxt` |
+| Open the NFT vault | **web app UI** | `3QxGwMX1Vti8jzhx4a4T45uD521dtC5cw7jDHjiwYGgrwFq2UEgKAqewJTVXCureszs3Go97BZkZ5X78ipWfPyED` |
+| Capture (0.01 SOL fee to the fee wallet) | **web app UI** | `622QDh83RTGVC3j3gv95cbL5xVPSGC2HGHufyVdd8UMS7gZa6EryDRMUCc89zJb3bCjGa4CTBbPebww1DzqqRhQj` |
+| Reveal | **web app UI** | `4akcWBhu6XuzNWSPHZSeBbSLR1nA9Y8WdpjohSGb4dpqtRWGs8b79kkdb3uq6uSY8v5tnfU9ecTeacF7RdaSRUhz` |
+| Settle, lazy-mints the NFT from the published manifest | **web app UI** | `5PFgBmvUkYxNpsQDoujUZqWanGksmg9U5AXmfbGjyhti8X3mfwktQLC1TBqTX84bAmZ3fWqibfH6NyVZPKWVnkMD` |
+
 ## Where the integration lives
 
 Web app (`app/`, Next.js 16 + TypeScript):
