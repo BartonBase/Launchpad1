@@ -86,3 +86,15 @@ describe("Metaplex metadata decode (plain launches)", () => {
     expect(decodeMetadataStrings(new Uint8Array(70))).toBeNull();
   });
 });
+
+describe("resolveTokenImage", () => {
+  it("keeps self-hosted images and ignores Irys off devnet (unit tests run on localnet)", async () => {
+    const { resolveTokenImage } = await import("@/lib/meteora/tokenImage");
+    let calls = 0;
+    const f = (async () => { calls++; return new Response(JSON.stringify({ image: "https://devnet.irys.xyz/2PZCqmVeYqBUZ4qSmVD3a3ZY88JQbsUvsc22rLA5uEFm" })); }) as typeof fetch;
+    expect(await resolveTokenImage("https://armory-ten.vercel.app/tokens/moon-mace.json", f)).toBe("/tokens/moon-mace.png");
+    expect(await resolveTokenImage("https://devnet.irys.xyz/2mbJishA5cxP5ALMMZZcGkwfRqWAznNNk1XTWSnUTKv8", f)).toBeNull();
+    expect(await resolveTokenImage("https://evil.example/x.json", f)).toBeNull();
+    expect(calls).toBe(0);
+  });
+});

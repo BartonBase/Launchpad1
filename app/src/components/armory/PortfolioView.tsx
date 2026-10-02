@@ -32,7 +32,7 @@ export function PortfolioView() {
   if (data.error) return <p role="alert" className="text-warning">Couldn&apos;t load your portfolio: {data.error}</p>;
   const d = data.data!;
   const nftCount = d.rows.reduce((n, r) => n + r.h.nftIndexes.length, 0);
-  const title = (l: (typeof d.rows)[number]["l"]) => l.collectionName ?? `Token ${shortAddr(l.mint)}`;
+  const title = (l: (typeof d.rows)[number]["l"]) => l.tokenName ?? l.collectionName ?? `Token ${shortAddr(l.mint)}`;
   return (
     <div className="space-y-6" data-testid="portfolio">
       <dl className="card grid grid-cols-2 md:grid-cols-4" data-testid="portfolio-summary">

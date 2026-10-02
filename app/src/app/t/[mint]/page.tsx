@@ -22,7 +22,7 @@ import { SwapPanel } from "@/components/meteora/SwapPanel";
 import { fetchCurveState, type CurveStateDTO } from "@/lib/meteora/dbc";
 import { fetchDammPool, type DammPoolDTO } from "@/lib/meteora/damm";
 import { fetchPlainLaunch, type PlainLaunchDTO } from "@/lib/meteora/plain";
-import { tokenImage } from "@/lib/meteora/tokenImage";
+import { resolveTokenImage } from "@/lib/meteora/tokenImage";
 import { ReadError } from "@/components/armory/ReadError";
 import {
   BurnHoldings,
@@ -41,7 +41,7 @@ import {
 } from "@/components/armory/TokenSections";
 
 type Params = Promise<{ mint: string }>;
-type Search = Promise<{ panel?: string; action?: string }>;
+type Search = Promise<{ panel?: string; action?: string; fresh?: string }>;
 
 /** Design previews (fake data). Off unless NEXT_PUBLIC_DESIGN_PREVIEWS=1, so the live site never shows them. */
 const EXAMPLES: Record<string, TokenView> = process.env.NEXT_PUBLIC_DESIGN_PREVIEWS !== "1" ? {} : {
@@ -65,23 +65,30 @@ function parseMint(raw: string): PublicKey | null {
     return null;
   }
 }
-const load = (mint: PublicKey) => cachedRead(`launch:${mint.toBase58()}`, 15_000, (c) => fetchLaunch(c, mint));
-const loadPlain = (mint: PublicKey) => cachedRead(`plain:${mint.toBase58()}`, 10_000, (c) => fetchPlainLaunch(c, mint));
-const loadCurve = (pool: string) => cachedRead(`curve:${pool}`, 10_000, (c) => fetchCurveState(c, new PublicKey(pool)));
-const loadDamm = (mint: string, decimals: number) => cachedRead(`damm:${mint}`, 15_000, (c) => fetchDammPool(c, new PublicKey(mint), decimals));
+/** ttl 0 = read through (after the visitor's own transaction; see FRESH_WINDOW_MS). */
+const load = (mint: PublicKey, ttl = 15_000) => cachedRead(`launch:${mint.toBase58()}`, ttl, (c) => fetchLaunch(c, mint));
+const loadPlain = (mint: PublicKey, ttl = 10_000) => cachedRead(`plain:${mint.toBase58()}`, ttl, (c) => fetchPlainLaunch(c, mint));
+const loadCurve = (pool: string, ttl = 10_000) => cachedRead(`curve:${pool}`, ttl, (c) => fetchCurveState(c, new PublicKey(pool)));
+const loadDamm = (mint: string, decimals: number, ttl = 15_000) => cachedRead(`damm:${mint}`, ttl, (c) => fetchDammPool(c, new PublicKey(mint), decimals));
+/** `?fresh=<ms timestamp>` (set by the transaction dialog after a confirmed tx) skips the cache briefly. */
+const FRESH_WINDOW_MS = 60_000;
+function freshTtl(v: string | undefined): 0 | undefined {
+  const at = Number(v);
+  return Number.isFinite(at) && Math.abs(Date.now() - at) < FRESH_WINDOW_MS ? 0 : undefined;
+}
 
 function plainView(p: PlainLaunchDTO): TokenView {
   return {
     type: "plain", phase: p.curve.migrated ? "graduated" : "curve", example: false, name: p.name, symbol: p.symbol || null, mint: p.mint,
     collection: null, decimals: p.curve.baseDecimals, ratioWhole: null, collectionSize: null, minted: 0, feeLamports: null, feeIsExactTier: true,
     feeRecipient: null, graduationLamports: BigInt(p.curve.thresholdLamports), mintAuthority: p.mintAuthority, freezeAuthority: p.freezeAuthority,
-    supplyWhole: BigInt(p.supplyBase) / 10n ** BigInt(p.curve.baseDecimals), image: tokenImage(p.uri),
+    supplyWhole: BigInt(p.supplyBase) / 10n ** BigInt(p.curve.baseDecimals),
   };
 }
 
 function hybridView(l: LaunchDTO): TokenView {
   return {
-    type: "hybrid", phase: l.state, example: false, name: l.collectionName ?? `Token ${shortAddr(l.mint)}`, symbol: null, mint: l.mint,
+    type: "hybrid", phase: l.state, example: false, name: l.tokenName ?? l.collectionName ?? `Token ${shortAddr(l.mint)}`, symbol: l.tokenSymbol ?? null, mint: l.mint,
     collection: l.collection, decimals: l.decimals, ratioWhole: BigInt(l.ratioWholeTokens), collectionSize: l.collectionSize,
     minted: l.mintedCount, feeLamports: BigInt(l.feeLamports), feeIsExactTier: l.feeIsExactTier, feeRecipient: l.feeRecipient,
     graduationLamports: BigInt(l.graduationThresholdLamports), mintAuthority: l.mintAuthority, freezeAuthority: l.freezeAuthority,
@@ -95,7 +102,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const mint = parseMint(raw);
   if (!mint) return { title: "Invalid address" };
   const r = await load(mint);
-  if (r.ok && r.value) return { title: r.value.collectionName ?? `Token ${shortAddr(r.value.mint)}` };
+  if (r.ok && r.value) return { title: r.value.tokenName ?? r.value.collectionName ?? `Token ${shortAddr(r.value.mint)}` };
   const pl = await loadPlain(mint);
   return { title: pl.ok && pl.value ? `${pl.value.name}${pl.value.symbol ? ` (${pl.value.symbol})` : ""}` : `Token ${shortAddr(mint.toBase58())}` };
 }
@@ -107,12 +114,14 @@ function Shell({ children }: { children: React.ReactNode }) {
 export default async function TokenPage({ params, searchParams }: { params: Params; searchParams: Search }) {
   const raw = (await params).mint;
   const sp = await searchParams;
+  const fresh = freshTtl(sp.fresh);
   const p = sp.panel ?? sp.action;
   const panel: HybridPanel = p === "capture" || p === "release" || p === "reroll" ? p : null;
 
   let view: TokenView | null = EXAMPLES[raw] ?? null;
   let launch: LaunchDTO | null = null;
   let curve: CurveStateDTO | null = null;
+  let plainUri: string | null = null;
   if (!view) {
     const mint = parseMint(raw);
     if (!mint) {
@@ -124,11 +133,11 @@ export default async function TokenPage({ params, searchParams }: { params: Para
         </Shell>
       );
     }
-    const r = await load(mint);
+    const r = await load(mint, fresh);
     if (!r.ok) return <Shell><ReadError what="this token" error={r.error} /></Shell>;
     let plain: PlainLaunchDTO | null = null;
     if (!r.value) {
-      const pl = await loadPlain(mint);
+      const pl = await loadPlain(mint, fresh);
       if (!pl.ok) return <Shell><ReadError what="this token" error={pl.error} /></Shell>;
       plain = pl.value;
     }
@@ -149,18 +158,23 @@ export default async function TokenPage({ params, searchParams }: { params: Para
       launch = r.value;
       view = hybridView(launch);
       if (launch.dbcPool) {
-        const cr = await loadCurve(launch.dbcPool);
+        const cr = await loadCurve(launch.dbcPool, fresh);
         curve = cr.ok ? cr.value : null;
       }
     } else if (plain) {
       view = plainView(plain);
+      plainUri = plain.uri;
       curve = plain.curve;
     }
   }
   if (!view) return null;
+  if (!view.example && view.image === undefined) {
+    const uri = launch ? launch.tokenUri : view.type === "plain" ? plainUri : null;
+    view = { ...view, image: await resolveTokenImage(uri) };
+  }
   let damm: DammPoolDTO | null = null;
   if (curve?.migrated && view.mint) {
-    const d = await loadDamm(view.mint, view.decimals);
+    const d = await loadDamm(view.mint, view.decimals, fresh);
     damm = d.ok ? d.value : null;
   }
   const priceSol = damm?.priceSol ?? (curve && !curve.migrated ? curve.priceSol : null);

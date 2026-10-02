@@ -18,6 +18,7 @@
  */
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { explorerTxUrl } from "@/config/cluster";
 import type { SafeSend } from "@/lib/tx/useSafeSend";
 import type { TxPreview } from "@/lib/tx/preview";
@@ -55,9 +56,24 @@ const STATUS_TEXT: Partial<Record<SafeSend["status"], string>> = {
   success: "Confirmed.",
 };
 
+/**
+ * After a confirmed transaction on a token page, reload the server-rendered page past its short read
+ * cache (`?fresh=<now>`, honoured for a minute) so the visitor sees their own action right away.
+ */
+function useFreshAfterSuccess(status: SafeSend["status"]) {
+  const router = useRouter();
+  useEffect(() => {
+    if (status !== "success" || !window.location.pathname.startsWith("/t/")) return;
+    const q = new URLSearchParams(window.location.search);
+    q.set("fresh", String(Date.now()));
+    router.replace(`${window.location.pathname}?${q.toString()}`, { scroll: false });
+  }, [status, router]);
+}
+
 export function TxPreviewModal({ safeSend }: { safeSend: SafeSend }) {
   const isClient = useIsClient();
   const { status, preview, error } = safeSend;
+  useFreshAfterSuccess(status);
   const open =
     preview !== null &&
     (status === "awaiting-confirmation" ||

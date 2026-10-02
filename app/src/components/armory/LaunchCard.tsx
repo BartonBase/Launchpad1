@@ -10,7 +10,7 @@ export function StateTag({ state }: { state: LaunchDTO["state"] }) {
 }
 
 export function LaunchCard({ l }: { l: LaunchDTO }) {
-  const title = l.collectionName ?? `Token ${shortAddr(l.mint)}`;
+  const title = l.tokenName ?? l.collectionName ?? `Token ${shortAddr(l.mint)}`;
   const pct = l.collectionSize ? Math.round((l.mintedCount / l.collectionSize) * 100) : 0;
   return (
     <Link href={`/t/${l.mint}`} className="card flex flex-col gap-3 p-4 hover:border-[var(--arm-color-border-strong)]" data-testid="launch-card" data-type="hybrid" data-phase={l.state}>

@@ -21,6 +21,8 @@ import {
 import { hybridLaunchAccounts, hybridVaultAccounts } from "@/lib/generated/idlMeta";
 import { decodeCoreAssetOwner, decodeCoreCollection } from "@/lib/generated/core";
 import { decodeMint, decodeTokenAccount, ataAddress } from "@/lib/generated/spl";
+import { metadataPda } from "@/lib/generated/dbc";
+import { decodeMetadataStrings } from "@/lib/meteora/plain";
 
 export type LaunchState = "native" | "curve" | "graduated";
 
@@ -43,6 +45,10 @@ export interface LaunchDTO {
   readonly vaultOpen: boolean;
   readonly collection: string | null;
   readonly collectionName: string | null;
+  /** Token metadata (Metaplex) written when the DBC pool was created; null when absent. */
+  readonly tokenName?: string | null;
+  readonly tokenSymbol?: string | null;
+  readonly tokenUri?: string | null;
   readonly mintedCount: number;
   readonly assetsOutside: string;
   readonly totalCaptures: string;
@@ -61,9 +67,10 @@ async function buildDTOs(conn: Connection, configs: { address: PublicKey; data: 
   const lcs = configs.map((c) => ({ address: c.address, lc: decodeLaunchConfig(c.data) }));
   if (lcs.length === 0) return [];
   const vaultKeys = lcs.map((x) => vaultPda(x.address));
-  const [vaultInfos, mintInfos] = await Promise.all([
+  const [vaultInfos, mintInfos, metaInfos] = await Promise.all([
     conn.getMultipleAccountsInfo(vaultKeys),
     conn.getMultipleAccountsInfo(lcs.map((x) => x.lc.mint)),
+    conn.getMultipleAccountsInfo(lcs.map((x) => metadataPda(x.lc.mint))),
   ]);
   const vaults = vaultInfos.map((v) => {
     try {
@@ -87,6 +94,7 @@ async function buildDTOs(conn: Connection, configs: { address: PublicKey; data: 
   return lcs.map(({ address, lc }, i) => {
     const v = vaults[i] ?? null;
     const mi = mintInfos[i] ? decodeMint(new Uint8Array(mintInfos[i]!.data)) : null;
+    const meta = metaInfos[i] ? decodeMetadataStrings(new Uint8Array(metaInfos[i]!.data)) : null;
     const state: LaunchState = !lc.onCurve ? "native" : v?.open ? "graduated" : "curve";
     return {
       type: "hybrid",
@@ -107,6 +115,9 @@ async function buildDTOs(conn: Connection, configs: { address: PublicKey; data: 
       vaultOpen: v?.open ?? false,
       collection: v ? s(v.collection) : null,
       collectionName: v ? (collNames.get(s(v.collection)) ?? null) : null,
+      tokenName: meta?.name || null,
+      tokenSymbol: meta?.symbol || null,
+      tokenUri: meta?.uri || null,
       mintedCount: v?.mintedCount ?? 0,
       assetsOutside: (v?.assetsOutside ?? 0n).toString(),
       totalCaptures: (v?.totalCaptures ?? 0n).toString(),

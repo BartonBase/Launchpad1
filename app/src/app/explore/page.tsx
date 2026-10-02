@@ -42,7 +42,7 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
     (l) =>
       (type === "all" || type === "hybrid") &&
       (phase === "all" || (phase === "near" ? false : l.state === phase)) &&
-      (!q || l.mint.toLowerCase().includes(q) || (l.collectionName ?? "").toLowerCase().includes(q)),
+      (!q || l.mint.toLowerCase().includes(q) || (l.collectionName ?? "").toLowerCase().includes(q) || (l.tokenName ?? "").toLowerCase().includes(q) || (l.tokenSymbol ?? "").toLowerCase().includes(q)),
   );
   const plainList = allPlain.filter(
     (p) =>
