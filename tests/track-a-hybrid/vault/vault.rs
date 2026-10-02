@@ -2664,3 +2664,29 @@ fn fix3_only_approved_switchboard_queue_and_program() {
     env.launch_and_init(N).expect("approved queue accepted (Mode 2)");
     env.launch_raffle(N, 500).expect("approved queue accepted (Mode 5)");
 }
+
+/// ADR-021 (opt-level choice): compute units of the two heaviest user paths, request_capture (incl. the mock
+/// Switchboard commit CPI) and settle_capture with a lazy Core mint. Printed for the opt-level comparison in
+/// docs/MAINNET_BETA_RISKS.md; asserted well under the 200k default per-instruction budget so a size-optimised
+/// build can't silently push users onto a higher compute-unit limit.
+#[test]
+fn cu_request_capture_and_settle_with_lazy_mint_stay_under_200k() {
+    let mut env = setup(N);
+    let alice = env.new_user(USER_TOKENS);
+    let r = env.new_randomness();
+    env.warp(1);
+    let seq = env.vault_state().next_seq;
+    let a = env.request_capture_ix(&alice, &r);
+    let ix = env.ix_capture_with_proofs(a);
+    let kp = alice.kp.insecure_clone();
+    let cu_req = env.send_max_cu(&[ix], &[&kp]).expect("request_capture");
+    env.reveal(seq, val(1)).unwrap();
+    let pick = env.expected_pick(seq, val(1));
+    assert!(!env.is_minted(pick));
+    let crank = kp_funded(&mut env);
+    let ix = env.settle_ix(seq, env.asset_pda(pick), crank.pubkey());
+    let cu_settle = env.send_max_cu(&[ix], &[&crank]).expect("settle with lazy mint");
+    assert!(env.is_minted(pick));
+    eprintln!("CU request_capture={cu_req} settle_capture_with_mint={cu_settle}");
+    assert!(cu_req < 200_000 && cu_settle < 200_000, "{cu_req} / {cu_settle}");
+}

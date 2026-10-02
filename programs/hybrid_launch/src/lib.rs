@@ -42,6 +42,7 @@ pub mod hybrid_launch {
 
     /// Create the mint, mint the fixed 1B supply, revoke authorities and record
     /// the immutable LaunchConfig (see `instructions::launch`).
+    #[cfg(not(feature = "no-native-launch"))]
     pub fn launch(ctx: Context<Launch>, params: LaunchParams) -> Result<()> {
         instructions::launch::handle_launch(ctx, params)
     }
@@ -57,6 +58,7 @@ pub mod hybrid_launch {
 
     /// Mode 1. Create a classic SPL mint, mint the fixed 1B supply, revoke authorities, and record
     /// an immutable `PlainLaunchConfig`. No ratio, collection, fee, or NFT. Not a curve.
+    #[cfg(not(feature = "no-native-launch"))]
     pub fn launch_plain(ctx: Context<LaunchPlain>, params: PlainLaunchParams) -> Result<()> {
         instructions::plain::handle_launch_plain(ctx, params)
     }
@@ -69,12 +71,14 @@ pub mod hybrid_launch {
 
     /// Mode 3. Classic SPL mint, fixed 1B, revoked authorities, immutable `BurnLaunchConfig`.
     /// Ratio and collection size are fixed here. Not a curve. Wrapping is `hybrid_vault`, and it burns.
+    #[cfg(not(any(feature = "no-native-launch", feature = "no-burn-mode")))]
     pub fn launch_burn(ctx: Context<LaunchBurn>, params: LaunchParams) -> Result<()> {
         instructions::launch_burn::handle_launch_burn(ctx, params)
     }
 
     /// Mode 3 curve path. Bind an allowlisted DBC pool to a `BurnLaunchConfig`. Same checks as
     /// `register_dbc_launch`. No release path is created here.
+    #[cfg(not(feature = "no-burn-mode"))]
     pub fn register_burn_dbc(
         ctx: Context<RegisterBurnDbc>,
         params: RegisterDbcParams,
@@ -85,18 +89,21 @@ pub mod hybrid_launch {
     /// Mode 4. Token-2022 mint with a transfer tax chosen here and locked (no fee-config authority).
     /// Mint and freeze revoked. Withheld tax withdraws only to the vault program's tax PDA.
     /// This path does not burn.
+    #[cfg(not(feature = "no-tax-raffle"))]
     pub fn launch_token22(ctx: Context<LaunchToken22>, params: TaxLaunchParams) -> Result<()> {
         instructions::launch_token22::handle_launch_token22(ctx, params)
     }
 
     /// Mode 5. Same locked tax and buyback price as Mode 4. The vault raffles the whole round
     /// to one snapshotted NFT instead of splitting it.
+    #[cfg(not(feature = "no-tax-raffle"))]
     pub fn launch_raffle(ctx: Context<LaunchToken22>, params: TaxLaunchParams) -> Result<()> {
         instructions::launch_token22::handle_launch_tax(ctx, params, LAUNCH_MODE_RAFFLE)
     }
 
     /// Buy launch inventory with SOL from the tax PDA. Tokens go only to the tax treasury.
     /// Price is the lamports-per-whole-token stored at launch.
+    #[cfg(not(feature = "no-tax-raffle"))]
     pub fn buy_inventory(ctx: Context<BuyInventory>, sol_amount: u64) -> Result<()> {
         instructions::launch_token22::handle_buy_inventory(ctx, sol_amount)
     }

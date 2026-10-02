@@ -13,6 +13,9 @@ edition = "2021"
 rust-version = "1.89.0"
 
 [profile.release]
+# ADR-021: size-optimised for the cheapest mainnet deploy (beta .so: launch 209,848 -> 182,312 B, vault 697,256 ->
+# 571,720 B vs opt-level 3; CU +26-34% on capture/settle, still < 70k). overflow-checks MUST stay on (checked math).
+opt-level = "z"
 overflow-checks = true
 lto = "fat"
 codegen-units = 1

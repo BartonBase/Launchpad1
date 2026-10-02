@@ -11,7 +11,9 @@ use crate::{
     asset_source, config, constants::*, core_cpi, error::VaultError, state::TaxShare,
     state::TaxVault,
 };
-use anchor_lang::{prelude::*, InstructionData, ToAccountMetas};
+use anchor_lang::prelude::*;
+#[cfg(not(feature = "no-tax-raffle"))]
+use anchor_lang::{InstructionData, ToAccountMetas};
 use anchor_spl::{
     associated_token::{self, get_associated_token_address_with_program_id, AssociatedToken},
     token_2022::Token2022,
@@ -704,6 +706,8 @@ pub struct Buyback<'info> {
     pub launch_program: UncheckedAccount<'info>,
 }
 
+// Compiled out with `no-tax-raffle`: it CPIs hybrid_launch::buy_inventory, which that feature removes.
+#[cfg(not(feature = "no-tax-raffle"))]
 pub fn handle_buyback(ctx: Context<Buyback>) -> Result<()> {
     let token_program_id = ctx.accounts.token_program.key();
     require_keys_eq!(

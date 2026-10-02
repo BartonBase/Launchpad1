@@ -127,6 +127,7 @@ pub mod hybrid_vault {
     }
 
     /// Mode 3. Bind a permanent vault to a `BurnLaunchConfig`. No token vault, no release.
+    #[cfg(not(feature = "no-burn-mode"))]
     pub fn init_permanent_vault(
         ctx: Context<InitPermanentVault>,
         params: PermanentInitParams,
@@ -135,17 +136,20 @@ pub mod hybrid_vault {
     }
 
     /// Mode 3. Permissionless, one-way. Opens wrapping once graduation is verified.
+    #[cfg(not(feature = "no-burn-mode"))]
     pub fn open_permanent_vault(ctx: Context<OpenPermanentVault>) -> Result<()> {
         instructions::permanent::handle_open_permanent_vault(ctx)
     }
 
     /// Mode 3 wrap. Burns exactly `ratio` tokens and mints the next NFT. Irreversible.
+    #[cfg(not(feature = "no-burn-mode"))]
     pub fn wrap_permanent(ctx: Context<WrapPermanent>, args: asset_source::MintArgs) -> Result<()> {
         instructions::permanent::handle_wrap_permanent(ctx, args)
     }
 
     /// Mode 4. Bind a tax vault to a Token-2022 launch. Creates the project collection.
     /// Wrap locks tokens; it does not burn them.
+    #[cfg(not(feature = "no-tax-raffle"))]
     pub fn init_token22_vault(
         ctx: Context<InitToken22Vault>,
         params: Token22InitParams,
@@ -154,28 +158,33 @@ pub mod hybrid_vault {
     }
 
     /// Mode 4. Lock `ratio` tokens and mint the next project NFT. Supply does not change.
+    #[cfg(not(feature = "no-tax-raffle"))]
     pub fn wrap_token22(ctx: Context<WrapToken22>, args: asset_source::MintArgs) -> Result<()> {
         instructions::token22::handle_wrap_token22(ctx, args)
     }
 
     /// Move withheld transfer tax into the program treasury and accrue it per project NFT.
+    #[cfg(not(feature = "no-tax-raffle"))]
     pub fn harvest_tax(ctx: Context<HarvestTax>) -> Result<()> {
         instructions::token22::handle_harvest_tax(ctx)
     }
 
     /// Pay the next frozen NFT its exact share. The caller cannot choose the NFT,
     /// the amount, or the destination. If no round is open, this pays nothing.
+    #[cfg(not(feature = "no-tax-raffle"))]
     pub fn claim_tax(ctx: Context<ClaimTax>) -> Result<()> {
         instructions::token22::handle_claim_tax(ctx)
     }
 
     /// Spend SOL on the tax PDA to buy this launch's tokens at the locked price.
     /// Bought tokens accrue to project NFT holders only.
+    #[cfg(not(feature = "no-tax-raffle"))]
     pub fn buyback(ctx: Context<Buyback>) -> Result<()> {
         instructions::token22::handle_buyback(ctx)
     }
 
     /// Mode 5. Bind a raffle vault to a Mode 5 tax launch and pin its Switchboard queue.
+    #[cfg(not(feature = "no-tax-raffle"))]
     pub fn init_raffle_vault(
         ctx: Context<InitRaffleVault>,
         params: RaffleInitParams,
@@ -184,11 +193,13 @@ pub mod hybrid_vault {
     }
 
     /// Record the current owner of the next frozen NFT. Must finish before the draw is requested.
+    #[cfg(not(feature = "no-tax-raffle"))]
     pub fn snapshot_raffle(ctx: Context<SnapshotRaffle>) -> Result<()> {
         instructions::raffle::handle_snapshot_raffle(ctx)
     }
 
     /// Create a Switchboard randomness account whose authority is this vault's PDA.
+    #[cfg(not(feature = "no-tax-raffle"))]
     pub fn init_raffle_randomness(
         ctx: Context<InitRaffleRandomness>,
         recent_slot: u64,
@@ -197,28 +208,33 @@ pub mod hybrid_vault {
     }
 
     /// Commit the pinned Switchboard account. The program picks the oracle. No second try after a reveal.
+    #[cfg(not(feature = "no-tax-raffle"))]
     pub fn commit_raffle(ctx: Context<CommitRaffle>) -> Result<()> {
         instructions::raffle::handle_commit_raffle(ctx)
     }
 
     /// Submit the oracle reveal. The value is stored. It cannot be replaced.
+    #[cfg(not(feature = "no-tax-raffle"))]
     pub fn reveal_raffle(ctx: Context<RevealRaffle>, args: randomness::RevealArgs) -> Result<()> {
         instructions::raffle::handle_reveal_raffle(ctx, args)
     }
 
     /// Permissionless. Advance a Mode 4 payout / Mode 5 snapshot past the NFT at the cursor, only if
     /// that NFT was burned. Mode 4 forfeits its share back to the pending pot; Mode 5 writes no seat.
+    #[cfg(not(feature = "no-tax-raffle"))]
     pub fn skip_dead_nft(ctx: Context<SkipDeadNft>) -> Result<()> {
         instructions::dead_nft::handle_skip_dead_nft(ctx)
     }
 
     /// Permissionless. After the reveal deadline with no reveal: allow a fresh commit (different
     /// oracle), or after 1 + MAX_RECOMMITS commits roll the round back with the pot kept.
+    #[cfg(not(feature = "no-tax-raffle"))]
     pub fn retry_raffle(ctx: Context<RetryRaffle>) -> Result<()> {
         instructions::raffle::handle_retry_raffle(ctx)
     }
 
     /// Pay the snapshotted owner of the winning NFT the whole pot.
+    #[cfg(not(feature = "no-tax-raffle"))]
     pub fn settle_raffle(ctx: Context<SettleRaffle>) -> Result<()> {
         instructions::raffle::handle_settle_raffle(ctx)
     }

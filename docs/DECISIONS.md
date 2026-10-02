@@ -632,6 +632,42 @@ never revealed.
 - Mode 4/5 pot tier is fixed per launch (locked buyback price); crank costs (holder ATAs, raffle seats, rand
   locks) are unpaid volunteer rent. Raffle seats and rand locks are never closed.
 
+## ADR-023: Hybrid on devnet: 0.01 SOL capture fee to BVKx, beta build deployed, art on Irys (Barton, 2026-10-02)
+
+**Context.** Hybrid must work end to end from the live site on devnet: art upload, launch on the DBC
+platform config, `register_dbc_launch`, graduation, `open_vault`, capture / re-roll / release. Barton
+asked for a 0.01 SOL capture/re-roll fee paid to his fee wallet `BVKxZMjuXryATqCeifPgh6Ee9H93BH5UGv8eML66yT3j`.
+The programs charge a tiered fee by ratio (`FEE_TIERS`: 50K → 0.002, 100K/200K → 0.005,
+500K/1M/2.5M/5M → 0.01 SOL), and ADR-019 makes the stored fee exactly the tier.
+
+**Decision (least invasive).**
+1. **Fee logic unchanged.** Tiers, the ADR-019 exact-tier check, `MAX_FEE_LAMPORTS` and every vault
+   instruction stay as audited. The wizard only offers the 0.01 SOL tier ratios (500K, 1M, 2.5M, 5M
+   tokens per NFT), so every Hybrid launched from the site charges exactly 0.01 SOL per capture and per
+   re-roll. Launches made outside the site with a 50K–200K ratio still get their (lower) tier.
+2. **Recipient.** The non-mainnet `PLATFORM_FEE_RECIPIENT` in `programs/hybrid_launch/src/needs_barton.rs`
+   (devnet placeholder `7J3A…TjDN`) is now `BVKx…yT3j`. `register_dbc_launch` and the vault both read this
+   compile-time constant, so both programs were upgraded. The mainnet value is untouched (still a
+   compile-time guard until Barton supplies it).
+3. **Build.** Devnet now runs the mainnet-beta build from `release/mainnet-beta` ADR-021 (`31c9174`):
+   `opt-level = "z"`, features `mainnet-beta` (= `no-native-launch`, `no-burn-mode`, `no-tax-raffle`).
+   hybrid_launch keeps `devnet-e2e` (0.1 SOL graduation floor). The native `launch` instruction is
+   compiled out, so the app's native-launch path is removed; both launch types go through Meteora DBC.
+   The vault now includes QA-FEE-03 (`FeeNotTier` 6061).
+4. **Art hosting.** The browser uploads images, per-NFT metadata JSON, a leaf manifest and the
+   collection JSON to the Irys devnet node (ANS-104 data items signed by a throwaway in-browser key;
+   items ≤ 100 KB are free, so images are resized client-side). No server secret. NFT URIs are `ar://<id>`
+   (the vault only accepts `ipfs://` / `ar://`). Leaf salts derive from a master salt published in the
+   collection JSON, so anyone can rebuild every leaf and check it against the on-chain `trait_root`.
+   Irys devnet data is not permanent; mainnet needs a funded Irys/Arweave upload.
+5. **Dev buy.** Same transaction as pool creation (`createPoolWithFirstBuy`). The devnet config has no
+   anti-snipe schedule (flat 1%), and the wizard shows the fee the dev buy pays from the config.
+
+**Cost.** Program upgrades (no `program extend` needed: the beta builds are smaller than the existing
+program data): 0.0035 SOL in fees from the throwaway deployer; buffer rent was refunded.
+
+**Not changed.** Vault economics, checks, account validation, the absence of any pause, checked math.
+
 ## Design questions (answered 2026-09-25; figures measured on LiteSVM unless marked ESTIMATE)
 
 ### CD Q1: Is the ~0.005 SOL mint cost refunded when the draw lands on an already-minted NFT?

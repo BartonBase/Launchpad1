@@ -28,6 +28,11 @@ path = "vault/real_switchboard.rs"
 name = "vault_dbc_graduation"
 path = "vault/dbc_graduation.rs"
 
+# ADR-021: which instructions exist in this build (default vs mainnet-beta).
+[[test]]
+name = "beta_gating"
+path = "launch/beta_gating.rs"
+
 # QA-owned test files (contents not edited by the engineer).
 [[test]]
 name = "qa_launch"
@@ -43,6 +48,8 @@ qa-regression = []
 # Run the suites against the devnet-e2e hybrid_launch build (0.1 SOL graduation floor); see
 # scripts/build-devnet-e2e.sh. Host constants then match the .so under test.
 devnet-e2e = ["hybrid_launch/devnet-e2e"]
+# Run beta_gating against the mainnet-beta build (scripts/build-mainnet-beta.sh); see ADR-021.
+mainnet-beta = ["hybrid_launch/mainnet-beta", "hybrid_vault/mainnet-beta"]
 
 [dev-dependencies]
 anchor-lang = "=1.2.0"
@@ -58,3 +65,4 @@ solana-transaction = "3.0.2"
 solana-signer = "3.0.0"
 solana-keypair = "3.0.1"
 serde_json = "1"
+solana-sha256-hasher = "3.1.0"

@@ -16,7 +16,16 @@ cpi = ["no-entrypoint"]
 no-entrypoint = []
 no-log-ix-name = []
 # Mainnet build: refuses to compile until PLATFORM_FEE_OWNER is Barton's Squads vault (constants.rs).
-mainnet = []
+mainnet = ["mainnet-beta"]
+# MAINNET BETA (ADR-021): compile out every instruction not shipped in the beta. `mainnet` implies it.
+# Each piece is separate so Barton can re-enable one by editing this list (a program upgrade).
+mainnet-beta = ["no-native-launch", "no-burn-mode", "no-tax-raffle"]
+# Native (non-DBC) launch / launch_plain / launch_burn: supply is locked in a PDA nothing signs for (QA-MOD-04).
+no-native-launch = []
+# Mode 3 (burn hybrid): launch_burn, register_burn_dbc. NFTs mint in a known sequential order (ADR-020 open item).
+no-burn-mode = []
+# Modes 4/5 (tax, raffle; SHELVED by ADR-020): launch_token22, launch_raffle, buy_inventory.
+no-tax-raffle = []
 # DEVNET E2E ONLY: lowers MIN_GRADUATION_THRESHOLD_LAMPORTS to 0.1 SOL (needs_barton.rs). Never in
 # target/deploy, never with `mainnet` (compile_error).
 devnet-e2e = []

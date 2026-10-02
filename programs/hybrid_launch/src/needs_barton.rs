@@ -85,10 +85,11 @@ const _: () = assert!(
 /// instruction argument (M-05, F-06); recorded in every LaunchConfig and checked (fail closed) by
 /// hybrid_vault. NEEDS BARTON: custody (recommended: a Squads vault he controls, M-17/B-07) and a
 /// published policy that the fee wallet never converts or re-rolls (M-16).
-/// Localnet/devnet: THROWAWAY key `.keys/devnet-only-fee-owner.json`.
+/// Localnet/devnet: Barton's fee wallet `BVKx…yT3j` (DECIDED, Barton 2026-10-02; devnet capture and
+/// re-roll fees land there). Was the throwaway `7J3A…TjDN` before. A public address, no key here.
 /// A mainnet build refuses to compile until it is set.
 #[cfg(not(feature = "mainnet"))]
-pub const PLATFORM_FEE_RECIPIENT: Pubkey = pubkey!("7J3AajxfajAMgGmmwzfZeYGNieRtHRCuEgNTfd4gTjDN");
+pub const PLATFORM_FEE_RECIPIENT: Pubkey = pubkey!("BVKxZMjuXryATqCeifPgh6Ee9H93BH5UGv8eML66yT3j");
 #[cfg(feature = "mainnet")]
 compile_error!("hybrid_launch: set PLATFORM_FEE_RECIPIENT to Barton's mainnet Squads vault before a mainnet build");
 #[cfg(feature = "mainnet")]

@@ -16,7 +16,13 @@ cpi = ["no-entrypoint"]
 no-entrypoint = []
 no-log-ix-name = []
 # Pin the Switchboard On-Demand MAINNET program id instead of the devnet one.
-mainnet = ["hybrid_launch/mainnet"]
+mainnet = ["hybrid_launch/mainnet", "mainnet-beta"]
+# MAINNET BETA (ADR-021): compile out the Mode 3 and Mode 4/5 instructions. `mainnet` implies it.
+mainnet-beta = ["no-burn-mode", "no-tax-raffle", "hybrid_launch/mainnet-beta"]
+# Mode 3: init_permanent_vault, open_permanent_vault, wrap_permanent.
+no-burn-mode = ["hybrid_launch/no-burn-mode"]
+# Modes 4/5 (SHELVED): token22 + raffle instructions, skip_dead_nft, buyback (CPIs hybrid_launch::buy_inventory).
+no-tax-raffle = ["hybrid_launch/no-tax-raffle"]
 # TEST-ONLY (localnet LiteSVM): mock graduation verifier. Can't be combined with `mainnet`
 # (compile_error); built only by scripts/build-test-sbf.sh into target/test-sbf/; deploy scripts
 # refuse binaries containing its marker.
