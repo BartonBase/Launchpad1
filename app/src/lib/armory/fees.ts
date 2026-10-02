@@ -16,6 +16,10 @@ export interface RequestCostInput {
   readonly tempRentLamports: bigint;
   readonly networkFeeLamports?: bigint;
   readonly depositLamports?: bigint;
+  /** One-time randomness setup when the vault has no free randomness account (not refunded). */
+  readonly setupLamports?: bigint;
+  /** First-mint spend range at the cluster's rent (default: mainnet-rate constant). */
+  readonly firstMintRange?: readonly [bigint, bigint];
 }
 
 export interface RequestCost {
@@ -23,6 +27,8 @@ export interface RequestCost {
   readonly deposit: bigint;
   readonly tempRent: bigint;
   readonly networkFee: bigint;
+  readonly setup: bigint;
+  readonly firstMintRange: readonly [bigint, bigint];
   /** Everything that must be in the wallet to submit the request. */
   readonly requiredBalance: bigint;
   /** Worst case actually spent after settle (fee + max first-mint spend + network fee). */
@@ -34,14 +40,18 @@ export interface RequestCost {
 export function requestCost(i: RequestCostInput): RequestCost {
   const deposit = i.depositLamports ?? MINT_ESCROW_LAMPORTS;
   const networkFee = i.networkFeeLamports ?? BASE_TX_FEE_LAMPORTS;
+  const setup = i.setupLamports ?? 0n;
+  const firstMintRange = i.firstMintRange ?? FIRST_MINT_SPEND_RANGE_LAMPORTS;
   return {
     tierFee: i.tierFeeLamports,
     deposit,
     tempRent: i.tempRentLamports,
     networkFee,
-    requiredBalance: i.tierFeeLamports + deposit + i.tempRentLamports + networkFee,
-    maxNetCost: i.tierFeeLamports + FIRST_MINT_SPEND_RANGE_LAMPORTS[1] + networkFee,
-    minNetCost: i.tierFeeLamports + networkFee,
+    setup,
+    firstMintRange,
+    requiredBalance: i.tierFeeLamports + deposit + i.tempRentLamports + setup + networkFee,
+    maxNetCost: i.tierFeeLamports + setup + firstMintRange[1] + networkFee,
+    minNetCost: i.tierFeeLamports + setup + networkFee,
   };
 }
 

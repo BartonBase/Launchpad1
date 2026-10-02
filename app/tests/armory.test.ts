@@ -59,6 +59,16 @@ describe("request cost (lazy-mint deposit)", () => {
     expect(c.requiredBalance).toBe(10_000_000n + 6_338_100n + 3_000_000n + 5_000n);
     expect(c.minNetCost).toBe(10_005_000n);
   });
+  it("adds one-time randomness setup and uses the cluster's first-mint range", () => {
+    const d = requestCost({ tierFeeLamports: 10_000_000n, tempRentLamports: 3_093_720n, setupLamports: 5_999_480n, firstMintRange: [2_643_000n, 3_582_800n] });
+    expect(d.requiredBalance).toBe(10_000_000n + 6_338_100n + 3_093_720n + 5_999_480n + 5_000n);
+    expect(d.minNetCost).toBe(10_000_000n + 5_999_480n + 5_000n);
+    expect(d.maxNetCost).toBe(10_000_000n + 5_999_480n + 3_582_800n + 5_000n);
+    // Measured on devnet (10/1 capture run): request 19,436,820 incl. 5,000 fee; settle refunds 6,773,580 before its fee.
+    const m = requestCost({ tierFeeLamports: 10_000_000n, tempRentLamports: 2_194_560n + 899_160n });
+    expect(m.requiredBalance).toBe(19_436_820n);
+    expect(m.deposit + m.tempRent - 2_658_240n).toBe(6_773_580n);
+  });
   it("flags insufficient balance with the shortfall", () => {
     expect(checkBalance(c.requiredBalance, c)).toEqual({ ok: true });
     expect(checkBalance(c.requiredBalance - 1n, c)).toEqual({ ok: false, shortfall: 1n });
@@ -68,10 +78,12 @@ describe("request cost (lazy-mint deposit)", () => {
 });
 
 describe("launch types", () => {
-  it("plain + burn pending deploy, tax + raffle coming soon, hybrid live", () => {
+  it("hybrid + plain live on devnet, burn + tax + raffle coming soon", () => {
     expect(launchTypeStatus("hybrid", "devnet")).toBe("live");
-    expect(launchTypeStatus("plain", "devnet")).toBe("pending-deploy");
-    expect(launchTypeStatus("burn", "devnet")).toBe("pending-deploy");
+    expect(launchTypeStatus("plain", "devnet")).toBe("live"); // Meteora DBC platform config, no Armory program
+    expect(launchTypeStatus("plain", "localnet")).toBe("pending-deploy"); // no DBC config on localnet
+    expect(launchTypeStatus("burn", "devnet")).toBe("coming-soon");
+    expect(launchTypeStatus("burn", "localnet")).toBe("coming-soon");
     expect(launchTypeStatus("tax", "devnet")).toBe("coming-soon");
     expect(launchTypeStatus("raffle", "devnet")).toBe("coming-soon");
   });

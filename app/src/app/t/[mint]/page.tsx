@@ -1,7 +1,9 @@
 /**
  * Token page, /t/{mint} (design/sitemap.md). Panels per launch type come from tokenPanels().
- * Live: Hybrid launches read from devnet. Plain and Burn are pending deploy, so they only exist as
- * design previews at /t/example-plain and /t/example-burn (Example data, controls disabled).
+ * Live: Hybrid launches (hybrid_launch LaunchConfig) and Plain launches (Meteora DBC pools on the
+ * platform config), both read from devnet. Curve launches get the Meteora curve-progress card and a
+ * real buy/sell panel (DBC before graduation, DAMM v2 after). Burn is "Coming soon", so it only
+ * exists as a design preview at /t/example-burn (Example data, controls disabled).
  * Panel state: ?panel=capture|release|reroll (old ?action= is accepted).
  */
 import type { Metadata } from "next";
@@ -15,6 +17,11 @@ import { fetchLaunch, type LaunchDTO } from "@/lib/armory/reads";
 import { shortAddr } from "@/lib/armory/format";
 import { tokenPanels, type TokenType } from "@/lib/armory/tokenPanels";
 import { HybridPanels, type HybridPanel } from "@/components/armory/HybridPanels";
+import { CurveProgress } from "@/components/meteora/CurveProgress";
+import { SwapPanel } from "@/components/meteora/SwapPanel";
+import { fetchCurveState, type CurveStateDTO } from "@/lib/meteora/dbc";
+import { fetchDammPool, type DammPoolDTO } from "@/lib/meteora/damm";
+import { fetchPlainLaunch, type PlainLaunchDTO } from "@/lib/meteora/plain";
 import { ReadError } from "@/components/armory/ReadError";
 import {
   BurnHoldings,
@@ -57,6 +64,18 @@ function parseMint(raw: string): PublicKey | null {
   }
 }
 const load = (mint: PublicKey) => cachedRead(`launch:${mint.toBase58()}`, 15_000, (c) => fetchLaunch(c, mint));
+const loadPlain = (mint: PublicKey) => cachedRead(`plain:${mint.toBase58()}`, 10_000, (c) => fetchPlainLaunch(c, mint));
+const loadCurve = (pool: string) => cachedRead(`curve:${pool}`, 10_000, (c) => fetchCurveState(c, new PublicKey(pool)));
+const loadDamm = (mint: string, decimals: number) => cachedRead(`damm:${mint}`, 15_000, (c) => fetchDammPool(c, new PublicKey(mint), decimals));
+
+function plainView(p: PlainLaunchDTO): TokenView {
+  return {
+    type: "plain", phase: p.curve.migrated ? "graduated" : "curve", example: false, name: p.name, symbol: p.symbol || null, mint: p.mint,
+    collection: null, decimals: p.curve.baseDecimals, ratioWhole: null, collectionSize: null, minted: 0, feeLamports: null, feeIsExactTier: true,
+    feeRecipient: null, graduationLamports: BigInt(p.curve.thresholdLamports), mintAuthority: p.mintAuthority, freezeAuthority: p.freezeAuthority,
+    supplyWhole: BigInt(p.supplyBase) / 10n ** BigInt(p.curve.baseDecimals),
+  };
+}
 
 function hybridView(l: LaunchDTO): TokenView {
   return {
@@ -74,7 +93,9 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const mint = parseMint(raw);
   if (!mint) return { title: "Invalid address" };
   const r = await load(mint);
-  return { title: r.ok && r.value ? (r.value.collectionName ?? `Token ${shortAddr(r.value.mint)}`) : `Token ${shortAddr(mint.toBase58())}` };
+  if (r.ok && r.value) return { title: r.value.collectionName ?? `Token ${shortAddr(r.value.mint)}` };
+  const pl = await loadPlain(mint);
+  return { title: pl.ok && pl.value ? `${pl.value.name}${pl.value.symbol ? ` (${pl.value.symbol})` : ""}` : `Token ${shortAddr(mint.toBase58())}` };
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -89,6 +110,7 @@ export default async function TokenPage({ params, searchParams }: { params: Para
 
   let view: TokenView | null = EXAMPLES[raw] ?? null;
   let launch: LaunchDTO | null = null;
+  let curve: CurveStateDTO | null = null;
   if (!view) {
     const mint = parseMint(raw);
     if (!mint) {
@@ -102,22 +124,44 @@ export default async function TokenPage({ params, searchParams }: { params: Para
     }
     const r = await load(mint);
     if (!r.ok) return <Shell><ReadError what="this token" error={r.error} /></Shell>;
+    let plain: PlainLaunchDTO | null = null;
     if (!r.value) {
+      const pl = await loadPlain(mint);
+      if (!pl.ok) return <Shell><ReadError what="this token" error={pl.error} /></Shell>;
+      plain = pl.value;
+    }
+    if (!r.value && !plain) {
       return (
         <Shell>
           <div data-testid="token-not-found" className="space-y-4">
             <h1 className="hd text-3xl">No Armory launch at this address</h1>
             <p className="text-muted">
-              <span className="font-mono">{shortAddr(mint.toBase58(), 6)}</span> wasn&apos;t launched by Armory on {CLUSTER.label}. Plain and Burn launches are pending deploy.
+              <span className="font-mono">{shortAddr(mint.toBase58(), 6)}</span> wasn&apos;t launched by Armory on {CLUSTER.label}. Check the address, or browse every launch on the explore page.
             </p>
             <Link href="/explore" className="btn">Back to explore</Link>
           </div>
         </Shell>
       );
     }
-    launch = r.value;
-    view = hybridView(launch);
+    if (r.value) {
+      launch = r.value;
+      view = hybridView(launch);
+      if (launch.dbcPool) {
+        const cr = await loadCurve(launch.dbcPool);
+        curve = cr.ok ? cr.value : null;
+      }
+    } else if (plain) {
+      view = plainView(plain);
+      curve = plain.curve;
+    }
   }
+  if (!view) return null;
+  let damm: DammPoolDTO | null = null;
+  if (curve?.migrated && view.mint) {
+    const d = await loadDamm(view.mint, view.decimals);
+    damm = d.ok ? d.value : null;
+  }
+  const priceSol = damm?.priceSol ?? (curve && !curve.migrated ? curve.priceSol : null);
 
   const panels = tokenPanels(view.type as TokenType, view.phase);
   return (
@@ -125,11 +169,11 @@ export default async function TokenPage({ params, searchParams }: { params: Para
       <nav aria-label="Breadcrumb" className="text-muted text-sm">
         <Link href="/explore" className="hover:text-fg">Explore</Link> <span aria-hidden="true">/</span> <span className="text-fg">{view.name}</span>
       </nav>
-      <TokenHeader v={view} />
+      <TokenHeader v={view} priceSol={priceSol} />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 space-y-6">
-          {panels.has("market") && <MarketCard v={view} />}
-          <PhaseCard v={view} />
+          {panels.has("market") && <MarketCard v={view} priceSol={priceSol} />}
+          {curve ? <CurveProgress curve={curve} dammPool={damm?.pool ?? null} /> : <PhaseCard v={view} />}
           {panels.has("plainFacts") && <PlainFacts />}
           {view.type === "hybrid" && launch && <HybridPanels launch={launch} initialPanel={panel} />}
           {view.type === "burn" && (
@@ -146,7 +190,13 @@ export default async function TokenPage({ params, searchParams }: { params: Para
           </div>
         </div>
         <aside className="space-y-6">
-          <TradePanel v={view} />
+          {curve && !curve.migrated && view.mint ? (
+            <SwapPanel venue="dbc" pool={curve.pool} mint={view.mint} symbol={view.symbol} decimals={view.decimals} feeBps={curve.feeBps} />
+          ) : damm && view.mint ? (
+            <SwapPanel venue="damm" pool={damm.pool} mint={view.mint} symbol={view.symbol} decimals={view.decimals} />
+          ) : (
+            <TradePanel v={view} />
+          )}
           <FactsCard v={view} />
         </aside>
       </div>

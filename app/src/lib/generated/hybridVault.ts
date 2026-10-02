@@ -29,6 +29,7 @@ export const vaultPda = (launchConfig: PublicKey) => pda([utf8("vault"), launchC
 export const vaultAuthorityPda = (vault: PublicKey) => pda([utf8("vault_authority"), vault.toBuffer()]);
 export const randomnessAuthorityPda = (vault: PublicKey) => pda([utf8("randomness_authority"), vault.toBuffer()]);
 export const vaultTokensPda = (vault: PublicKey) => pda([utf8("vault_tokens"), vault.toBuffer()]);
+export const collectionPda = (vault: PublicKey) => pda([utf8("collection"), vault.toBuffer()]);
 export const requestPda = (vault: PublicKey, seq: bigint) => pda([utf8("request"), vault.toBuffer(), u64le(seq)]);
 export const mintEscrowPda = (vault: PublicKey, seq: bigint) => pda([utf8("mint_escrow"), vault.toBuffer(), u64le(seq)]);
 export const randLockPda = (randomness: PublicKey) => pda([utf8("rand_lock"), randomness.toBuffer()]);
@@ -409,5 +410,40 @@ export function settleIx(a: {
       ro(SYSTEM_PROGRAM_ID),
     ],
     data: encodeMintArgs(new Writer().raw(disc), a.mint).toBuffer(),
+  });
+}
+
+/** InitVaultParams (IDL order): trait_root, trait_schema_hash, collection_name, collection_uri, sb_queue. */
+export interface InitVaultParams {
+  readonly traitRoot: Uint8Array; // 32
+  readonly traitSchemaHash: Uint8Array; // 32
+  readonly collectionName: string; // <= 32 bytes
+  readonly collectionUri: string; // ipfs:// or ar://, <= 200 bytes
+  readonly sbQueue: PublicKey;
+}
+/** Bytes for the pre-created pool account (e2e.cjs: 64 + 16·N + ceil(N/8)). */
+export const vaultPoolBytes = (collectionSize: number) => 64 + 16 * collectionSize + Math.ceil(collectionSize / 8);
+
+export function initVaultIx(a: { creator: PublicKey; launchConfig: PublicKey; mint: PublicKey; pool: PublicKey; params: InitVaultParams }): TransactionInstruction {
+  const p = a.params;
+  if (p.traitRoot.length !== 32 || p.traitSchemaHash.length !== 32) throw new Error("Malformed art commitment");
+  const vault = vaultPda(a.launchConfig);
+  return new TransactionInstruction({
+    programId: PID,
+    keys: [
+      { pubkey: a.creator, isSigner: true, isWritable: true },
+      ro(a.launchConfig),
+      ro(a.mint),
+      rw(vault),
+      rw(vaultAuthorityPda(vault)),
+      ro(randomnessAuthorityPda(vault)),
+      rw(vaultTokensPda(vault)),
+      rw(a.pool),
+      rw(collectionPda(vault)),
+      ro(MPL_CORE_PROGRAM_ID),
+      ro(TOKEN_PROGRAM_ID),
+      ro(SYSTEM_PROGRAM_ID),
+    ],
+    data: new Writer().raw(hybridVaultIx.initVault).raw(p.traitRoot).raw(p.traitSchemaHash).string(p.collectionName).string(p.collectionUri).raw(p.sbQueue.toBytes()).toBuffer(),
   });
 }

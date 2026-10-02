@@ -3,7 +3,9 @@
 Next.js (App Router) + TypeScript (strict) + Tailwind v4 front-end for **Armory**: launch a Solana
 meme coin on its own, or with an NFT collection built in (Hybrid: a fixed number of tokens
 converts into one random Metaplex Core NFT and back). Wired to the DEVNET `hybrid_launch` and
-`hybrid_vault` programs.
+`hybrid_vault` programs, and built on **Meteora**: every launch trades on a Meteora Dynamic
+Bonding Curve (`@meteora-ag/dynamic-bonding-curve-sdk`) and graduates to a Meteora DAMM v2 pool
+(`@meteora-ag/cp-amm-sdk`). See `../HACKATHON.md` and the in-app `/meteora` page.
 
 > **Unaudited beta, localnet / devnet only.** Mainnet is refused at startup, no private keys
 > exist anywhere in this app (the only keypair is a throwaway mint key generated in the browser
@@ -68,9 +70,24 @@ the browser bundle). There are no secrets.
 | ----------------------------- | ------------------------------- | ----- |
 | `NEXT_PUBLIC_SOLANA_CLUSTER`  | `localnet` (default), `devnet`  | Anything containing `mainnet` throws `MainnetForbiddenError`; unknown values throw (no silent fallback). |
 | `NEXT_PUBLIC_SOLANA_RPC_URL`  | empty, or one of the cluster's allowed endpoints | localnet: `http://127.0.0.1:8899` / `http://localhost:8899`; devnet: `https://api.devnet.solana.com`. Credentials, paths, query strings and other hosts are rejected, since the CSP is derived from the same list. |
+| `NEXT_PUBLIC_FF_TAX_RAFFLE`   | empty (default), `1`            | Display only. Tax and raffle stay "Coming soon" either way. |
 
-Changing either variable requires restarting `dev` / rebuilding (values are
+Changing any variable requires restarting `dev` / rebuilding (values are
 inlined at build time).
+
+### Hosting (Vercel / Netlify)
+
+Standard Next.js app, no server secrets, no database.
+
+- Root directory: `app/` (this folder). Build command `npm run build`, install `npm ci`,
+  Node 20+. Vercel detects Next.js automatically; on Netlify use the Next.js runtime
+  (default for Next projects).
+- **Required:** set `NEXT_PUBLIC_SOLANA_CLUSTER=devnet` in the host's environment variables
+  before the build. The default is `localnet`, which would make the hosted site try to talk to
+  `127.0.0.1` and show no launches.
+- Leave `NEXT_PUBLIC_SOLANA_RPC_URL` empty (public devnet RPC). The public endpoint is rate
+  limited (HTTP 429 under load), so some live numbers can occasionally fail to load; reloading
+  the page fixes it. Server reads are cached for 30 s (ISR) to keep the request count low.
 
 ## Layout
 
@@ -86,8 +103,10 @@ src/
                                                  ?panel=capture|release|reroll preselects; /t/example-plain and
                                                  /t/example-burn are static design previews. /token/<mint> and
                                                  /collections/<mint> redirect here (307).
-    launch/                 /launch              wizard, ?type=plain|hybrid|burn (native hybrid launch on devnet,
-                                                 plus a simulate-only Meteora DBC preview)
+    launch/                 /launch              wizard, ?type=plain|hybrid (hybrid launch via hybrid_launch; plain
+                                                 launch straight on Meteora DBC). ?type=burn shows "Coming soon".
+    meteora/                /meteora             "Built on Meteora": DBC -> DAMM v2 flow, live config facts,
+                                                 addresses, integration code paths
     portfolio/              /portfolio           wallet tokens, NFTs, pending requests
     trust/ faq/ bug-bounty/ static trust pages (+ live authorities, pipeline self-test)
     fonts.ts                next/font/google: Bricolage Grotesque, Geist, Geist Mono (self-hosted)
@@ -99,10 +118,14 @@ src/
     generated/              typed clients (see "Devnet wiring")
     armory/                 reads.ts (chain reads -> serializable DTOs), builders.ts (tx builders),
                             fees.ts (capture cost math), launchForm.ts, format.ts, server.ts (TTL cache)
+    meteora/                dbc.ts (DBC curve state, quotes, buy/sell, plain launch), damm.ts (DAMM v2
+                            pool lookup, quotes, buy/sell), plain.ts (plain launches read from chain)
     tx/                     transaction safety pipeline (see below)
     validate.ts             untrusted-input validators
   components/armory/        TrustStrip, AuthoritiesPanel, ConvertPanel, CostBreakdown, LaunchWizard,
                             PortfolioView, LaunchCard, LaunchTypes, MascotPlaceholder
+  components/meteora/       SwapPanel (DBC / DAMM v2 buy+sell with quote, slippage, fees), CurveProgress
+                            (curve progress + graduation to DAMM v2), PlainCard
   styles/tokens.css         GENERATED from ../design/system/tokens.json (scripts/build-tokens.mjs)
 tests/                      unit tests; tests/devnet/*.devnet.ts = read-only devnet checks
 ```
@@ -127,7 +150,7 @@ tests/                      unit tests; tests/devnet/*.devnet.ts = read-only dev
   Reveal), `settle_capture` / `settle_reroll` (Settle; mints the picked NFT with its leaf + proof).
 - **Oracle retry** (`lib/armory/oracle.ts`): the request is simulated first. 6050 WrongOracle →
   rebuild with the oracle from the `Right:` log; 6053 stale → add the stale oracle as a remaining
-  account and try the next queue oracle (max 6 attempts).
+  account and follow the program's `Right:` key (or the next queue oracle); loops until the simulation is clean (up to two simulations per queue oracle).
 - **Reveal**: the gateway URL is read from the oracle account and must match
   `SWITCHBOARD_GATEWAY_RE` (devnet: `https://<ipv4>.xip.switchboard-oracles.xyz/devnet`); the
   request is a plain `fetch` POST to `<gateway>/gateway/api/v1/randomness_reveal` (no redirects, no
@@ -144,9 +167,12 @@ tests/                      unit tests; tests/devnet/*.devnet.ts = read-only dev
   platform config (`DBC_PLATFORM_CONFIG`, `config/integrations.ts`) and registers it in one v0 tx.
   The graduation target is the config's `migration_quote_threshold` (devnet 0.1 SOL). The wizard
   offers it as preview only (`useSafeSend().start(build, { previewOnly })`: Confirm stays disabled).
-- **Plain and burn are NOT deployed** (branch `fix/modes-1-5` @ `c43be58`, no date): shown as
-  "Pending deploy", no builders. **Tax and raffle**: always shown as "Coming soon" cards (display
-  only, no builders).
+- **Plain is live on devnet** without any Armory program: `buildPlainLaunchTx`
+  (`lib/meteora/dbc.ts`) calls the DBC SDK's `creator.createPool` on the same platform config
+  (fixed 1B supply, mint authority revoked, immutable metadata, migrates to DAMM v2). Trading on
+  the curve and, after graduation, on DAMM v2 goes through `components/meteora/SwapPanel.tsx`.
+  The `launch_plain` program is not used (still undeployed). On localnet Plain shows "Pending deploy".
+- **Burn, tax and raffle**: always shown as "Coming soon" (display only, not selectable, no builders).
 - **Devnet differences:** the launch program is the `devnet-e2e` test build with a 0.1 SOL
   graduation minimum (`MIN_GRADUATION_LAMPORTS` per cluster in `config/armory.ts`; real build
   10 SOL); each launch's threshold is read from its LaunchConfig. The devnet vault predates the
@@ -175,6 +201,20 @@ tests/                      unit tests; tests/devnet/*.devnet.ts = read-only dev
 `soon-card-<id>`, `positions`, `portfolio-summary`, `portfolio-capslot`, `portfolio-nfts`,
 `portfolio-history`, `tx-lookup-tables`, `tx-preview-only`, `upgrades-copy`, `reveal-<seq>`,
 `settle-<seq>`, `launch-dbc`, `launch-dbc-preview`, `launch-dbc-graduation`.
+
+### Chain alignment (10/1 pass)
+
+- **Art commitment** (wizard step 4) maps to `init_vault` (`initVaultIx`, `buildInitVaultTx`): collection name ≤ 32 bytes, `ipfs://`/`ar://` URI, trait root and schema hash (64 hex each); `sb_queue` is pinned to `SWITCHBOARD_DEVNET_QUEUE`. It runs as a separate safe-send step after a native launch (`launch-commit-art`). Validation lives in `validateArt` / `parseHash32`.
+- **The devnet E2E launch** (mint `3GC9zFW…vpJAu`, launch config `FKAz…`, DBC pool `6VbgZdm…`) is a **DBC launch**: DBC config `DuQY…` + `register_dbc_launch`, graduated on 2026-09-26. The "no curve / converting can never open" copy (`NO_CURVE_MESSAGE`, error 6037) appears only for truly native launches (`dbc_pool` unset, state `native`), e.g. ones made by the wizard's native devnet path.
+- **Devnet test launch: "Armory Test" (ARMT)**, DBC config `DuQY…` + `register_dbc_launch`, graduated to DAMM v2, vault open; 1,000,000 tokens per NFT, 100 NFTs, 0.01 SOL fee. Mint `Dhv3VkqeTYJiahzcVJLmJ1snApdYtQxsAKeUnv5GTNos`, launch config `AGVZd96xUp1WSadGY6TWwsZi6C5CzY7aNsk6fHm66F6m`, vault `MwFTkPQ2TReZo5axKkXTUKC4sBoBmrSKs4JwAhFjPHK`, pool index `B8r2rRuhoSWSdyMxDFZL2YRrRWqg13iiZfWyxSBqUA3D`, DBC pool `8n3dZKxPfYYV7kZkDxW8CrtKTm4RKhtHyQ1WqdFhapj3`, collection `8Gnr6DbAgz9XHmniFwSRAKXSvotH1QG1iDQkP5LpzBYs`. Its traits use the deterministic e2e leaf scheme (`leaves.ts`, root checked in test:devnet). `check:headings` and test:devnet read it.
+- **Pinned lookup table** (devnet): `5xhFeeakpaggTw9Ntbjt8yuZSHEoXPTUd63h4tVmZVsU` (21 entries, has an authority). `PINNED_LOOKUP_TABLE_CONTENTS` holds its exact list; the pipeline (`checkLookups`) blocks a table with an authority unless its on-chain contents equal that list. Settle-with-mint for ARMT is 978 bytes without it and 764 with it; the builder uses it only above 1,232 bytes.
+- **Cost breakdown** is read from the cluster's rent: temp rent (request + randomness lock), a "Randomness account setup" row (≈ 0.006 SOL on devnet, only when the vault has no free randomness account; not refunded) and the first-mint range (rent for a 97–282-byte Core asset + 1,500,000 Core fee: ≈ 0.0026–0.0036 SOL on devnet, ≈ 0.0031–0.0044 at mainnet rent).
+- **Devnet capture run** (`scripts/devnet-run/flow.ts`, node-side only): capture → reveal → settle → re-roll → reveal → settle → release on a graduated launch, each built with the app's builders and run through the same validate → lookups → simulate → preview → tamper-check steps as `useSafeSend` before sending. `NEXT_PUBLIC_SOLANA_CLUSTER=devnet npx tsx scripts/devnet-run/flow.ts` (keypair from `DEVNET_TEST_WALLET`, never printed; refuses non-devnet genesis; keeps a 0.05 SOL reserve; JSON log in `DEVNET_RUN_LOG`).
+- **Randomness copy** names Switchboard On-Demand (devnet) everywhere randomness is explained; reveal and settle are permissionless.
+- **Friendly errors**: `src/lib/armory/errors.ts` maps vault 6037 (no curve on a native launch) to `NO_CURVE_MESSAGE`, shown first in the tx preview.
+- **Graduation minimum** is the cluster's chain minimum (0.1 SOL on devnet). `PRODUCTION_MIN_GRADUATION_LAMPORTS` (10 SOL) is copy only. The curve split 55/20/25 is read from the DBC config (`fetchDbcCurveSplit`), with `FALLBACK_CURVE_SPLIT` as a fallback.
+- **Copy constants** (`src/config/armory.ts`): `mintDepositText`, `FIRST_MINT_RANGE_TEXT`, `BURN_MINT_TEXT`, `DEPOSIT_CAP_TAG`. `.tag-pd` is the dashed amber "Pending deploy" chip.
+- **New test ids**: `launch-metadataUri`, `launch-graduation-hint`, `launch-mint-cost`, `launch-art-prep`, `launch-collectionName`, `launch-collectionUri`, `launch-traitRoot`, `launch-schemaHash`, `launch-art-example`, `launch-reroll-note`, `launch-review-curve`, `launch-review-decimals`, `launch-review-art`, `launch-review-deposit`, `launch-review-launch-fee`, `launch-commit-art`, `math-split`, `pending-chip`, `capture-cost-setup` / `reroll-cost-setup`, `key-custody-rule`.
 
 ## Transaction safety pipeline (`src/lib/tx`)
 

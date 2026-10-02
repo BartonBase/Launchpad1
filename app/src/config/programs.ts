@@ -21,7 +21,10 @@
  *    is the vault PDA, so a direct Switchboard randomnessReveal can't be signed by anyone else).
  *  - Meteora DBC dbcij3L…: docs.meteora.ag/developer-guides/dbc ("same on mainnet and devnet")
  *    and github.com/MeteoraAg/dynamic-bonding-curve, 2026-10-01. Also pinned in
- *    hybrid_launch/src/dbc.rs. Top-level for the DBC launch path (initialize_virtual_pool_with_spl_token).
+ *    hybrid_launch/src/dbc.rs. Top-level for Plain launches (initialize_virtual_pool_with_spl_token), curve buys/sells (swap2)
+ *    and the hybrid DBC launch path.
+ *  - Meteora DAMM v2 cpamdpZ…: @meteora-ag/cp-amm-sdk CP_AMM_PROGRAM_ID and docs.meteora.ag (same on
+ *    devnet and mainnet); the ARMT devnet pool Azo9hp… is owned by it (checked 2026-10-02).
  *  - Metaplex Token Metadata metaqbx… (DBC CPI) and the Address Lookup Table program (Switchboard
  *    CPI at init_randomness): well-known IDs, listed in the Meteora SDK reference / web3.js.
  */
@@ -50,6 +53,8 @@ export const MPL_CORE_PROGRAM_ID = pk("CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNh
 export const SWITCHBOARD_PROGRAM_ID = pk("Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2");
 export const SWITCHBOARD_DEVNET_QUEUE = pk("EYiAmGSdsQTuCw413V5BzaruWuCCSDgTPtBGvLkXHbe7");
 export const DBC_PROGRAM_ID = pk("dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN");
+/** Meteora DAMM v2 (cp-amm): where a graduated DBC curve migrates. Same ID on devnet and mainnet (@meteora-ag/cp-amm-sdk CP_AMM_PROGRAM_ID). */
+export const DAMM_V2_PROGRAM_ID = pk("cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG");
 export const TOKEN_METADATA_PROGRAM_ID = pk("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 export const ADDRESS_LOOKUP_TABLE_PROGRAM_ID = pk("AddressLookupTab1e1111111111111111111111111");
 export const WRAPPED_SOL_MINT = pk("So11111111111111111111111111111111111111112");
@@ -77,7 +82,11 @@ const COMMON: readonly ProgramEntry[] = [
 ];
 
 /** Meteora DBC: top-level only on clusters where a platform DBC config is pinned (devnet). */
-const METEORA: readonly ProgramEntry[] = [{ id: DBC_PROGRAM_ID, name: "Meteora Dynamic Bonding Curve", kind: "dex", topLevel: true }];
+const METEORA: readonly ProgramEntry[] = [
+  { id: DBC_PROGRAM_ID, name: "Meteora Dynamic Bonding Curve", kind: "dex", topLevel: true },
+  // Swaps on a graduated launch's DAMM v2 pool (buy/sell after migration).
+  { id: DAMM_V2_PROGRAM_ID, name: "Meteora DAMM v2", kind: "dex", topLevel: true },
+];
 
 const ARMORY: readonly ProgramEntry[] = [
   { id: HYBRID_LAUNCH_PROGRAM_ID, name: "Armory hybrid_launch", kind: "armory", topLevel: true },

@@ -8,6 +8,7 @@ import { TrustStrip } from "./armory/TrustStrip";
 const NAV = [
   { href: "/explore", label: "Explore" },
   { href: "/launch", label: "Launch" },
+  { href: "/meteora", label: "Meteora" },
   { href: "/portfolio", label: "Portfolio" },
   { href: "/trust", label: "Trust" },
   { href: "/faq", label: "FAQ" },

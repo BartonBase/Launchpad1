@@ -169,6 +169,17 @@ body {
     border-radius: 50%;
     background: currentColor;
   }
+  /* Pending deploy (.chip.pd): dashed amber with a hollow dot */
+  .tag-pd {
+    color: var(--arm-color-status-warn-chip-text);
+    background: transparent;
+    border-style: dashed;
+    border-color: rgba(232, 176, 75, 0.4);
+  }
+  .tag-pd > i {
+    background: transparent;
+    border: 1.5px solid currentColor;
+  }
   /* Launch-type chip (.tchip) */
   .tchip {
     display: inline-flex;

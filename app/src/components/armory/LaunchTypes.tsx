@@ -17,7 +17,7 @@ export function LaunchTypes() {
           <>
             <div className="flex items-center justify-between gap-2">
               <h4 className="flex items-center gap-2 font-semibold"><TypeIcon type={t.id} />{t.name}</h4>
-              <span className={`tag ${st === "live" ? "tag-ok" : soon ? "tag-soon" : "tag-demo"}`}>{STATUS_LABEL[st]}</span>
+              <span className={`tag ${st === "live" ? "tag-ok" : soon ? "tag-soon" : "tag-pd"}`}>{!soon && <i />}{STATUS_LABEL[st]}</span>
             </div>
             <p className="text-sm">{t.short}</p>
             <p className="text-muted text-sm">{t.description}</p>

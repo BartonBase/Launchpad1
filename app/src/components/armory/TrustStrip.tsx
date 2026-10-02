@@ -4,7 +4,7 @@
  * accessible.
  */
 import Link from "next/link";
-import { BETA_DEPOSIT_CAP } from "@/config/armory";
+import { BETA_DEPOSIT_CAP, DEPOSIT_CAP_TAG } from "@/config/armory";
 import { CLUSTER } from "@/config/cluster";
 import { AuthoritiesPanel } from "./AuthoritiesPanel";
 
@@ -13,15 +13,15 @@ export function TrustStrip() {
     <div className="bbar" data-testid="trust-strip">
       <div className="mx-auto flex max-w-(--container-site) items-center gap-x-2 gap-y-1.5 px-4 py-1.5 whitespace-nowrap sm:flex-wrap sm:gap-x-4">
         <span className="tag tag-ua" data-testid="beta-label">
-          <i />Unaudited beta
+          <i />{CLUSTER.label} · Unaudited demo
         </span>
         <span className="hidden sm:inline">
-          Programs are <b>not audited</b> yet. {CLUSTER.label} only, test funds.
+          Programs are <b>not audited</b> yet. {CLUSTER.label} only: test SOL, no real value.
         </span>
         <span data-testid="deposit-cap">
           Deposit cap <b className="num">{BETA_DEPOSIT_CAP.sol} SOL per wallet</b>{" "}
           <span className="tag tag-demo hidden sm:inline-flex" title={BETA_DEPOSIT_CAP.note}>
-            Example
+            {DEPOSIT_CAP_TAG}
           </span>
         </span>
         <Link href="/trust" className="text-accent-text ml-auto font-medium sm:hidden">

@@ -3,16 +3,20 @@
  * every account a transaction touches, including ones loaded through a lookup table, so each table
  * the message references is fetched, validated and expanded here:
  *  - the table must be PINNED for the cluster (src/config/integrations.ts PINNED_LOOKUP_TABLES),
- *  - it must be frozen (no authority, so its contents can't change between preview and send),
+ *  - it must be frozen (no authority), or its on-chain contents must equal the pinned list
+ *    (PINNED_LOOKUP_TABLE_CONTENTS), so the indexes the message uses can't point anywhere else,
  *  - it must not be deactivated, and every index must be in range.
  * Anything else is a blocking error; the resolved keys are still returned so the user sees them.
  */
+import { PINNED_LOOKUP_TABLE_CONTENTS } from "@/config/integrations";
 import { PublicKey, type AddressLookupTableAccount, type Connection, type MessageAccountKeys, type VersionedMessage } from "@solana/web3.js";
 
 export interface LookupTableCheck {
   readonly address: string;
   readonly pinned: boolean;
   readonly frozen: boolean;
+  /** On-chain contents equal the pinned list for this table. */
+  readonly verified: boolean;
   readonly active: boolean;
   readonly found: boolean;
 }
@@ -28,11 +32,17 @@ export interface ResolvedLookups {
 export const NO_LOOKUPS: ResolvedLookups = { tables: [], accounts: [], writable: [], readonly: [], errors: [] };
 const U64_MAX = 18446744073709551615n;
 
+/** True when the table holds exactly the pinned addresses, in order. */
+export function contentsMatch(t: AddressLookupTableAccount, list: readonly string[] | undefined): boolean {
+  return !!list && t.state.addresses.length === list.length && t.state.addresses.every((k, i) => k.toBase58() === list[i]);
+}
+
 /** Pure validation of fetched tables against a message (exported for tests). */
 export function checkLookups(
   message: VersionedMessage,
   fetched: ReadonlyMap<string, AddressLookupTableAccount | null>,
   pinned: readonly PublicKey[],
+  expected: Readonly<Record<string, readonly string[]>> = PINNED_LOOKUP_TABLE_CONTENTS,
 ): ResolvedLookups {
   const lookups = message.addressTableLookups;
   if (lookups.length === 0) return NO_LOOKUPS;
@@ -50,6 +60,7 @@ export function checkLookups(
       pinned: pinnedSet.has(address),
       found: t !== null,
       frozen: t !== null && t.state.authority === undefined,
+      verified: t !== null && contentsMatch(t, expected[address]),
       active: t !== null && BigInt(t.state.deactivationSlot) === U64_MAX,
     };
     tables.push(check);
@@ -58,7 +69,8 @@ export function checkLookups(
       errors.push(`Lookup table ${address} was not found.`);
       continue;
     }
-    if (!check.frozen) errors.push(`Lookup table ${address} still has an authority, so its contents could change before sending.`);
+    if (expected[address] && !check.verified) errors.push(`Lookup table ${address} doesn't match its pinned contents.`);
+    if (!check.frozen && !expected[address]) errors.push(`Lookup table ${address} still has an authority and no pinned contents, so its contents could change before sending.`);
     if (!check.active) errors.push(`Lookup table ${address} is deactivated.`);
     const pick = (idx: readonly number[], into: PublicKey[]) => {
       for (const i of idx) {

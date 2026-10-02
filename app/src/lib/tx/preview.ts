@@ -3,6 +3,7 @@
  * transaction will do, derived ONLY from the static message + simulation.
  * It is what TxPreviewModal renders; nothing in it comes from page content.
  */
+import { friendlyProgramError, instructionCustomError } from "@/lib/armory/errors";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import type { ClusterConfig } from "@/config/cluster";
 import { lookupProgram } from "@/config/programs";
@@ -41,6 +42,7 @@ export interface PreviewLookupTable {
   readonly address: string;
   readonly pinned: boolean;
   readonly frozen: boolean;
+  readonly verified: boolean;
   readonly writable: readonly string[];
   readonly readonly: readonly string[];
 }
@@ -126,6 +128,9 @@ export function buildTxPreview(input: BuildPreviewInput): TxPreview {
   if (simulation === null) {
     errors.push("Simulation was not run because the transaction failed validation.");
   } else if (!simulation.ok) {
+    const ce = instructionCustomError(simulation.error);
+    const friendly = ce ? friendlyProgramError(view.instructions[ce.index]?.programId.toBase58() ?? "", ce.code) : null;
+    if (friendly) errors.push(friendly);
     errors.push(`Simulation failed: ${simulation.error ?? "unknown error"}`);
   }
   errors.push(...view.lookups.errors);
@@ -171,7 +176,7 @@ export function buildTxPreview(input: BuildPreviewInput): TxPreview {
       const lk = view.message.addressTableLookups[i];
       const acct = view.lookups.accounts.find((a) => a.key.toBase58() === t.address);
       const at = (idx: readonly number[]) => idx.map((j) => acct?.state.addresses[j]?.toBase58() ?? `#${j} (unresolved)`);
-      return { address: t.address, pinned: t.pinned, frozen: t.frozen, writable: lk ? at(lk.writableIndexes) : [], readonly: lk ? at(lk.readonlyIndexes) : [] };
+      return { address: t.address, pinned: t.pinned, frozen: t.frozen, verified: t.verified, writable: lk ? at(lk.writableIndexes) : [], readonly: lk ? at(lk.readonlyIndexes) : [] };
     }),
     solChanges,
     tokenChanges,

@@ -4,7 +4,7 @@
  * a clearly tagged placeholder. Never claims "immutable" for an upgradeable program.
  */
 import { explorerAddressUrl, CLUSTER } from "@/config/cluster";
-import { BETA_DEPOSIT_CAP, PROGRAM_UPGRADES_COPY } from "@/config/armory";
+import { BETA_DEPOSIT_CAP, DEPOSIT_CAP_TAG, PROGRAM_UPGRADES_COPY } from "@/config/armory";
 import { cachedRead } from "@/lib/armory/server";
 import { fetchProgramStatus } from "@/lib/armory/reads";
 import { shortAddr } from "@/lib/armory/format";
@@ -53,13 +53,13 @@ export async function AuthoritiesPanel({ compact = false }: { compact?: boolean 
         <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2">
           <span className="font-mono text-xs">Program upgrades</span>
           <span className="text-muted text-xs" data-testid="upgrades-copy">
-            {PROGRAM_UPGRADES_COPY.today} {PROGRAM_UPGRADES_COPY.planned} <span className="tag tag-demo ml-1">Planned, not set up</span>
+            {PROGRAM_UPGRADES_COPY.status}. {PROGRAM_UPGRADES_COPY.today} {PROGRAM_UPGRADES_COPY.planned} {PROGRAM_UPGRADES_COPY.after} <span className="tag tag-demo ml-1">Planned, not set up</span>
           </span>
         </li>
         <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2">
           <span className="font-mono text-xs">Deposit cap</span>
           <span className="text-muted text-xs">
-            {BETA_DEPOSIT_CAP.sol} SOL per wallet <span className="tag tag-demo ml-1">Placeholder, not enforced</span>
+            {BETA_DEPOSIT_CAP.sol} SOL per wallet <span className="tag tag-demo ml-1">{DEPOSIT_CAP_TAG}</span>
           </span>
         </li>
       </ul>

@@ -62,7 +62,9 @@ export function nextOracleStep(sim: Pick<SimulatedTransactionResponse, "err" | "
   }
   if (code === ERR_ORACLE_STALE) {
     const stale = [...cur.stale, cur.oracle];
-    const nextOracle = candidates.find((c) => !stale.some((s) => s.equals(c)));
+    // Prefer the program's own answer ("Right:" key) when it names a non-stale oracle.
+    const right = rightKeyFromLogs(logs);
+    const nextOracle = right && !stale.some((s) => s.equals(right)) ? right : candidates.find((c) => !stale.some((s) => s.equals(c)));
     if (!nextOracle) return { kind: "stop", reason: "every queue oracle is stale" };
     return { kind: "retry", reason: "stale", next: { oracle: nextOracle, stale } };
   }
@@ -79,12 +81,16 @@ export interface OracleResolution<T> {
   readonly logs: readonly string[];
 }
 
-/** Build → simulate → follow the program's answer, up to `max` simulations. */
+/**
+ * Build → simulate → follow the program's answer until the simulation is clean. Each stale oracle
+ * is added to the remaining accounts; the loop ends when every queue oracle was tried (default
+ * cap: two simulations per candidate, enough for a WrongOracle hop after each stale one).
+ */
 export async function resolveOracle<T>(
   candidates: readonly PublicKey[],
   build: (s: OracleState) => Promise<T> | T,
   simulate: (built: T) => Promise<Pick<SimulatedTransactionResponse, "err" | "logs" | "unitsConsumed">>,
-  max = 6,
+  max = Math.max(6, candidates.length * 2 + 1),
 ): Promise<OracleResolution<T>> {
   if (candidates.length === 0) throw new Error("Switchboard queue has no oracles.");
   let state: OracleState = { oracle: candidates[0]!, stale: [] };

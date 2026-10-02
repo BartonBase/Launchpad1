@@ -31,10 +31,11 @@ describe("wizard math (NOTE.md)", () => {
     expect(wizardMath({ ...base, size: 500.5 }).sizeOk).toBe(false);
     expect(wizardMath({ ...base, size: Number.NaN }).sizeError).toBe("low");
   });
-  it("graduation target: T >= 85 (design floor), even where the chain allows less", () => {
+  it("graduation target: the cluster's chain minimum is the floor (devnet 0.1 SOL, production 10 SOL)", () => {
     expect(wizardMath({ ...base, targetLamports: 85n * SOL }).targetOk).toBe(true);
-    expect(wizardMath({ ...base, targetLamports: 84n * SOL }).targetOk).toBe(false);
-    expect(wizardMath({ ...base, targetLamports: SOL / 10n }).minTargetLamports).toBe(85n * SOL);
+    expect(wizardMath({ ...base, targetLamports: SOL / 10n }).targetOk).toBe(true);
+    expect(wizardMath({ ...base, targetLamports: SOL / 10n - 1n }).targetOk).toBe(false);
+    expect(wizardMath({ ...base, chainMinLamports: 10n * SOL, targetLamports: 9n * SOL }).minTargetLamports).toBe(10n * SOL);
     expect(wizardMath({ ...base, targetLamports: null }).valid).toBe(false);
   });
   it("plain: only T matters; no NFT side, no per-NFT fee", () => {
@@ -43,7 +44,8 @@ describe("wizard math (NOTE.md)", () => {
     expect(m.nftTokens).toBe(0n);
     expect(m.restTokens).toBe(1_000_000_000n);
     expect(m.feeLamports).toBeNull();
-    expect(wizardMath({ ...base, type: "plain", targetLamports: 10n * SOL }).valid).toBe(false);
+    expect(wizardMath({ ...base, type: "plain", targetLamports: MIN_GRADUATION_LAMPORTS.devnet - 1n }).valid).toBe(false);
+    expect(wizardMath({ ...base, type: "plain", targetLamports: 10n * SOL }).valid).toBe(true);
   });
   it("burn: same validity as hybrid; most that can burn = size x ratio, supply floor = 1B - that", () => {
     const m = wizardMath({ ...base, type: "burn", ratio: 1_000_000, size: 500 });

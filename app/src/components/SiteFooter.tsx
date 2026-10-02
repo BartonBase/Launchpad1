@@ -9,8 +9,8 @@ export function SiteFooter() {
         <div className="space-y-2">
           <p className="wordmark text-fg">{BRAND.name}</p>
           <p className="max-w-md">
-            Launch a Solana meme coin on its own, or with an NFT collection built in. Unaudited beta on {CLUSTER.label}:
-            test funds only.
+            Launch a Solana meme coin on its own, or with an NFT collection built in, on Meteora&apos;s Dynamic Bonding Curve.
+            Unaudited demo on {CLUSTER.label}: test funds only, not financial advice.
           </p>
           <p className="text-dim font-mono text-xs">RPC {CLUSTER.rpcUrl}</p>
         </div>
@@ -18,6 +18,7 @@ export function SiteFooter() {
           <Link href="/explore" className="hover:text-fg">Explore</Link>
           <Link href="/launch" className="hover:text-fg">Launch a token</Link>
           <Link href="/portfolio" className="hover:text-fg">Portfolio</Link>
+          <Link href="/meteora" className="hover:text-fg">Built on Meteora</Link>
         </nav>
         <nav aria-label="Trust" className="flex flex-col gap-1.5">
           <Link href="/trust" className="hover:text-fg">Trust &amp; security</Link>

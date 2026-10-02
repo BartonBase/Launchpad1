@@ -90,7 +90,8 @@ export function e2eLeafSource(n: number): LeafSource {
 
 /** Launch config (base58) -> leaf source, per cluster. Unknown launches have no manifest yet. */
 const SOURCES: Record<string, LeafSource> = {
-  FKAzFsdDGShgtiMntihnM6BUd8D6fDNMYsUut6en2kYD: e2eLeafSource(100), // devnet E2E launch (mint 3GC9zF…)
+  AGVZd96xUp1WSadGY6TWwsZi6C5CzY7aNsk6fHm66F6m: e2eLeafSource(100), // devnet test launch "Armory Test" (ARMT, mint Dhv3Vk…)
+  FKAzFsdDGShgtiMntihnM6BUd8D6fDNMYsUut6en2kYD: e2eLeafSource(100), // earlier devnet E2E launch (mint 3GC9zF…)
 };
 export function leafSourceFor(launchConfig: PublicKey): LeafSource | null {
   return SOURCES[launchConfig.toBase58()] ?? null;

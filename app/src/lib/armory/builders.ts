@@ -7,6 +7,7 @@ import {
   ComputeBudgetProgram,
   Keypair,
   PublicKey,
+  SystemProgram,
   Transaction,
   TransactionMessage,
   VersionedTransaction,
@@ -15,26 +16,30 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 import { CLUSTER } from "@/config/cluster";
-import { DBC_PLATFORM_CONFIG, PINNED_LOOKUP_TABLES } from "@/config/integrations";
-import { ADDRESS_LOOKUP_TABLE_PROGRAM_ID, DBC_PROGRAM_ID, SWITCHBOARD_PROGRAM_ID } from "@/config/programs";
+import { DBC_PLATFORM_CONFIG, PINNED_LOOKUP_TABLE_CONTENTS, PINNED_LOOKUP_TABLES } from "@/config/integrations";
+import { contentsMatch } from "@/lib/tx/lookup";
+import { ADDRESS_LOOKUP_TABLE_PROGRAM_ID, DBC_PROGRAM_ID, HYBRID_VAULT_PROGRAM_ID, SWITCHBOARD_DEVNET_QUEUE, SWITCHBOARD_PROGRAM_ID } from "@/config/programs";
 import { decodeDbcConfig, dbcPoolPda, initializeVirtualPoolWithSplTokenIx } from "@/lib/generated/dbc";
 import type { BuildResult } from "@/lib/tx/useSafeSend";
 import { leafSourceFor, type LeafSource } from "./leaves";
 import { resolveOracle, rightKeyFromLogs, type OracleState } from "./oracle";
 import { fetchReveal, type RevealFetcher } from "./reveal";
 import { isExactTierFee } from "@/config/armory";
-import { decodeLaunchConfig, launchIx, registerDbcLaunchIx, type LaunchParams } from "@/lib/generated/hybridLaunch";
+import { decodeLaunchConfig, launchConfigPda, launchIx, registerDbcLaunchIx, type LaunchParams } from "@/lib/generated/hybridLaunch";
 import {
   assetPda,
   decodeRequest,
   decodeVault,
   expireRequestIx,
   initRandomnessIx,
+  initVaultIx,
   requestCaptureIx,
   requestRerollIx,
   revealRandomnessIx,
   settleIx,
   unwrapIx,
+  vaultPoolBytes,
+  type InitVaultParams,
   type MintArgs,
   type Vault,
 } from "@/lib/generated/hybridVault";
@@ -109,7 +114,7 @@ export async function buildVrfRequestTx(
   user: PublicKey,
   vault: PublicKey,
   kind: { type: "capture" } | { type: "reroll"; index: number },
-  opts: { recentBlockhash?: string; /** tests only: start from a different candidate */ reorderCandidates?: (c: PublicKey[]) => PublicKey[] } = {},
+  opts: { recentBlockhash?: string; /** tests only: start from a different candidate */ reorderCandidates?: (c: PublicKey[]) => PublicKey[]; /** tests only: bundle init_randomness even if an idle account exists */ forceInitRandomness?: boolean } = {},
 ): Promise<VrfRequestBuild> {
   const v = await loadVault(conn, vault);
   await assertTierFee(conn, v);
@@ -119,7 +124,7 @@ export async function buildVrfRequestTx(
   const candidates = opts.reorderCandidates ? opts.reorderCandidates(ordered) : ordered;
   const signers: Keypair[] = [];
   const pre: TransactionInstruction[] = [];
-  let randomness = idle;
+  let randomness = opts.forceInitRandomness ? null : idle;
   if (!randomness) {
     const r = Keypair.generate();
     randomness = r.publicKey;
@@ -182,12 +187,13 @@ export interface SettleBuild {
   readonly lookupTables: readonly string[];
 }
 
-/** Lookup tables usable for settle: pinned for the cluster, frozen, active (validated, not trusted). */
+/** Lookup tables usable for settle: pinned for the cluster, frozen or matching their pinned contents, active (validated, not trusted). */
 async function pinnedTables(conn: Connection): Promise<AddressLookupTableAccount[]> {
   const out: AddressLookupTableAccount[] = [];
   for (const k of PINNED_LOOKUP_TABLES[CLUSTER.name]) {
     const t = (await conn.getAddressLookupTable(k)).value;
-    if (t && t.state.authority === undefined && t.isActive()) out.push(t);
+    const expected = PINNED_LOOKUP_TABLE_CONTENTS[k.toBase58()];
+    if (t && t.isActive() && (expected ? contentsMatch(t, expected) : t.state.authority === undefined)) out.push(t);
   }
   return out;
 }
@@ -290,4 +296,48 @@ export async function buildExpireTx(conn: Connection, caller: PublicKey, vault: 
 export function buildNativeLaunchTx(creator: PublicKey, params: LaunchParams): { tx: Transaction; signers: Keypair[]; mint: PublicKey } {
   const mint = Keypair.generate();
   return { tx: legacy(creator, [launchIx(creator, mint.publicKey, params)]), signers: [mint], mint: mint.publicKey };
+}
+
+/** Art commitment fields from the wizard (InitVaultParams minus the pinned Switchboard queue). */
+export type ArtCommitment = Omit<InitVaultParams, "sbQueue">;
+
+/**
+ * init_vault: commits the collection (name, content-addressed URI, trait root, schema hash) for an
+ * existing launch. The pool account is pre-created in the same tx with a fresh local keypair
+ * (e2e.cjs step 3). Signers: creator (wallet) + pool keypair.
+ */
+export async function buildInitVaultTx(
+  conn: Connection,
+  creator: PublicKey,
+  mint: PublicKey,
+  collectionSize: number,
+  art: ArtCommitment,
+  extraBefore: TransactionInstruction[] = [],
+): Promise<{ tx: Transaction; signers: Keypair[]; pool: PublicKey }> {
+  const pool = Keypair.generate();
+  const space = vaultPoolBytes(collectionSize);
+  const create = SystemProgram.createAccount({ fromPubkey: creator, newAccountPubkey: pool.publicKey, lamports: await conn.getMinimumBalanceForRentExemption(space), space, programId: HYBRID_VAULT_PROGRAM_ID });
+  const ix = initVaultIx({ creator, launchConfig: launchConfigPda(mint), mint, pool: pool.publicKey, params: { ...art, sbQueue: SWITCHBOARD_DEVNET_QUEUE } });
+  return { tx: legacy(creator, [CU_LIMIT, ...extraBefore, create, ix]), signers: [pool], pool: pool.publicKey };
+}
+
+export interface CurveSplit {
+  readonly curve: bigint; // whole tokens sold on the curve
+  readonly dex: bigint; // whole tokens set aside for the DEX pool
+  readonly buffer: bigint; // the rest (locked)
+  readonly pct: readonly [number, number, number];
+}
+/** Curve / DEX pool / locked buffer split from the pinned DBC config (devnet ≈ 55 / 20 / 25). */
+export async function fetchDbcCurveSplit(conn: Connection): Promise<CurveSplit | null> {
+  const k = DBC_PLATFORM_CONFIG[CLUSTER.name];
+  if (!k) return null;
+  const ci = await conn.getAccountInfo(k);
+  if (!ci) return null;
+  const c = decodeDbcConfig(new Uint8Array(ci.data));
+  const unit = 10n ** BigInt(c.tokenDecimal);
+  const total = c.preMigrationTokenSupply;
+  if (total === 0n) return null;
+  const buffer = total - c.swapBaseAmount - c.migrationBaseThreshold;
+  const pct = (x: bigint) => Math.round(Number((x * 1000n) / total) / 10);
+  return { curve: c.swapBaseAmount / unit, dex: c.migrationBaseThreshold / unit, buffer: buffer / unit, pct: [pct(c.swapBaseAmount), pct(c.migrationBaseThreshold), pct(buffer)] };
 }

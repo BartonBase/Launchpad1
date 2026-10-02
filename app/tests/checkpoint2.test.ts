@@ -30,6 +30,9 @@ describe("oracle retry steps", () => {
     expect(stale.kind === "retry" && stale.next.oracle.equals(b) && stale.next.stale[0]!.equals(a)).toBe(true);
     expect(nextOracleStep({ err: { InstructionError: [1, { Custom: 6053 }] }, logs: [] }, { oracle: b, stale: [a] }, [a, b]).kind).toBe("stop");
     expect(nextOracleStep({ err: null, logs: [] }, { oracle: a, stale: [] }, [a]).kind).toBe("done");
+    // 6053 with a Right: key follows the program's answer (skipping candidate order).
+    const rightStale = nextOracleStep({ err: { InstructionError: [1, { Custom: 6053 }] }, logs: ["Program log: Right:", `Program log: ${c.toBase58()}`] }, { oracle: a, stale: [] }, [a, b, c]);
+    expect(rightStale.kind === "retry" && rightStale.next.oracle.equals(c) && rightStale.next.stale[0]!.equals(a)).toBe(true);
   });
 });
 
@@ -68,6 +71,17 @@ describe("address lookup tables", () => {
     expect(checkLookups(m, new Map(), [table]).errors.join(" ")).toMatch(/not found/);
     const short = new AddressLookupTableAccount({ key: table, state: { ...alt.state, authority: undefined, addresses: [k0] } });
     expect(checkLookups(m, new Map([[table.toBase58(), short]]), [table]).errors.join(" ")).toMatch(/no entry #1/);
+  });
+  it("accepts a table with an authority only when its contents equal the pinned list", () => {
+    const { m, alt } = msg([k0, k1], pk());
+    const key = table.toBase58();
+    const ok = checkLookups(m, new Map([[key, alt]]), [table], { [key]: [k0.toBase58(), k1.toBase58()] });
+    expect(ok.errors).toEqual([]);
+    expect(ok.tables[0]!.verified).toBe(true);
+    const bad = checkLookups(m, new Map([[key, alt]]), [table], { [key]: [k1.toBase58(), k0.toBase58()] });
+    expect(bad.errors.join(" ")).toMatch(/doesn't match its pinned contents/);
+    const extra = checkLookups(m, new Map([[key, alt]]), [table], { [key]: [k0.toBase58()] });
+    expect(extra.errors.join(" ")).toMatch(/pinned contents/);
   });
 });
 

@@ -31,12 +31,17 @@ export interface DbcConfigView {
   readonly tokenDecimal: number;
   readonly tokenType: number;
   readonly migrationQuoteThreshold: bigint;
+  /** Base units sold on the curve, set aside for the DEX pool, and total supply before migration. */
+  readonly swapBaseAmount: bigint;
+  readonly migrationBaseThreshold: bigint;
+  readonly preMigrationTokenSupply: bigint;
 }
 export function decodeDbcConfig(data: Uint8Array): DbcConfigView {
   if (data.length !== DBC_CONFIG_LEN) throw new Error("Not a DBC PoolConfig (length)");
   for (let i = 0; i < 8; i++) if (data[i] !== DBC_CONFIG_DISCRIMINATOR[i]) throw new Error("Not a DBC PoolConfig");
   const v = new DataView(data.buffer, data.byteOffset, data.byteLength);
-  return { quoteMint: new PublicKey(data.slice(8, 40)), tokenDecimal: data[235]!, tokenType: data[237]!, migrationQuoteThreshold: v.getBigUint64(264, true) };
+  return { quoteMint: new PublicKey(data.slice(8, 40)), tokenDecimal: data[235]!, tokenType: data[237]!, migrationQuoteThreshold: v.getBigUint64(264, true),
+    swapBaseAmount: v.getBigUint64(256, true), migrationBaseThreshold: v.getBigUint64(272, true), preMigrationTokenSupply: v.getBigUint64(344, true) };
 }
 
 /** `initialize_virtual_pool_with_spl_token(name, symbol, uri)`: DBC creates the mint (fresh keypair,

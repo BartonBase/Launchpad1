@@ -3,7 +3,6 @@
  * (render()) and NOTE.md "Wizard math". Pure; unit-tested in tests/wizardMath.test.ts.
  */
 import {
-  DESIGN_MIN_GRADUATION_LAMPORTS,
   LAMPORTS_PER_SOL,
   MIN_COLLECTION_SIZE,
   TOTAL_SUPPLY_WHOLE,
@@ -17,10 +16,8 @@ export type WizardType = "plain" | "hybrid" | "burn";
 export const EXAMPLE_LAUNCH_PRICE_SOL = 2.8e-8;
 export const EXAMPLE_GRADUATION_PRICE_SOL = 5.7e-7;
 export const EXAMPLE_SOL_USD = 150;
-/** Example Plain split (set by the approved DBC config): 800M curve / 200M DEX pool. */
-export const EXAMPLE_CURVE_SPLIT = { curve: 800_000_000n, dex: 200_000_000n } as const;
-/** Burn pays the mint directly every burn (NOTE.md "≈0.005 SOL"). Display estimate only. */
-export const BURN_MINT_COST_ESTIMATE_LAMPORTS = 5_000_000n;
+/** Fallback split while the DBC config loads (devnet config DuQYHUC…: 55% curve / 20% DEX / 25% locked). */
+export const FALLBACK_CURVE_SPLIT = { curve: 550_000_000n, dex: 200_000_000n, buffer: 250_000_000n, pct: [55, 20, 25] as const } as const;
 
 export interface WizardInput {
   readonly type: WizardType;
@@ -50,7 +47,7 @@ export interface WizardMath {
 }
 
 export function wizardMath(i: WizardInput): WizardMath {
-  const minTargetLamports = i.chainMinLamports > DESIGN_MIN_GRADUATION_LAMPORTS ? i.chainMinLamports : DESIGN_MIN_GRADUATION_LAMPORTS;
+  const minTargetLamports = i.chainMinLamports; // the cluster's chain minimum is the source of truth
   const targetOk = i.targetLamports !== null && i.targetLamports >= minTargetLamports;
   const maxSize = maxCollectionSize(i.ratio);
   const sizeError = !(i.size >= MIN_COLLECTION_SIZE) ? "low" : i.size > maxSize ? "high" : null;

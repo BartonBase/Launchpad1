@@ -7,14 +7,16 @@
  * picked NFT when the launch has a traits manifest); both go through the same safe-send preview.
  */
 import { useMemo, useState } from "react";
+import { CLUSTER } from "@/config/cluster";
+import { NO_CURVE_MESSAGE } from "@/lib/armory/errors";
 import { PublicKey } from "@solana/web3.js";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { MINT_ESCROW_LAMPORTS, RAND_LOCK_ACCOUNT_BYTES, REQUEST_ACCOUNT_BYTES, tierFeeLamports } from "@/config/armory";
+import { CORE_CREATE_FEE_LAMPORTS, FIRST_MINT_ASSET_BYTES_RANGE, MINT_ESCROW_LAMPORTS, RANDOMNESS_SETUP_ACCOUNT_BYTES, RAND_LOCK_ACCOUNT_BYTES, REQUEST_ACCOUNT_BYTES, tierFeeLamports } from "@/config/armory";
 import { useChainRead } from "@/hooks/useChain";
 import { buildCaptureTx, buildExpireTx, buildRerollTx, buildRevealTx, buildSettleTx, buildUnwrapTx } from "@/lib/armory/builders";
 import { checkBalance, estimateRentExempt, requestCost } from "@/lib/armory/fees";
 import { formatSol, formatTokens, shortAddr } from "@/lib/armory/format";
-import { fetchHoldings, fetchUserRequests, type LaunchDTO } from "@/lib/armory/reads";
+import { fetchHoldings, fetchUserRequests, findIdleRandomness, type LaunchDTO } from "@/lib/armory/reads";
 import { useSafeSend, type BuildFn } from "@/lib/tx/useSafeSend";
 import { TxPreviewModal } from "@/components/TxPreviewModal";
 import { CostBreakdown } from "./CostBreakdown";
@@ -56,18 +58,24 @@ export function HybridPanels({ launch, initialPanel = null }: { launch: LaunchDT
   const holdings = useChainRead(user && `hold:${user}:${launch.mint}`, (c) => fetchHoldings(c, new PublicKey(user!), launch), nonce);
   const requests = useChainRead(user && launch.vault ? `rq:${user}:${launch.vault}` : null, (c) => fetchUserRequests(c, new PublicKey(user!), launch.vault!), nonce);
   const slot = useChainRead(user ? "slot" : null, (c) => c.getSlot(), nonce);
+  // Rent from the cluster (devnet rent is lower than mainnet): temp accounts, randomness setup, first-mint range.
   const rent = useChainRead("rent:request", async (c) => {
-    const [a, b] = await Promise.all([c.getMinimumBalanceForRentExemption(REQUEST_ACCOUNT_BYTES), c.getMinimumBalanceForRentExemption(RAND_LOCK_ACCOUNT_BYTES)]);
-    return BigInt(a + b);
+    const r = (n: number) => c.getMinimumBalanceForRentExemption(n).then(BigInt);
+    const [a, b, s0, s1, s2, m0, m1] = await Promise.all([REQUEST_ACCOUNT_BYTES, RAND_LOCK_ACCOUNT_BYTES, ...RANDOMNESS_SETUP_ACCOUNT_BYTES, ...FIRST_MINT_ASSET_BYTES_RANGE].map(r));
+    return { temp: a! + b!, setup: s0! + s1! + s2!, firstMint: [m0! + CORE_CREATE_FEE_LAMPORTS, m1! + CORE_CREATE_FEE_LAMPORTS] as const };
   });
+  const idle = useChainRead(vault ? `idle:${launch.vault}` : null, (c) => findIdleRandomness(c, vault!), nonce);
   const cost = useMemo(
     () =>
       requestCost({
         tierFeeLamports: BigInt(launch.feeLamports), // read from chain (LaunchConfig.fee_lamports)
-        tempRentLamports: rent.data ?? estimateRentExempt(REQUEST_ACCOUNT_BYTES) + estimateRentExempt(RAND_LOCK_ACCOUNT_BYTES),
+        tempRentLamports: rent.data?.temp ?? estimateRentExempt(REQUEST_ACCOUNT_BYTES) + estimateRentExempt(RAND_LOCK_ACCOUNT_BYTES),
         depositLamports: MINT_ESCROW_LAMPORTS,
+        // Only when the vault has no free randomness account (init_randomness gets bundled).
+        setupLamports: idle.data === null ? (rent.data?.setup ?? RANDOMNESS_SETUP_ACCOUNT_BYTES.reduce((n, b) => n + estimateRentExempt(b), 0n)) : 0n,
+        firstMintRange: rent.data?.firstMint,
       }),
-    [launch.feeLamports, rent.data],
+    [launch.feeLamports, rent.data, idle.data],
   );
   let expectedTier: bigint | null = null;
   try {
@@ -79,7 +87,7 @@ export function HybridPanels({ launch, initialPanel = null }: { launch: LaunchDT
   const nfts = holdings.data?.nftIndexes ?? [];
   const tokenBase = holdings.data?.tokenBase;
   const solShort = balance.data !== undefined && !checkBalance(balance.data, cost).ok;
-  const common = !launch.vaultOpen ? (launch.state === "native" ? "This native devnet test launch has no curve, so converting can never open." : "Converting opens when the token graduates.") : !connected ? "Connect a wallet to convert." : null;
+  const common = !launch.vaultOpen ? (launch.state === "native" ? NO_CURVE_MESSAGE : "Converting opens when the token graduates.") : !connected ? "Connect a wallet to convert." : null;
   const tierBlock = !launch.feeIsExactTier
     ? `Stored fee ${formatSol(launch.feeLamports)} isn't the exact tier for this ratio${expectedTier !== null ? ` (${formatSol(expectedTier)})` : ""}. Capturing is disabled.`
     : null;
@@ -147,12 +155,12 @@ export function HybridPanels({ launch, initialPanel = null }: { launch: LaunchDT
               <div className="bg-surface-2 rounded-panel border-border border p-4">
                 <p className="text-muted text-xs">You receive</p>
                 <p className="text-2xl font-semibold">1 NFT</p>
-                <p className="text-dim text-xs">Picked by Switchboard VRF · takes a few seconds</p>
+                <p className="text-dim text-xs">Picked with Switchboard randomness · takes a few seconds</p>
               </div>
               <dl>
                 <div className="fact"><dt>Rate</dt><dd>{ratioLabel} = 1 NFT</dd></div>
                 <div className="fact"><dt>Platform fee</dt><dd data-testid="convert-fee">{formatSol(launch.feeLamports)}</dd></div>
-                <div className="fact"><dt>Mint deposit (refundable)</dt><dd>{formatSol(cost.deposit)}</dd></div>
+                <div className="fact"><dt>Mint deposit</dt><dd>{formatSol(cost.deposit, 4)}, refunded except ≈ {formatSol(cost.firstMintRange[0], 4).replace(" SOL", "")}–{formatSol(cost.firstMintRange[1], 4)} if minted new</dd></div>
                 <div className="fact"><dt>Tokens taken</dt><dd>None</dd></div>
               </dl>
               {blocked(captureBlock === "Not enough SOL (see above)." ? null : captureBlock, "capture-entry")}
@@ -177,7 +185,7 @@ export function HybridPanels({ launch, initialPanel = null }: { launch: LaunchDT
                 </div>
               </div>
               <CostBreakdown prefix="capture" cost={cost} balance={connected ? balance.data : undefined} feeContext={`Set for ${name} at launch (${ratioLabel} ratio)`} />
-              <Steps items={[["Sign in your wallet", `Locks ${ratioLabel} tokens and pays the fee + deposit`], ["Randomness arrives", "Switchboard VRF picks your NFT, usually within seconds"], ["Your NFT is revealed", "Minted to your wallet if it's new; the unused deposit comes back"]]} />
+              <Steps items={[["Sign in your wallet", `Locks ${ratioLabel} tokens and pays the fee + deposit`], ["Randomness arrives", "Switchboard On-Demand picks your NFT, usually within seconds; anyone can trigger the reveal and settle"], ["Your NFT is revealed", "Minted to your wallet if it's new; the unused deposit comes back"]]} />
               {blocked(captureBlock, "capture")}
               <div className="flex gap-3">
                 <button type="button" className="btn btn-primary btn-lg flex-1" disabled={captureBlock !== null || safeSend.busy || !vault} onClick={() => run(({ connection, payer }) => buildCaptureTx(connection, payer, vault!))} data-testid="capture-submit">
@@ -200,7 +208,7 @@ export function HybridPanels({ launch, initialPanel = null }: { launch: LaunchDT
                 <p className="num text-2xl font-semibold">{ratioLabel}</p>
               </div>
               <dl data-testid="release-cost">
-                {["Platform fee", "Mint cost", "Randomness", "Tokens taken"].map((k) => (
+                {["Platform fee", "Mint cost", "Tokens taken"].map((k) => (
                   <div key={k} className="fact"><dt>{k}</dt><dd>None</dd></div>
                 ))}
                 <div className="fact"><dt>Network fee</dt><dd>Shown in the preview</dd></div>
@@ -216,19 +224,20 @@ export function HybridPanels({ launch, initialPanel = null }: { launch: LaunchDT
           {safeSend.status === "error" && !safeSend.preview && <p role="alert" className="text-negative text-sm break-words" data-testid="convert-error">{safeSend.error}</p>}
           {safeSend.status === "success" && (
             <div role="status" className="tag-ok rounded-panel border p-3 text-sm" data-testid="convert-success">
-              Submitted. Waiting for randomness and settle where applicable.{" "}
+              Submitted. Waiting for Switchboard randomness, then reveal and settle (anyone can trigger both).{" "}
               <button type="button" className="underline" onClick={() => setNonce((n) => n + 1)}>Refresh</button>
             </div>
           )}
           {(requests.data?.length ?? 0) > 0 && (
             <div className="space-y-1" data-testid="pending-requests">
               <p className="eyebrow">Your pending requests</p>
+              <p className="text-dim text-xs">Randomness comes from Switchboard On-Demand ({CLUSTER.label}). Reveal and settle are permissionless: anyone can trigger them, including you.</p>
               <ul className="text-sm">
                 {requests.data!.map((r) => {
                   const expired = slot.data !== undefined && !r.revealed && BigInt(slot.data) > BigInt(r.deadlineSlot);
                   return (
                     <li key={r.address} className="fact" data-testid={`pending-request-${r.seq}`}>
-                      <span>#{r.seq} · {r.kind === "capture" ? "Capture" : "Re-roll"} · <span className="text-muted">{r.revealed ? "Revealed, waiting for settle" : expired ? "Expired" : "Waiting for randomness"}</span></span>
+                      <span>#{r.seq} · {r.kind === "capture" ? "Capture" : "Re-roll"} · <span className="text-muted">{r.revealed ? "Switchboard revealed, waiting for settle" : expired ? "Expired" : "Waiting for Switchboard randomness"}</span></span>
                       {!expired && !r.revealed && (
                         <button type="button" className="btn btn-sm" disabled={safeSend.busy} onClick={() => run(({ connection, payer }) => buildRevealTx(connection, payer, new PublicKey(r.address)))} data-testid={`reveal-${r.seq}`}>
                           Reveal
@@ -266,7 +275,7 @@ export function HybridPanels({ launch, initialPanel = null }: { launch: LaunchDT
             <p className="border-accent-border bg-accent-tint text-accent-text rounded-panel border p-3 text-sm">Tokens available to convert: {(tokenBase / ratioBase).toString()} NFTs</p>
           )}
           <div className="grid grid-cols-2 gap-2">
-            <div className="bg-surface-2 rounded-panel border-border border p-3"><p className="text-muted text-xs">Captured so far</p><p className="num text-xl font-semibold">{launch.mintedCount}</p><p className="text-dim text-xs">of {launch.collectionSize}</p></div>
+            <div className="bg-surface-2 rounded-panel border-border border p-3"><p className="text-muted text-xs">Minted so far</p><p className="num text-xl font-semibold">{launch.mintedCount}</p><p className="text-dim text-xs">of {launch.collectionSize}</p></div>
             <div className="bg-surface-2 rounded-panel border-border border p-3"><p className="text-muted text-xs">Not yet minted</p><p className="num text-xl font-semibold">{launch.collectionSize - launch.mintedCount}</p><p className="text-dim text-xs">minted on capture</p></div>
           </div>
         </section>
@@ -284,7 +293,7 @@ export function HybridPanels({ launch, initialPanel = null }: { launch: LaunchDT
               <h3 className="font-semibold">Re-roll {rerollPick !== null ? `#${String(rerollPick).padStart(4, "0")}` : "an NFT"}</h3>
               <p className="text-muted text-xs">Swap it for a different random NFT. The pick can be one not minted yet; the result may be more common. It still converts back for exactly {ratioLabel} tokens.</p>
               <CostBreakdown prefix="reroll" cost={cost} balance={connected ? balance.data : undefined} feeContext="Same as a capture" />
-              <Steps items={[["Sign in your wallet", "The NFT goes back to the pool and you pay the fee + deposit"], ["Randomness arrives", "Switchboard VRF picks a different NFT"], ["Your new NFT is revealed", "Minted to your wallet if it's new"]]} />
+              <Steps items={[["Sign in your wallet", "The NFT goes back to the pool and you pay the fee + deposit"], ["Randomness arrives", "Switchboard On-Demand picks a different NFT; anyone can trigger the reveal and settle"], ["Your new NFT is revealed", "Minted to your wallet if it's new"]]} />
               {blocked(rerollBlock, "reroll")}
               <div className="flex gap-3">
                 <button type="button" className="btn btn-primary btn-lg flex-1" disabled={rerollBlock !== null || safeSend.busy || !vault} onClick={() => run(({ connection, payer }) => buildRerollTx(connection, payer, vault!, rerollPick!))} data-testid="reroll-submit">
@@ -300,7 +309,7 @@ export function HybridPanels({ launch, initialPanel = null }: { launch: LaunchDT
           <div className="bg-surface-2 rounded-panel border-border border p-4">
             <p className="text-muted text-xs">Floor = ratio × token price</p>
             <p className="num font-mono">{ratioLabel} × token price</p>
-            <p className="text-dim text-xs">Live token price comes with the Meteora DBC / DEX integration.</p>
+            <p className="text-dim text-xs">Live token price comes with the bonding-curve / DEX integration.</p>
           </div>
           <p className="text-sm"><b>Every NFT converts back for exactly {ratioLabel} tokens, whatever its rarity.</b> <span className="text-muted">Rarity is cosmetic; marketplace prices are set by buyers and sellers.</span></p>
         </section>

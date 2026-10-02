@@ -3,7 +3,7 @@ import Link from "next/link";
 import { PublicKey } from "@solana/web3.js";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useChainRead } from "@/hooks/useChain";
-import { BETA_DEPOSIT_CAP } from "@/config/armory";
+import { BETA_DEPOSIT_CAP, DEPOSIT_CAP_TAG } from "@/config/armory";
 import { fetchHoldings, fetchLaunches, fetchUserRequests } from "@/lib/armory/reads";
 import { formatSol, formatTokens, shortAddr } from "@/lib/armory/format";
 import { StateTag } from "./LaunchCard";
@@ -33,11 +33,11 @@ export function PortfolioView() {
         <div className="p-4"><dt className="text-muted text-xs">SOL · {shortAddr(user, 4)}</dt><dd className="num text-xl font-semibold" data-testid="portfolio-sol">{formatSol(d.sol, 4)}</dd></div>
         <div className="border-border p-4 md:border-l"><dt className="text-muted text-xs">Tokens held</dt><dd className="num text-xl font-semibold">{d.rows.filter((r) => r.h.tokenBase > 0n).length}</dd></div>
         <div className="border-border p-4 md:border-l"><dt className="text-muted text-xs">Hybrid NFTs</dt><dd className="num text-xl font-semibold">{nftCount}</dd></div>
-        <div className="border-border p-4 md:border-l"><dt className="text-muted text-xs">Burn NFTs</dt><dd className="text-xl font-semibold"><span className="tag tag-demo">Pending deploy</span></dd></div>
+        <div className="border-border p-4 md:border-l"><dt className="text-muted text-xs">Burn NFTs</dt><dd className="text-xl font-semibold"><span className="tag tag-soon">Coming soon</span></dd></div>
       </dl>
       <div className="capslot" data-testid="portfolio-capslot">
         <span className="tag tag-ua">Unaudited beta</span> Deposit cap usage: <b>— of {BETA_DEPOSIT_CAP.sol} SOL</b>
-        <span className="tag tag-demo" title={BETA_DEPOSIT_CAP.note}>Example, not enforced</span>
+        <span className="tag tag-demo" title={BETA_DEPOSIT_CAP.note}>{DEPOSIT_CAP_TAG}</span>
       </div>
       <section className="card overflow-x-auto" aria-labelledby="pos-h">
         <h2 id="pos-h" className="border-border border-b p-4 font-semibold">Positions</h2>
@@ -87,7 +87,7 @@ export function PortfolioView() {
             {d.requests.map((r) => (
               <li key={r.address} className="flex justify-between py-2">
                 <span>#{r.seq} · {r.kind}</span>
-                <span className="text-muted">{r.revealed ? "Waiting for settle" : "Waiting for randomness"} · deposit {formatSol(r.mintEscrowLamports, 4)}</span>
+                <span className="text-muted">{r.revealed ? "Switchboard revealed, waiting for settle" : "Waiting for Switchboard randomness"} · deposit {formatSol(r.mintEscrowLamports, 4)}</span>
               </li>
             ))}
           </ul>

@@ -13,9 +13,12 @@ export const TOTAL_SUPPLY_WHOLE = 1_000_000_000n;
 export const MIN_COLLECTION_SIZE = 100;
 export const MAX_COLLECTION_SIZE = 10_000;
 export const DEFAULT_GRADUATION_SOL = 85;
-/** Product rule from the wizard spec (NOTE.md: valid iff T >= 85). The UI floor is
- * max(this, on-chain cluster minimum); devnet's on-chain floor is lower (0.1 SOL test build). */
-export const DESIGN_MIN_GRADUATION_LAMPORTS = 85_000_000_000n;
+/**
+ * Design copy (NOTE.md 10/1): "Default 85 SOL · minimum 10 SOL". 10 SOL is the production build's
+ * MIN_GRADUATION_THRESHOLD_LAMPORTS; validation always uses the active cluster's chain minimum
+ * (MIN_GRADUATION_LAMPORTS below), which is 0.1 SOL on devnet.
+ */
+export const PRODUCTION_MIN_GRADUATION_LAMPORTS = 10_000_000_000n;
 /**
  * Minimum graduation threshold accepted by the DEPLOYED hybrid_launch build, per cluster.
  * Devnet runs the devnet-e2e test build: 0.1 SOL (README in src/lib/generated/idl; the constant
@@ -65,11 +68,34 @@ export function maxCollectionSize(ratio: number): number {
 export const MINT_ESCROW_LAMPORTS = 6_338_100n;
 /** Real first-mint spend range (ADR-018 / CD Q1, mainnet-rate figures): ~0.0031–0.0044 SOL. */
 export const FIRST_MINT_SPEND_RANGE_LAMPORTS = [3_066_000n, 4_353_600n] as const;
+/** Shared copy (NOTE.md 10/1 chain alignment). Live figures come from chain where available. */
+const sol4 = (l: bigint) => (Number(l) / 1e9).toFixed(4); // 6,338,100 -> "0.0063"
+/** FIRST_MINT_SPEND_RANGE_LAMPORTS (0.0031–0.0044) rounded down to the design's "≈ 0.003–0.004". */
+export const FIRST_MINT_RANGE_TEXT = "≈ 0.003–0.004 SOL";
+export const mintDepositText = (depositLamports: bigint = MINT_ESCROW_LAMPORTS, firstMint?: readonly [bigint, bigint]) =>
+  `Mint deposit ${sol4(depositLamports)} SOL, refunded except ${firstMint ? `≈ ${sol4(firstMint[0])}–${sol4(firstMint[1])} SOL` : FIRST_MINT_RANGE_TEXT} if your NFT is minted for the first time`;
+export const BURN_MINT_TEXT = `${FIRST_MINT_RANGE_TEXT}, paid directly by the burner (no deposit)`;
+export const DEPOSIT_CAP_TAG = "Example · not enforced yet";
+
 /** Base signature fee; the preview replaces it with getFeeForMessage when available. */
 export const BASE_TX_FEE_LAMPORTS = 5_000n;
 /** Account sizes (bytes incl. 8-byte discriminator) for rent that is refunded at settle/expire. */
 export const REQUEST_ACCOUNT_BYTES = 304;
 export const RAND_LOCK_ACCOUNT_BYTES = 49;
+/**
+ * One-time randomness setup, paid only when the vault has no free Switchboard randomness account
+ * (init_randomness is bundled): the 480-byte randomness account plus two Switchboard-owned accounts
+ * (165 and 152 bytes). Measured by simulation on devnet, 2026-10-01: 5,999,480 lamports at devnet
+ * rent. Not refunded; the account stays with the vault and is reused by later requests.
+ */
+export const RANDOMNESS_SETUP_ACCOUNT_BYTES = [480, 165, 152] as const;
+/**
+ * First-mint spend = rent for the new Core asset + the Metaplex Core create fee (kept in the asset).
+ * The asset is ~97–282 bytes depending on name/URI; devnet settle measured 2,658,240 lamports
+ * (100 bytes at devnet rent + 1,500,000). FIRST_MINT_SPEND_RANGE_LAMPORTS is the same at mainnet rent.
+ */
+export const FIRST_MINT_ASSET_BYTES_RANGE = [97, 282] as const;
+export const CORE_CREATE_FEE_LAMPORTS = 1_500_000n;
 
 /**
  * BETA DEPOSIT CAP — PLACEHOLDER. No cap exists on-chain yet (itinerary step 7/11; launch gate).
@@ -96,9 +122,9 @@ export interface LaunchType {
 }
 
 export const LAUNCH_TYPES: readonly LaunchType[] = [
-  { id: "plain", name: "Plain", short: "Just the coin", description: "A classic 1B memecoin on a bonding curve. No NFTs, no converter, no platform fee." },
+  { id: "plain", name: "Plain", short: "Just the coin", description: "A classic 1B memecoin on a Meteora bonding curve that graduates to a DAMM v2 pool. No NFTs, no converter, no platform fee." },
   { id: "hybrid", name: "Hybrid", short: "Coin and NFT, both ways", description: "Lock a fixed number of tokens to get a random NFT, and return the NFT for exactly those tokens, any time after graduation." },
-  { id: "burn", name: "Burn", short: "Burn coins to mint an NFT", description: "Burn a fixed number of tokens to mint the next NFT in the collection. One-way: the tokens are gone and the NFT can't be turned back." },
+  { id: "burn", name: "Burn", short: "Burn coins to mint an NFT", description: "Burn a fixed number of tokens to mint the next NFT in the collection. One-way: the tokens are gone and the NFT can't be turned back. Can't be launched yet." },
   { id: "tax", name: "Tax split", short: "Transfer tax to NFT holders", description: "A transfer fee, fixed at launch, shared with NFT holders. Can't be launched yet." },
   { id: "raffle", name: "Raffle", short: "Tax-funded holder raffle", description: "A transfer fee builds a round pot that one holder wins. Can't be launched yet." },
 ];
@@ -110,18 +136,26 @@ export const LAUNCH_TYPES: readonly LaunchType[] = [
 export const FF_TAX_RAFFLE = process.env.NEXT_PUBLIC_FF_TAX_RAFFLE === "1";
 
 /**
- * Which launch modes are DEPLOYED per cluster. Devnet (confirmed by the Solana Program Engineer
- * 2026-10-01 and by simulating each discriminator: launch_plain / launch_burn hit Anchor's
- * InstructionFallbackNotFound): hybrid only. Plain and burn live on branch fix/modes-1-5 @ c43be58,
- * no deploy date.
+ * Which launch modes can be LAUNCHED per cluster.
+ * - Hybrid: the deployed hybrid_launch / hybrid_vault programs.
+ * - Plain (devnet, 2026-10-02): straight on Meteora DBC with the official SDK against the platform
+ *   config DuQYHUC… (initialize_virtual_pool_with_spl_token; config: fixed 1B supply, mint authority
+ *   revoked, immutable metadata, leftover to the locked ["dbc_buffer"] PDA, migrates to DAMM v2).
+ *   No Armory program is needed, so the undeployed launch_plain is not used.
+ *   Verified on devnet: plain launch 4awRSUS5…, buy F31NFAf6…, sell tXVXFGjw….
+ * - Burn: launch_burn is not deployed (InstructionFallbackNotFound on devnet), so it is "Coming
+ *   soon" everywhere, like Tax split and Raffle.
  */
 export const DEPLOYED_MODES: Record<ClusterName, readonly LaunchTypeId[]> = {
   localnet: ["hybrid"],
-  devnet: ["hybrid"],
+  devnet: ["hybrid", "plain"],
 };
 
+/** Modes shown as "Coming soon" on every cluster (no builders / programs not deployed). */
+export const COMING_SOON_MODES: readonly LaunchTypeId[] = ["burn", "tax", "raffle"];
+
 export function launchTypeStatus(id: LaunchTypeId, cluster: ClusterName): LaunchTypeStatus {
-  if (id === "tax" || id === "raffle") return "coming-soon"; // regardless of FF: no builders exist
+  if (COMING_SOON_MODES.includes(id)) return "coming-soon"; // regardless of FF: no builders exist
   return DEPLOYED_MODES[cluster].includes(id) ? "live" : "pending-deploy";
 }
 
@@ -131,12 +165,13 @@ export const STATUS_LABEL: Record<LaunchTypeStatus, string> = {
   "coming-soon": "Coming soon",
 };
 
-/**
- * Program-upgrade copy for the Trust page and the Authorities panel (CD, 2026-10-01).
- * PENDING APPROVAL: Barton has not approved this wording yet. Keep it in this one constant so
- * it can be changed in one place.
- */
+/** Program-upgrade copy for the Trust page, FAQ and Authorities panel (approved by Barton, 2026-10-01). */
 export const PROGRAM_UPGRADES_COPY = {
-  today: "Today on devnet: one development key per program.",
-  planned: "Planned for mainnet: 3-of-5 multisig, 7-day public delay.",
+  status: "Not locked yet",
+  today: "Today: one development key per program.",
+  planned: "Planned for mainnet: a 3-of-5 multisig plus a 7-day public delay.",
+  after: "Frozen after the audit.",
 } as const;
+
+/** Approved key-custody rule (Barton, 2026-10-01). Shown verbatim on the Trust page. */
+export const KEY_CUSTODY_RULE = "No AI agent holds mainnet keys. Mainnet keys are held by humans only.";

@@ -133,7 +133,7 @@ export function useSafeSend(): SafeSend {
 
         set("validating");
         const validation = validateInstructions(tx, CLUSTER.name);
-        // v0: fetch + validate every referenced lookup table (pinned, frozen) and expand it, so the
+        // v0: fetch + validate every referenced lookup table (pinned; frozen or contents match the pinned list) and expand it, so the
         // preview lists and diffs ALT-loaded accounts instead of hiding them.
         const lookups = await resolveLookups(connection, toVersionedMessage(tx), PINNED_LOOKUP_TABLES[CLUSTER.name]);
         const view = viewMessage(tx, lookups);

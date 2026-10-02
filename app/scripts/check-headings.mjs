@@ -4,7 +4,7 @@
  * heading level. Runs against a running server: node scripts/check-headings.mjs [baseUrl]
  */
 const base = process.argv[2] ?? "http://localhost:3000";
-const M = "3GC9zFWzE2fVTFM7Q9Zo3BqCUArPYQEK57UVv4zvpJAu";
+const M = "Dhv3VkqeTYJiahzcVJLmJ1snApdYtQxsAKeUnv5GTNos"; // devnet test launch "Armory Test" (ARMT)
 const routes = ["/", "/explore", "/launch", "/launch?type=plain", "/launch?type=burn", "/portfolio", "/trust", "/faq", "/bug-bounty",
   `/t/${M}`, `/t/${M}?panel=capture`, "/t/example-plain", "/t/example-burn", "/t/notamint"];
 let bad = 0;

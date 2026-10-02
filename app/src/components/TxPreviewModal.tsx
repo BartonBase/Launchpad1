@@ -253,8 +253,8 @@ function ModalBody({ safeSend, preview, error }: { safeSend: SafeSend; preview: 
                   <li key={t.address}>
                     <p>
                       Table <Mono>{t.address}</Mono>{" "}
-                      <span className={t.pinned && t.frozen ? "text-muted text-xs" : "text-negative text-xs"}>
-                        ({t.pinned ? "pinned" : "NOT pinned"}, {t.frozen ? "frozen" : "has an authority"})
+                      <span className={t.pinned && (t.frozen || t.verified) ? "text-muted text-xs" : "text-negative text-xs"}>
+                        ({t.pinned ? "pinned" : "NOT pinned"}, {t.frozen ? "frozen" : t.verified ? "contents match the pinned list" : "has an authority"})
                       </span>
                     </p>
                     <ul className="mt-1 space-y-0.5 pl-3">
